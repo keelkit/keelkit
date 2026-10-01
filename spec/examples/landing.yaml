@@ -1,0 +1,27 @@
+# Сайт-визитка: страницы, услуги и команда.
+spec_version: 1
+site:
+  name: studio-landing
+  languages: [en]
+modules:
+  images: v0
+content:
+  pages:
+    fields:
+      title: { type: string, required: true }
+      slug:  { type: slug, required: true }
+      body:  { type: richtext }
+    features: [sitemap]
+  services:
+    fields:
+      title:       { type: string, required: true }
+      description: { type: text }
+      price_from:  { type: int }
+      icon:        { type: image }
+      featured:    { type: bool }
+  team:
+    fields:
+      name:      { type: string, required: true }
+      role:      { type: string }
+      photo:     { type: image }
+      joined_on: { type: date }

@@ -1,0 +1,9 @@
+# expect: /site/languages: maxItems
+spec_version: 1
+site:
+  name: my-blog
+  languages: [ru, en]
+content:
+  pages:
+    fields:
+      title: { type: string }

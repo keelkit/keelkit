@@ -1,0 +1,12 @@
+# expect: /modules/search: additional properties
+spec_version: 1
+site:
+  name: my-blog
+  languages: [ru]
+modules:
+  images: v0
+  search: v0
+content:
+  pages:
+    fields:
+      title: { type: string }

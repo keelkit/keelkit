@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [images, reference]
+        module: [images, spec, reference]
     env:
       # Тулчейн берётся из go.work/go.mod (директива toolchain).
       GOTOOLCHAIN: auto
@@ -28,3 +28,8 @@ jobs:
         run: make lint MODULE=${{ matrix.module }}
       - name: Test
         run: make test MODULE=${{ matrix.module }}
+      - name: Test (GOWORK=off)
+        run: make test-isolated MODULE=${{ matrix.module }}
+      - name: Validate reference/site.yaml
+        if: matrix.module == 'spec'
+        run: make spec-validate FILE=reference/site.yaml

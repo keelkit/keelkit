@@ -1,0 +1,9 @@
+# expect: /content/pages/fields/title/unique: additional properties
+spec_version: 1
+site:
+  name: my-blog
+  languages: [ru]
+content:
+  pages:
+    fields:
+      title: { type: string, unique: true }

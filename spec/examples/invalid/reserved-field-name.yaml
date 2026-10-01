@@ -1,0 +1,10 @@
+# expect: /content/posts/fields/draft: field name "draft" is reserved
+spec_version: 1
+site:
+  name: my-blog
+  languages: [ru]
+content:
+  posts:
+    fields:
+      title: { type: string }
+      draft: { type: bool }

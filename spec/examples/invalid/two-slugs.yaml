@@ -1,0 +1,11 @@
+# expect: /content/pages/fields/alt_slug: content type "pages" has more than one slug field
+spec_version: 1
+site:
+  name: my-blog
+  languages: [ru]
+content:
+  pages:
+    fields:
+      title:    { type: string }
+      slug:     { type: slug }
+      alt_slug: { type: slug }

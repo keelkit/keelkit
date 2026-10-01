@@ -1,0 +1,27 @@
+# Блог: обычные страницы, посты и категории.
+spec_version: 1
+site:
+  name: my-blog
+  languages: [ru]
+modules:
+  images: v0
+content:
+  pages:
+    fields:
+      title: { type: string, required: true }
+      slug:  { type: slug, required: true }
+      body:  { type: richtext }
+    features: [sitemap]
+  posts:
+    fields:
+      title:    { type: string, required: true }
+      slug:     { type: slug, required: true }
+      summary:  { type: text }
+      body:     { type: richtext }
+      cover:    { type: image }
+      category: { type: ref, to: categories }
+    features: [publish_date, draft, rss, sitemap]
+  categories:
+    fields:
+      name: { type: string, required: true }
+      slug: { type: slug, required: true }

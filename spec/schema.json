@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/keelkit/keelkit/main/spec/schema.json",
+  "title": "Keelkit site spec",
+  "description": "Спецификация сайта Keelkit (site.yaml), версия схемы 1. Правила, которые не выражаются в JSON Schema, проверяет spec-validate: ref указывает на существующий тип контента, to — только у ref, не больше одного поля slug в типе, служебные имена полей (id, created_at, updated_at, draft, publish_date) запрещены.",
+  "type": "object",
+  "required": ["spec_version", "site", "content"],
+  "additionalProperties": false,
+  "properties": {
+    "spec_version": {
+      "description": "Версия схемы спецификации.",
+      "const": 1
+    },
+    "site": {
+      "type": "object",
+      "required": ["name", "languages"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Машинное имя сайта: строчные латинские буквы, цифры и дефис.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "maxLength": 63
+        },
+        "languages": {
+          "description": "Языки сайта. В версии 1 — ровно один (мультиязычность — spec_version 2).",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z]{2}$"
+          }
+        }
+      }
+    },
+    "modules": {
+      "description": "Подключённые модули Keelkit и их мажорные версии.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "images": { "$ref": "#/$defs/moduleVersion" }
+      }
+    },
+    "content": {
+      "description": "Типы контента. Ключ — машинное имя типа (имя Go-пакета и таблицы).",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "#/$defs/identifier" },
+      "additionalProperties": { "$ref": "#/$defs/contentType" }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "maxLength": 63
+    },
+    "moduleVersion": {
+      "description": "Мажорная версия модуля, например v0 или v1.",
+      "type": "string",
+      "pattern": "^v[0-9]+$"
+    },
+    "contentType": {
+      "type": "object",
+      "required": ["fields"],
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/$defs/identifier" },
+          "additionalProperties": { "$ref": "#/$defs/field" }
+        },
+        "features": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["draft", "publish_date", "rss", "sitemap"]
+          }
+        }
+      }
+    },
+    "field": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": ["string", "text", "richtext", "int", "bool", "date", "image", "ref", "slug"]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "to": {
+          "description": "Для type: ref — имя типа контента, на который ссылается поле.",
+          "$ref": "#/$defs/identifier"
+        }
+      },
+      "if": {
+        "properties": { "type": { "const": "ref" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["to"]
+      }
+    }
+  }
+}

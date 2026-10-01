@@ -40,20 +40,22 @@ open http://localhost:8080/      # страница «Keelkit reference»
 
 ---
 
-## Этап 1. Спецификация v1 (черновик)
+## Этап 1. Спецификация v1 (черновик) — ✅ готово
 
 Цель: есть схема `site.yaml`, и её можно проверить командой.
 
-> Перед началом: согласовать с человеком размещение валидатора (см. «Открытые решения» в `AGENTS.md`).
-> Зависимости согласованы: `go.yaml.in/yaml/v3`, `santhosh-tekuri/jsonschema/v6` (версии перепроверить по реестру).
+Сделано: модуль `spec/` (`github.com/keelkit/keelkit/spec`) — `schema.json`, `spec.Validate`, `cmd/spec-validate`;
+зависимости `go.yaml.in/yaml/v3` v3.0.5, `santhosh-tekuri/jsonschema/v6` v6.0.3, `golang.org/x/text` v0.42.0.
+Цели `spec-validate` в `reference/Makefile` пока нет: сайт будет вызывать `go run …/spec/cmd/spec-validate@vX`
+после первого релиза `spec` (этап 7).
 
-- [ ] `spec/schema.json` — `spec_version: 1`: `site` (name, languages из одного элемента), `modules`, `content` с полями типов `string, text, richtext, int, bool, date, image, ref, slug` и features `draft, publish_date, rss, sitemap`
-- [ ] Правила в схеме: `ref` требует `to`, `languages` — ровно один элемент, неизвестные типы и features запрещены
-- [ ] `spec/examples/`: `blog.yaml` (страницы + блог), `landing.yaml` (визитка), `invalid/*.yaml` — заведомо ошибочные примеры
-- [ ] `reference/site.yaml` — пока только `site` и `pages`; дополняется на следующих этапах
-- [ ] Валидатор: цель `make spec-validate FILE=...` (внешний валидатор JSON Schema и YAML-парсер — согласовать, см. «Зависимости к согласованию»)
-- [ ] Проверка ссылок `ref` на существующий тип контента (в JSON Schema не выражается — отдельной проверкой в валидаторе)
-- [ ] Тест: все `examples/*.yaml` валидны, все `examples/invalid/*.yaml` — нет, с ожидаемым текстом ошибки
+- [x] `spec/schema.json` — `spec_version: 1`: `site` (name, languages из одного элемента), `modules`, `content` с полями типов `string, text, richtext, int, bool, date, image, ref, slug` и features `draft, publish_date, rss, sitemap`
+- [x] Правила в схеме: `ref` требует `to`, `languages` — ровно один элемент, неизвестные типы и features запрещены
+- [x] `spec/examples/`: `blog.yaml` (страницы + блог), `landing.yaml` (визитка), `invalid/*.yaml` — заведомо ошибочные примеры
+- [x] `reference/site.yaml` — пока только `site` и `pages`; дополняется на следующих этапах
+- [x] Валидатор: цель `make spec-validate FILE=...` (внешний валидатор JSON Schema и YAML-парсер — согласовать, см. «Зависимости к согласованию»)
+- [x] Проверка ссылок `ref` на существующий тип контента (в JSON Schema не выражается — отдельной проверкой в валидаторе)
+- [x] Тест: все `examples/*.yaml` валидны, все `examples/invalid/*.yaml` — нет, с ожидаемым текстом ошибки
 
 ### Проверка
 ```sh
@@ -208,6 +210,7 @@ make dev   # сайт по-прежнему работает (модуль ещ�
 - [ ] `CHANGELOG.md`, `UPGRADE.md`
 - [ ] Цель `make release MODULE=images VERSION=v0.1.0`: проверяет CHANGELOG, UPGRADE, чистое дерево, зелёный CI; ставит тег `modules/images/v0.1.0`
 - [ ] `make deps-check` (`go list -m -u all` + govulncheck)
+- [ ] Релиз `spec v0.1.0` (`make release MODULE=spec VERSION=v0.1.0`); в `reference/Makefile` — цель `spec-validate` через `go run github.com/keelkit/keelkit/spec/cmd/spec-validate@v0.1.0`
 - [ ] Создать репозиторий `github.com/keelkit/keelkit` и запушить (**согласовать с человеком**: публичная публикация)
 
 ### Проверка
@@ -303,7 +306,7 @@ make e2e
 - [ ] `make build` — один статический бинарник (`CGO_ENABLED=0`), версия вшита через `-ldflags`
 - [ ] `make backup` — снимок БД + архив загрузок; пример cron-строки в `reference/AGENTS.md`
 - [ ] `deploy/site.service` (systemd), опциональный `Dockerfile`; описание litestream как опции
-- [ ] CI: path-фильтры (`modules/<X>` → джобы `<X>` и `reference/`), `lint`, `test`, `test-isolated`, `generate-check`, `deps-check`, для `reference/` — ещё `e2e`, всё с `GOWORK=off`
+- [ ] CI: path-фильтры (`modules/<X>` и `spec/` → джобы модуля и `reference/`), `lint`, `test`, `test-isolated`, `generate-check`, `deps-check`, для `reference/` — ещё `e2e`, всё с `GOWORK=off`
 - [ ] Тест миграции на копии реалистичных данных (seed + сгенерированные 1000 постов) — заготовка для будущих миграций данных
 
 ### Проверка

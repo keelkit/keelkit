@@ -1,0 +1,13 @@
+# expect: /content/posts/fields/category: missing property
+spec_version: 1
+site:
+  name: my-blog
+  languages: [ru]
+content:
+  posts:
+    fields:
+      title:    { type: string }
+      category: { type: ref }
+  categories:
+    fields:
+      name: { type: string }

@@ -1,0 +1,9 @@
+# expect: /content/BlogPosts: 'BlogPosts' does not match pattern
+spec_version: 1
+site:
+  name: my-blog
+  languages: [ru]
+content:
+  BlogPosts:
+    fields:
+      title: { type: string }

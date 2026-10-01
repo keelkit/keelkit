@@ -1,0 +1,10 @@
+# expect: /content/posts/features/1: value must be one of
+spec_version: 1
+site:
+  name: my-blog
+  languages: [ru]
+content:
+  posts:
+    fields:
+      title: { type: string }
+    features: [rss, comments]

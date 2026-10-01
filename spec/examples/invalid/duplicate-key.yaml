@@ -1,0 +1,12 @@
+# expect: /content/pages: duplicate key "pages"
+spec_version: 1
+site:
+  name: my-blog
+  languages: [ru]
+content:
+  pages:
+    fields:
+      title: { type: string }
+  pages:
+    fields:
+      body: { type: richtext }

@@ -1,0 +1,9 @@
+# expect: /content/posts/fields/title/to: 'to' is allowed only for fields of type ref
+spec_version: 1
+site:
+  name: my-blog
+  languages: [ru]
+content:
+  posts:
+    fields:
+      title: { type: string, to: posts }

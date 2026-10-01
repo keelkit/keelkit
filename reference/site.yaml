@@ -1,0 +1,13 @@
+# Спецификация эталонного сайта. Проверка: make spec-validate FILE=reference/site.yaml
+# Дополняется по этапам PLAN.md: модуль images (этап 8), posts и categories (этап 9).
+spec_version: 1
+site:
+  name: keelkit-reference
+  languages: [ru]
+content:
+  pages:
+    fields:
+      title: { type: string, required: true }
+      slug:  { type: slug, required: true }
+      body:  { type: richtext }
+    features: [sitemap]

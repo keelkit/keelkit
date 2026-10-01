@@ -2,8 +2,11 @@
 
 # Совместимо с GNU Make 3.81 (по умолчанию на macOS): без .ONESHELL, $(file ...) и других возможностей 4.x.
 
-# Модуль в modules/<MODULE>; MODULE=reference — эталонный сайт; пусто — все модули и reference.
+# Модуль в modules/<MODULE>; MODULE=spec или MODULE=reference — каталог в корне; пусто — все.
 MODULE ?=
+
+# Спецификация сайта для spec-validate.
+FILE ?= reference/site.yaml
 
 # Версии инструментов закреплены здесь, а не берутся из окружения.
 # Тулчейн для запуска инструментов через go run: должен совпадать с toolchain в go.work.
@@ -14,16 +17,16 @@ GOLANGCI_LINT = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/golangci/golangci-
 ALL_MODULES := $(patsubst %/go.mod,%,$(wildcard modules/*/go.mod))
 
 ifeq ($(MODULE),)
-DIRS := $(ALL_MODULES) reference
+DIRS := $(ALL_MODULES) spec reference
 else
-ifeq ($(MODULE),reference)
-DIRS := reference
+ifneq ($(filter $(MODULE),spec reference),)
+DIRS := $(MODULE)
 else
 DIRS := modules/$(MODULE)
 endif
 endif
 
-.PHONY: help test test-isolated lint run dev
+.PHONY: help test test-isolated lint spec-validate run dev
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -36,6 +39,9 @@ test-isolated: ## Тесты только на опубликованных за
 
 lint: ## Линтер golangci-lint (по умолчанию все). Пример: make lint MODULE=reference
 	@set -e; for d in $(DIRS); do echo "==> lint $$d"; (cd $$d && $(GOLANGCI_LINT) run ./...); done
+
+spec-validate: ## Проверить спецификацию сайта. Пример: make spec-validate FILE=spec/examples/blog.yaml
+	@go run ./spec/cmd/spec-validate $(FILE)
 
 run: ## Запустить эталонный сайт на http://localhost:8080. Пример: make run ADDR=:9090
 	@$(MAKE) -C reference run

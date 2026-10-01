@@ -1,0 +1,6 @@
+# expect: /: missing property
+spec_version: 1
+content:
+  pages:
+    fields:
+      title: { type: string }

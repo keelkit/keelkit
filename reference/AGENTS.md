@@ -32,10 +32,16 @@
 - `GET /` — главная.
 - `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>"}`.
 
+## Спецификация
+
+`site.yaml` — источник правды о структуре сайта: структурные изменения сначала вносятся в него, затем в код.
+Проверка (из корня монорепо): `make spec-validate FILE=reference/site.yaml`.
+
 ## Структура
 
 ```
 cmd/site/main.go   # точка входа: конфиг, HTTP-сервер, маршруты
+site.yaml          # спецификация сайта
 ```
 
 Структура будет расти по плану: `internal/content/<type>/`, `internal/admin/`, `internal/web/`, `db/migrations/`, `static/`.

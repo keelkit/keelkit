@@ -1,0 +1,10 @@
+# expect: /content/posts/fields/author/to: ref target "authors" is not a content type
+spec_version: 1
+site:
+  name: my-blog
+  languages: [ru]
+content:
+  posts:
+    fields:
+      title:  { type: string }
+      author: { type: ref, to: authors }
