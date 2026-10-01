@@ -110,8 +110,8 @@ make generate-check           # генерация ничего не меняе�
 
 - [ ] templ (CLI и `github.com/a-h/templ` одной версии), `internal/web/`: layout, шапка, подвал, страница 404
 - [ ] `static/`: чистый CSS, `htmx.min.js` с версией в имени файла, встраивание через `embed`
-- [ ] `internal/content/pages/`: миграция, sqlc-запросы, хендлеры, templ; маршруты `/` (страница со slug `home`) и `/{slug}`
-- [ ] `richtext`: goldmark + санитайзер HTML
+- [ ] Миграция `pages` в `db/migrations/`; `internal/content/pages/`: sqlc-запросы, хендлеры, templ; маршруты `/` (страница со slug `home`) и `/{slug}`
+- [ ] `richtext`: goldmark + санитайзер `bluemonday` (политика UGC)
 - [ ] Seed: страницы «Главная», «О проекте», «Контакты»; в одной — Markdown с таблицей, кодом, ссылками и строкой `<script>alert(1)</script>` (проверка санитайзера)
 - [ ] `reference/site.yaml` — тип `pages` соответствует миграции
 - [ ] e2e (`httptest` + goquery): главная, страница по slug, 404, отсутствие `<script>` в выводе; цель `make e2e`
@@ -372,7 +372,7 @@ make evals SKILL=upgrade-site     # копия reference на v0.1.0 → обн�
 `AGENTS.md` уже закрепляет: `modernc.org/sqlite`, goose, sqlc, templ, htmx, goldmark, `golang.org/x/image`, `gen2brain/webp`, goquery, chromedp, golangci-lint, govulncheck.
 Перед добавлением остальных нужно решение человека (и проверки из раздела «Зависимости»):
 
-- [ ] Санитайзер HTML для `richtext` (кандидат: `microcosm-cc/bluemonday`) — этап 3
+- [x] Санитайзер HTML для `richtext` — этап 3. Решено: `microcosm-cc/bluemonday` v1.0.27 (последний релиз 2024-07, репозиторий живой, BSD-3)
 - [x] YAML-парсер и валидатор JSON Schema — этап 1. Решено: `go.yaml.in/yaml/v3` (преемник архивного `gopkg.in/yaml.v3`) и `santhosh-tekuri/jsonschema/v6`
 - [ ] Хеширование паролей: `golang.org/x/crypto` (bcrypt или argon2id) — этап 4
 - [ ] Чтение ориентации EXIF: свой минимальный парсер или внешняя библиотека — этап 6
