@@ -1,0 +1,8 @@
+go 1.26.0
+
+toolchain go1.27.1
+
+use (
+	./modules/images
+	./reference
+)

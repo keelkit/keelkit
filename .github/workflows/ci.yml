@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [images, reference]
+    env:
+      # Тулчейн берётся из go.work/go.mod (директива toolchain).
+      GOTOOLCHAIN: auto
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.work
+      - name: Lint
+        run: make lint MODULE=${{ matrix.module }}
+      - name: Test
+        run: make test MODULE=${{ matrix.module }}
