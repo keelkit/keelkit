@@ -14,7 +14,7 @@
 
 ---
 
-## Этап 0. Каркас монорепо и «hello»-сайт
+## Этап 0. Каркас монорепо и «hello»-сайт — ✅ готово
 
 Цель: репозиторий собирается, `make` — единая точка входа, эталонный сайт отвечает по HTTP.
 
@@ -43,6 +43,9 @@ open http://localhost:8080/      # страница «Keelkit reference»
 ## Этап 1. Спецификация v1 (черновик)
 
 Цель: есть схема `site.yaml`, и её можно проверить командой.
+
+> Перед началом: согласовать с человеком размещение валидатора (см. «Открытые решения» в `AGENTS.md`).
+> Зависимости согласованы: `go.yaml.in/yaml/v3`, `santhosh-tekuri/jsonschema/v6` (версии перепроверить по реестру).
 
 - [ ] `spec/schema.json` — `spec_version: 1`: `site` (name, languages из одного элемента), `modules`, `content` с полями типов `string, text, richtext, int, bool, date, image, ref, slug` и features `draft, publish_date, rss, sitemap`
 - [ ] Правила в схеме: `ref` требует `to`, `languages` — ровно один элемент, неизвестные типы и features запрещены
