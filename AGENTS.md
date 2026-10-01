@@ -208,7 +208,11 @@ content:
 
 **Стек сайта**
 - SQLite через `modernc.org/sqlite` (без CGO).
-- Доступ к данным — sqlc; миграции — goose.
+- Доступ к данным — sqlc; миграции — goose (только библиотека: их применяет подкоманда `site migrate`, CLI goose не нужен).
+- Файлы `queries.sql` — только ASCII, включая комментарии: sqlc для SQLite режет текст запросов по байтовым смещениям,
+  и кириллица обрезает запросы. Русские тексты — через параметры. В миграциях кириллица допустима.
+- Бинарник: `site serve | migrate | seed`. `serve` не стартует при непримененных миграциях;
+  `/healthz` отдаёт версию сборки и состояние схем (`version`, `pending` для каждого модуля и сайта).
 - Шаблоны — templ; интерактивность — htmx; стили — чистый CSS, без Node в сборке.
 - Статика (CSS, `htmx.min.js`) вендорится и встраивается через `embed`.
 - `richtext` — Markdown: goldmark + санитайзер HTML; в админке textarea с превью через htmx.
@@ -221,13 +225,14 @@ content:
 
 **Структура сайта**
 ```
-cmd/site/main.go
+cmd/site/                  # main.go (конфиг, подкоманды, порядок источников миграций), server.go, seed.go
+internal/database/         # открытие SQLite, статус схем, снимок, применение миграций
 internal/content/<type>/   # модель, sqlc-запросы, хендлеры, templ одного типа контента
 internal/admin/            # оболочка админки и авторизация (пока здесь)
 internal/web/              # layout, общие компоненты templ
-db/migrations/             # миграции сайта (goose, своя таблица версий)
+db/migrations/             # миграции сайта (goose, своя таблица версий) + embed.go
 static/                    # CSS, htmx.min.js — через embed
-site.yaml, Makefile, AGENTS.md, CLAUDE.md
+site.yaml, sqlc.yaml, Makefile, AGENTS.md, CLAUDE.md
 ```
 Группировка по типу контента, а не по слою: `add-section` добавляет одну папку.
 
@@ -250,7 +255,7 @@ site.yaml, Makefile, AGENTS.md, CLAUDE.md
 - У каждой цели есть комментарий `## ...` с описанием и, если она принимает параметры, примером вызова.
 - Параметры передаются переменными с безопасными значениями по умолчанию (`VAR ?= ...`).
 - В корне монорепо `test`, `test-isolated`, `lint` без `MODULE` проходят по `modules/*`, `spec/` и `reference/`;
-  `MODULE=<name>` — `modules/<name>`, `MODULE=spec` и `MODULE=reference` — одноимённые каталоги. `run`/`dev` делегируются в `reference/Makefile`.
+  `MODULE=<name>` — `modules/<name>`, `MODULE=spec` и `MODULE=reference` — одноимённые каталоги. `run`, `dev`, `migrate`, `seed`, `reset`, `generate`, `generate-check` делегируются в `reference/Makefile`.
 - Совместимость с GNU Make 3.81 (стоит по умолчанию на macOS): без `.ONESHELL`, `$(file ...)` и других возможностей 4.x.
 
 Пример оформления:

@@ -7,6 +7,8 @@
 
 - Go: `go 1.26.0` в `go.mod` (актуальный релиз минус один минор), тулчейн `go1.27.1`.
 - Модули Keelkit: пока не подключены (`images` — с этапа 8 плана).
+- Зависимости: `modernc.org/sqlite` v1.60.1, `github.com/pressly/goose/v3` v3.28.0 (только библиотека, CLI goose не используется);
+  sqlc v1.31.1 — инструмент, версия закреплена в `Makefile`.
 
 ## Команды
 
@@ -14,8 +16,13 @@
 
 | Цель | Что делает |
 |---|---|
-| `make run` | запустить сайт (`ADDR`, `DATA_DIR`) |
-| `make dev` | запуск для разработки |
+| `make run` | запустить сайт (`ADDR`, `DATA_DIR`); при непримененных миграциях отказывается стартовать |
+| `make dev` | для разработки: `migrate`, `seed`, запуск |
+| `make migrate` | снимок БД в `BACKUP_DIR` (`VACUUM INTO`), затем миграции: модули в порядке `site.yaml`, потом сайт |
+| `make seed` | dev-данные; идемпотентно, в проде не запускается |
+| `make reset` | удалить `DATA_DIR` (БД и загрузки); снимки в `backups/` остаются |
+| `make generate` | кодогенерация (sqlc) |
+| `make generate-check` | проверить, что генерация ничего не меняет (в CI) |
 | `make test` | тесты |
 | `make test-isolated` | тесты с `GOWORK=off`, только на опубликованных версиях модулей |
 | `make lint` | golangci-lint, версия закреплена в `Makefile` |
@@ -25,12 +32,28 @@
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
 | `ADDR` | `:8080` | адрес HTTP-сервера |
-| `DATA_DIR` | `data` | каталог с БД и загрузками |
+| `DATA_DIR` | `data` | каталог с БД (`site.db`) и загрузками |
+| `BACKUP_DIR` | `backups` | каталог снимков БД перед миграциями |
 
 ## Маршруты
 
-- `GET /` — главная.
-- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>"}`.
+- `GET /` — главная; название и описание сайта из `site_settings`.
+- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"site":{"version":1,"pending":0}}}`.
+
+## Бинарник
+
+`site serve | migrate | seed`. Миграции применяются только `site migrate`, никогда при старте.
+
+## БД и миграции
+
+- SQLite (`DATA_DIR/site.db`), прагмы: WAL, `foreign_keys`, `busy_timeout`.
+- Миграции сайта — `db/migrations/NNNNN_<имя>.sql` (goose, нумерация последовательная), встраиваются через `embed`;
+  таблица версий `goose_site_version`. Только `-- +goose Up`, down-секции не пишем.
+- Порядок источников миграций — `migrationSources` в `cmd/site/main.go`: модули в порядке `site.yaml`, последним — сайт.
+- `/healthz` и проверка при старте читают состояние схем, ничего не записывая в БД.
+- sqlc: схема — `db/migrations`, запросы — `queries.sql` рядом с пакетом, конфиг — `sqlc.yaml`; сгенерированный код коммитится.
+- **`queries.sql` — только ASCII**, включая комментарии: sqlc v1.31.1 для SQLite вырезает текст запроса по смещениям
+  в байтах, и кириллица в файле обрезает запросы. Русские тексты передаются параметрами. В миграциях кириллица допустима.
 
 ## Спецификация
 
@@ -40,8 +63,13 @@
 ## Структура
 
 ```
-cmd/site/main.go   # точка входа: конфиг, HTTP-сервер, маршруты
-site.yaml          # спецификация сайта
+cmd/site/main.go            # точка входа: конфиг, подкоманды, источники миграций
+cmd/site/server.go          # маршруты и хендлеры
+cmd/site/seed.go            # dev-данные
+db/migrations/              # миграции сайта (goose) + embed.go
+internal/database/          # открытие SQLite, статус схем, снимок, применение миграций
+internal/settings/          # site_settings: queries.sql и код sqlc
+site.yaml, sqlc.yaml        # спецификация сайта, конфиг sqlc
 ```
 
-Структура будет расти по плану: `internal/content/<type>/`, `internal/admin/`, `internal/web/`, `db/migrations/`, `static/`.
+Структура будет расти по плану: `internal/content/<type>/`, `internal/admin/`, `internal/web/`, `static/`.

@@ -30,6 +30,9 @@ jobs:
         run: make test MODULE=${{ matrix.module }}
       - name: Test (GOWORK=off)
         run: make test-isolated MODULE=${{ matrix.module }}
+      - name: Generate check
+        if: matrix.module == 'reference'
+        run: make generate-check
       - name: Validate reference/site.yaml
         if: matrix.module == 'spec'
         run: make spec-validate FILE=reference/site.yaml

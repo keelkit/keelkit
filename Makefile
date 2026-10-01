@@ -26,7 +26,7 @@ DIRS := modules/$(MODULE)
 endif
 endif
 
-.PHONY: help test test-isolated lint spec-validate run dev
+.PHONY: help test test-isolated lint spec-validate run dev migrate seed reset generate generate-check
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -43,8 +43,24 @@ lint: ## Линтер golangci-lint (по умолчанию все). Приме
 spec-validate: ## Проверить спецификацию сайта. Пример: make spec-validate FILE=spec/examples/blog.yaml
 	@go run ./spec/cmd/spec-validate $(FILE)
 
-run: ## Запустить эталонный сайт на http://localhost:8080. Пример: make run ADDR=:9090
+run: ## Запустить эталонный сайт на http://localhost:8080 (нужен make migrate). Пример: make run ADDR=:9090
 	@$(MAKE) -C reference run
 
-dev: ## Запустить эталонный сайт в режиме разработки
+dev: ## Эталонный сайт для разработки: миграции, seed и запуск
 	@$(MAKE) -C reference dev
+
+migrate: ## Снимок БД и миграции эталонного сайта
+	@$(MAKE) -C reference migrate
+
+seed: ## Заполнить эталонный сайт dev-данными (идемпотентно)
+	@$(MAKE) -C reference seed
+
+reset: ## Удалить локальную БД и загрузки эталонного сайта (reference/data/)
+	@$(MAKE) -C reference reset
+
+# Кодогенерация пока есть только в reference/; модули и spec/ ничего не генерируют.
+generate: ## Кодогенерация (sqlc) эталонного сайта
+	@$(MAKE) -C reference generate
+
+generate-check: ## Проверить, что кодогенерация ничего не меняет
+	@$(MAKE) -C reference generate-check

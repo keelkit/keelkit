@@ -1,0 +1,11 @@
+# Конфиг sqlc. Генерация: make generate; сгенерированный код коммитится.
+version: "2"
+sql:
+  - engine: sqlite
+    schema: db/migrations
+    queries: internal/settings/queries.sql
+    gen:
+      go:
+        package: settings
+        out: internal/settings
+        omit_unused_structs: true
