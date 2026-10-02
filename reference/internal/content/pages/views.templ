@@ -1,0 +1,35 @@
+package pages
+
+import (
+	"github.com/keelkit/keelkit/reference/internal/richtext"
+	"github.com/keelkit/keelkit/reference/internal/web"
+)
+
+// View — публичная страница. На главной в <title> только название сайта.
+templ View(p Page, body richtext.HTML) {
+	@web.Layout(viewTitle(p)) {
+		<article class="page">
+			<h1>{ p.Title }</h1>
+			@body
+		</article>
+	}
+}
+
+// HomeEmpty — главная, пока страница со slug home не создана.
+templ HomeEmpty() {
+	{{ site := web.SiteFrom(ctx) }}
+	@web.Layout("") {
+		<h1>{ site.Name }</h1>
+		if site.Description != "" {
+			<p class="lead">{ site.Description }</p>
+		}
+		<p>Главная страница ещё не заполнена: создайте страницу со slug «{ HomeSlug }».</p>
+	}
+}
+
+func viewTitle(p Page) string {
+	if p.Slug == HomeSlug {
+		return ""
+	}
+	return p.Title
+}

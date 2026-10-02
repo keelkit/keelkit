@@ -33,6 +33,9 @@ jobs:
       - name: Generate check
         if: matrix.module == 'reference'
         run: make generate-check
+      - name: E2E
+        if: matrix.module == 'reference'
+        run: make e2e
       - name: Validate reference/site.yaml
         if: matrix.module == 'spec'
         run: make spec-validate FILE=reference/site.yaml

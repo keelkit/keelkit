@@ -1,0 +1,243 @@
+/* Стили эталонного сайта Keelkit. Чистый CSS без сборки; встраивается через embed (static/static.go). */
+
+:root {
+  --bg: #fbfaf7;
+  --surface: #f1efe9;
+  --text: #1f2328;
+  --muted: #5d636b;
+  --border: #dcd8ce;
+  --accent: #1d4e89;
+  --accent-hover: #143a68;
+  --code-bg: #f1efe9;
+  --radius: 6px;
+  --measure: 44rem;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181b;
+    --surface: #1f2226;
+    --text: #e6e3dc;
+    --muted: #a0a5ac;
+    --border: #33373d;
+    --accent: #8ab4e8;
+    --accent-hover: #b3cff2;
+    --code-bg: #1f2226;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  font: 1.0625rem/1.65 var(--font);
+}
+
+.container {
+  width: 100%;
+  max-width: var(--measure);
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+}
+
+a {
+  color: var(--accent);
+  text-underline-offset: 0.15em;
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Шапка */
+
+.site-header {
+  border-bottom: 1px solid var(--border);
+}
+
+.site-header .container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  padding-block: 1rem;
+}
+
+.site-name {
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.site-nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.site-nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.site-nav a:hover,
+.site-nav a[aria-current="page"] {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+/* Основная часть */
+
+main {
+  flex: 1;
+  padding-block: 2.5rem 4rem;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.25;
+  margin: 2em 0 0.6em;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: 2.125rem;
+  margin-top: 0;
+}
+
+h2 {
+  font-size: 1.5rem;
+}
+
+h3 {
+  font-size: 1.2rem;
+}
+
+p,
+ul,
+ol,
+table,
+pre,
+blockquote {
+  margin: 0 0 1.1em;
+}
+
+.lead {
+  font-size: 1.2rem;
+  color: var(--muted);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 2.5rem 0;
+}
+
+blockquote {
+  padding-left: 1rem;
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+}
+
+code {
+  font: 0.9em/1.5 var(--mono);
+  background: var(--code-bg);
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+}
+
+pre {
+  overflow-x: auto;
+  tab-size: 4;
+  padding: 1rem 1.25rem;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+pre code {
+  padding: 0;
+  background: none;
+}
+
+/* Таблицы из Markdown прокручиваются на узких экранах. */
+table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: var(--surface);
+}
+
+/* Подвал */
+
+.site-footer {
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.site-footer .container {
+  padding-block: 1.5rem;
+}
+
+.site-footer p {
+  margin: 0;
+}
+
+/* Страницы ошибок */
+
+.error-page {
+  padding-block: 2rem;
+}
+
+.error-code {
+  margin: 0;
+  color: var(--muted);
+  font: 600 0.95rem var(--mono);
+  letter-spacing: 0.05em;
+}

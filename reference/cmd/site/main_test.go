@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -98,25 +97,8 @@ func TestSeedIdempotent(t *testing.T) {
 	if err := db.QueryRow(`SELECT count(*) FROM site_settings`).Scan(&n); err != nil || n != 1 {
 		t.Errorf("site_settings rows = %d, %v; want 1", n, err)
 	}
-}
-
-func TestHomeShowsSiteName(t *testing.T) {
-	rec := get(t, migratedDB(t, true), "/")
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
-	}
-	if want := "Keelkit — эталонный сайт"; !strings.Contains(rec.Body.String(), want) {
-		t.Errorf("body does not contain %q", want)
-	}
-}
-
-func TestHomeWithoutSettings(t *testing.T) {
-	rec := get(t, migratedDB(t, false), "/")
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
-	}
-	if !strings.Contains(rec.Body.String(), defaultSiteName) {
-		t.Errorf("body does not contain %q", defaultSiteName)
+	if err := db.QueryRow(`SELECT count(*) FROM pages`).Scan(&n); err != nil || n != len(seedPages) {
+		t.Errorf("pages rows = %d, %v; want %d", n, err, len(seedPages))
 	}
 }
 
@@ -132,13 +114,7 @@ func TestHealthz(t *testing.T) {
 	if got.Status != "ok" || got.Version != version {
 		t.Errorf("got %+v, want status ok and version %q", got, version)
 	}
-	if s := got.Schema["site"]; s.Version != 1 || s.Pending != 0 {
-		t.Errorf("schema site = %+v, want version 1, pending 0", s)
-	}
-}
-
-func TestUnknownPath(t *testing.T) {
-	if rec := get(t, migratedDB(t, false), "/nope"); rec.Code != http.StatusNotFound {
-		t.Errorf("status = %d, want 404", rec.Code)
+	if s := got.Schema["site"]; s.Version != 2 || s.Pending != 0 {
+		t.Errorf("schema site = %+v, want version 2, pending 0", s)
 	}
 }

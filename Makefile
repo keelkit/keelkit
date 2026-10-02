@@ -26,10 +26,10 @@ DIRS := modules/$(MODULE)
 endif
 endif
 
-.PHONY: help test test-isolated lint spec-validate run dev migrate seed reset generate generate-check
+.PHONY: help test test-isolated lint spec-validate run dev migrate seed reset generate generate-check e2e
 
 help: ## Показать список целей
-	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
+	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
 test: ## Тесты (по умолчанию все). Пример: make test MODULE=images
 	@set -e; for d in $(DIRS); do echo "==> test $$d"; (cd $$d && go test ./...); done
@@ -59,8 +59,11 @@ reset: ## Удалить локальную БД и загрузки этало�
 	@$(MAKE) -C reference reset
 
 # Кодогенерация пока есть только в reference/; модули и spec/ ничего не генерируют.
-generate: ## Кодогенерация (sqlc) эталонного сайта
+generate: ## Кодогенерация (templ, sqlc) эталонного сайта
 	@$(MAKE) -C reference generate
 
 generate-check: ## Проверить, что кодогенерация ничего не меняет
 	@$(MAKE) -C reference generate-check
+
+e2e: ## e2e-тесты эталонного сайта (httptest + goquery)
+	@$(MAKE) -C reference e2e

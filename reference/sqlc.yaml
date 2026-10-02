@@ -1,4 +1,5 @@
 # Конфиг sqlc. Генерация: make generate; сгенерированный код коммитится.
+# Схема — все миграции сайта; у каждого пакета свои queries.sql. Новый тип контента — новая запись.
 version: "2"
 sql:
   - engine: sqlite
@@ -8,4 +9,12 @@ sql:
       go:
         package: settings
         out: internal/settings
+        omit_unused_structs: true
+  - engine: sqlite
+    schema: db/migrations
+    queries: internal/content/pages/queries.sql
+    gen:
+      go:
+        package: pages
+        out: internal/content/pages
         omit_unused_structs: true

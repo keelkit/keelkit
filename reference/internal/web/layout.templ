@@ -1,0 +1,90 @@
+package web
+
+import (
+	"strconv"
+	"time"
+
+	"github.com/keelkit/keelkit/reference/static"
+)
+
+// Layout — оболочка любой публичной страницы. title пуст — в <title> только название сайта.
+// Язык страницы — из site.yaml (languages: [ru]).
+templ Layout(title string) {
+	{{ site := SiteFrom(ctx) }}
+	<!DOCTYPE html>
+	<html lang="ru">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ pageTitle(title, site.Name) }</title>
+			if site.Description != "" {
+				<meta name="description" content={ site.Description }/>
+			}
+			<link rel="icon" type="image/svg+xml" href={ static.Path("favicon.svg") }/>
+			<link rel="stylesheet" href={ static.Path("style.css") }/>
+			<script src={ static.Path("htmx-2.0.11.min.js") } defer></script>
+		</head>
+		<body>
+			@header(site)
+			<main class="container">
+				{ children... }
+			</main>
+			@footer(site)
+		</body>
+	</html>
+}
+
+templ header(site Site) {
+	<header class="site-header">
+		<div class="container">
+			<a class="site-name" href="/">{ site.Name }</a>
+			if len(site.Nav) > 0 {
+				<nav class="site-nav" aria-label="Основное меню">
+					<ul>
+						for _, l := range site.Nav {
+							<li>
+								if l.Current {
+									<a href={ templ.SafeURL(l.URL) } aria-current="page">{ l.Title }</a>
+								} else {
+									<a href={ templ.SafeURL(l.URL) }>{ l.Title }</a>
+								}
+							</li>
+						}
+					</ul>
+				</nav>
+			}
+		</div>
+	</header>
+}
+
+templ footer(site Site) {
+	<footer class="site-footer">
+		<div class="container">
+			<p>© { strconv.Itoa(time.Now().Year()) } { site.Name }</p>
+		</div>
+	</footer>
+}
+
+// NotFoundPage — страница 404.
+templ NotFoundPage() {
+	@Layout("Страница не найдена") {
+		<section class="error-page">
+			<p class="error-code">404</p>
+			<h1>Страница не найдена</h1>
+			<p>Возможно, её удалили или в адресе опечатка.</p>
+			<p><a href="/">На главную</a></p>
+		</section>
+	}
+}
+
+// ErrorPage — страница 500; подробности ошибки только в логе.
+templ ErrorPage() {
+	@Layout("Ошибка сервера") {
+		<section class="error-page">
+			<p class="error-code">500</p>
+			<h1>Что-то пошло не так</h1>
+			<p>Попробуйте обновить страницу чуть позже.</p>
+			<p><a href="/">На главную</a></p>
+		</section>
+	}
+}

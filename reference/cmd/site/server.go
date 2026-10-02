@@ -1,50 +1,64 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"html/template"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 
+	"github.com/keelkit/keelkit/reference/internal/content/pages"
 	"github.com/keelkit/keelkit/reference/internal/database"
 	"github.com/keelkit/keelkit/reference/internal/settings"
+	"github.com/keelkit/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/static"
 )
 
 // defaultSiteName — название, пока в site_settings нет строки (до seed или настройки в админке).
 const defaultSiteName = "Keelkit reference"
 
+// newMux — все маршруты сайта. HTML-маршруты оборачиваются в html: данные шапки в контексте запроса.
 func newMux(db *sql.DB) *http.ServeMux {
+	html := web.WithSite(siteLoader(db))
+	pagesH := pages.NewHandler(db)
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /{$}", handleHome(db))
 	mux.HandleFunc("GET /healthz", handleHealthz(db))
+	mux.Handle("GET /static/", static.Handler())
+
+	mux.Handle("GET /{$}", html(http.HandlerFunc(pagesH.Home)))
+	mux.Handle("GET /{slug}", html(http.HandlerFunc(pagesH.Show)))
+
+	// Всё остальное — оформленная 404.
+	mux.Handle("/", html(http.HandlerFunc(web.NotFound)))
 	return mux
 }
 
-// homeTmpl — временная главная; с этапа 3 шаблоны пишутся на templ.
-var homeTmpl = template.Must(template.New("home").Parse(`<!doctype html>
-<html lang="ru">
-<head><meta charset="utf-8"><title>{{.Name}}</title></head>
-<body><h1>{{.Name}}</h1>{{with .Description}}<p>{{.}}</p>{{end}}</body>
-</html>
-`))
+// siteLoader собирает данные для layout: название и описание сайта, меню из страниц (кроме главной).
+func siteLoader(db *sql.DB) func(context.Context) (web.Site, error) {
+	sq := settings.New(db)
+	pq := pages.New(db)
+	return func(ctx context.Context) (web.Site, error) {
+		site := web.Site{Name: defaultSiteName}
+		s, err := sq.GetSiteSettings(ctx)
+		switch {
+		case err == nil:
+			site.Name, site.Description = s.Name, s.Description
+		case !errors.Is(err, sql.ErrNoRows):
+			return web.Site{}, fmt.Errorf("site settings: %w", err)
+		}
 
-func handleHome(db *sql.DB) http.HandlerFunc {
-	q := settings.New(db)
-	return func(w http.ResponseWriter, r *http.Request) {
-		s, err := q.GetSiteSettings(r.Context())
-		if errors.Is(err, sql.ErrNoRows) {
-			s.Name = defaultSiteName
-		} else if err != nil {
-			slog.Error("get site settings", "err", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
+		links, err := pq.ListPageLinks(ctx, pages.HomeSlug)
+		if err != nil {
+			return web.Site{}, fmt.Errorf("page links: %w", err)
 		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := homeTmpl.Execute(w, s); err != nil {
-			slog.Error("render home", "err", err)
+		for _, l := range links {
+			site.Nav = append(site.Nav, web.Link{Title: l.Title, URL: "/" + url.PathEscape(l.Slug)})
 		}
+		return site, nil
 	}
 }
 

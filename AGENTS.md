@@ -230,6 +230,7 @@ internal/database/         # открытие SQLite, статус схем, с�
 internal/content/<type>/   # модель, sqlc-запросы, хендлеры, templ одного типа контента (миграции — в db/migrations/)
 internal/admin/            # оболочка админки и авторизация (пока здесь)
 internal/web/              # layout, общие компоненты templ
+internal/richtext/         # richtext (Markdown) → очищенный HTML: goldmark + bluemonday
 db/migrations/             # миграции сайта (goose, своя таблица версий) + embed.go
 static/                    # CSS, htmx.min.js — через embed
 site.yaml, sqlc.yaml, Makefile, AGENTS.md, CLAUDE.md
@@ -255,7 +256,7 @@ site.yaml, sqlc.yaml, Makefile, AGENTS.md, CLAUDE.md
 - У каждой цели есть комментарий `## ...` с описанием и, если она принимает параметры, примером вызова.
 - Параметры передаются переменными с безопасными значениями по умолчанию (`VAR ?= ...`).
 - В корне монорепо `test`, `test-isolated`, `lint` без `MODULE` проходят по `modules/*`, `spec/` и `reference/`;
-  `MODULE=<name>` — `modules/<name>`, `MODULE=spec` и `MODULE=reference` — одноимённые каталоги. `run`, `dev`, `migrate`, `seed`, `reset`, `generate`, `generate-check` делегируются в `reference/Makefile`.
+  `MODULE=<name>` — `modules/<name>`, `MODULE=spec` и `MODULE=reference` — одноимённые каталоги. `run`, `dev`, `migrate`, `seed`, `reset`, `generate`, `generate-check`, `e2e` делегируются в `reference/Makefile`.
 - Совместимость с GNU Make 3.81 (стоит по умолчанию на macOS): без `.ONESHELL`, `$(file ...)` и других возможностей 4.x.
 
 Пример оформления:
@@ -267,7 +268,7 @@ site.yaml, sqlc.yaml, Makefile, AGENTS.md, CLAUDE.md
 MODULE ?= images
 
 help: ## Показать список целей
-	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
+	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
 test: ## Тесты модуля. Пример: make test MODULE=images
 	cd modules/$(MODULE) && go test ./...

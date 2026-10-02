@@ -104,17 +104,25 @@ make generate-check           # генерация ничего не меняе�
 
 ---
 
-## Этап 3. Шаблоны, статика и публичные страницы (`pages`)
+## Этап 3. Шаблоны, статика и публичные страницы (`pages`) — ✅ готово
 
 Цель: первый тип контента виден в браузере.
 
-- [ ] templ (CLI и `github.com/a-h/templ` одной версии), `internal/web/`: layout, шапка, подвал, страница 404
-- [ ] `static/`: чистый CSS, `htmx.min.js` с версией в имени файла, встраивание через `embed`
-- [ ] Миграция `pages` в `db/migrations/`; `internal/content/pages/`: sqlc-запросы, хендлеры, templ; маршруты `/` (страница со slug `home`) и `/{slug}`
-- [ ] `richtext`: goldmark + санитайзер `bluemonday` (политика UGC)
-- [ ] Seed: страницы «Главная», «О проекте», «Контакты»; в одной — Markdown с таблицей, кодом, ссылками и строкой `<script>alert(1)</script>` (проверка санитайзера)
-- [ ] `reference/site.yaml` — тип `pages` соответствует миграции
-- [ ] e2e (`httptest` + goquery): главная, страница по slug, 404, отсутствие `<script>` в выводе; цель `make e2e`
+Сделано: templ v0.3.1020 (CLI через `go run` с `TEMPL_VERSION`; `make generate` сверяет его с библиотекой в `go.mod`),
+goldmark v1.8.6, bluemonday v1.0.27, goquery v1.13.0, htmx 2.0.11 (сверен с sha512 из npm; 4.0.0 уже вышел, но в npm помечен `next`).
+Данные шапки (название, меню из страниц) кладёт в контекст middleware `web.WithSite`; `internal/web` не знает о типах контента.
+Markdown рендерит `internal/richtext` в тип `richtext.HTML` — в шаблон попадает только очищенный HTML;
+`nofollow` — только у внешних ссылок. Статика отдаётся с `?v=<хеш>` и годовым кэшем.
+e2e — `TestE2E*` в `cmd/site` (входят в `make test`; `make e2e` запускает только их), в CI — шаг `make e2e`.
+Попутно: регулярка цели `help` не пропускала цифры в именах целей (`e2e`) — исправлено в обоих `Makefile` и в примере в `AGENTS.md`.
+
+- [x] templ (CLI и `github.com/a-h/templ` одной версии), `internal/web/`: layout, шапка, подвал, страница 404
+- [x] `static/`: чистый CSS, `htmx.min.js` с версией в имени файла, встраивание через `embed`
+- [x] Миграция `pages` в `db/migrations/`; `internal/content/pages/`: sqlc-запросы, хендлеры, templ; маршруты `/` (страница со slug `home`) и `/{slug}`
+- [x] `richtext`: goldmark + санитайзер `bluemonday` (политика UGC)
+- [x] Seed: страницы «Главная», «О проекте», «Контакты»; в одной — Markdown с таблицей, кодом, ссылками и строкой `<script>alert(1)</script>` (проверка санитайзера)
+- [x] `reference/site.yaml` — тип `pages` соответствует миграции
+- [x] e2e (`httptest` + goquery): главная, страница по slug, 404, отсутствие `<script>` в выводе; цель `make e2e`
 
 ### Проверка
 ```sh
@@ -123,7 +131,7 @@ open http://localhost:8080/          # главная из seed, стили пр
 open http://localhost:8080/about     # Markdown отрисован: таблица, код, ссылки
 open http://localhost:8080/nope      # оформленная страница 404, статус 404
 curl -s localhost:8080/contacts | grep -c '<script>alert'   # 0
-curl -sI localhost:8080/static/htmx-2.x.x.min.js           # 200, из embed
+curl -sI localhost:8080/static/htmx-2.0.11.min.js          # 200, из embed
 make e2e
 ```
 

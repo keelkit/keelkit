@@ -15,13 +15,16 @@ GOLANGCI_LINT = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/golangci/golangci-
 # sqlc без CGO: движок PostgreSQL отключается, SQLite работает.
 SQLC_VERSION ?= v1.31.1
 SQLC = GOTOOLCHAIN=$(GO_TOOLCHAIN) CGO_ENABLED=0 go run github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION)
+# CLI templ обязан совпадать с библиотекой github.com/a-h/templ в go.mod: generate проверяет это перед запуском.
+TEMPL_VERSION ?= v0.3.1020
+TEMPL = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/a-h/templ/cmd/templ@$(TEMPL_VERSION)
 
 SITE = ADDR=$(ADDR) DATA_DIR=$(DATA_DIR) BACKUP_DIR=$(BACKUP_DIR) go run ./cmd/site
 
-.PHONY: help run dev migrate seed reset generate generate-check test test-isolated lint
+.PHONY: help run dev migrate seed reset generate generate-check test test-isolated e2e lint
 
 help: ## Показать список целей
-	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
+	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
 run: ## Запустить сайт (откажется при непримененных миграциях). Пример: make run ADDR=:9090 DATA_DIR=/tmp/site
 	$(SITE) serve
@@ -38,7 +41,10 @@ seed: ## Заполнить dev-данными (идемпотентно, тол
 reset: ## Удалить локальную БД и загрузки (DATA_DIR), чтобы начать с нуля
 	rm -rf $(DATA_DIR)
 
-generate: ## Кодогенерация (sqlc)
+generate: ## Кодогенерация (templ, sqlc)
+	@lib="$$(go list -m -f '{{.Version}}' github.com/a-h/templ)"; \
+	if [ "$$lib" != "$(TEMPL_VERSION)" ]; then echo "generate: TEMPL_VERSION=$(TEMPL_VERSION), а в go.mod github.com/a-h/templ $$lib — версии должны совпадать"; exit 1; fi
+	$(TEMPL) generate
 	$(SQLC) generate
 
 generate-check: ## Проверить, что кодогенерация ничего не меняет
@@ -52,6 +58,9 @@ test: ## Тесты сайта
 
 test-isolated: ## Тесты только на опубликованных версиях модулей (GOWORK=off)
 	GOWORK=off go test ./...
+
+e2e: ## e2e-тесты ключевых сценариев (httptest + goquery; входят и в make test)
+	go test -count=1 -run '^TestE2E' ./cmd/site
 
 lint: ## Линтер golangci-lint
 	$(GOLANGCI_LINT) run ./...
