@@ -231,6 +231,7 @@ internal/content/<type>/   # модель, sqlc-запросы, хендлеры
 internal/admin/            # оболочка админки и авторизация (пока здесь)
 internal/web/              # layout, общие компоненты templ
 internal/richtext/         # richtext (Markdown) → очищенный HTML: goldmark + bluemonday
+internal/slug/             # slug из заголовка (транслитерация кириллицы) и проверка формата
 db/migrations/             # миграции сайта (goose, своя таблица версий) + embed.go
 static/                    # CSS, htmx.min.js — через embed
 site.yaml, sqlc.yaml, Makefile, AGENTS.md, CLAUDE.md
@@ -239,7 +240,8 @@ site.yaml, sqlc.yaml, Makefile, AGENTS.md, CLAUDE.md
 
 **Тесты**
 - e2e на чистом Go: `httptest` + goquery; htmx-запросы — обычные HTTP с заголовком `HX-Request`.
-- Немногие браузерные тесты критичных htmx-взаимодействий — chromedp, отдельной целью `make e2e-browser`.
+- Немногие браузерные тесты критичных htmx-взаимодействий — chromedp, отдельной целью `make e2e-browser`
+  (тег сборки `browser`, чтобы `make test` не требовал Chrome).
 
 **Эксплуатация**
 - Основной вариант — бинарник под systemd на VPS; Dockerfile — опция.
@@ -256,7 +258,7 @@ site.yaml, sqlc.yaml, Makefile, AGENTS.md, CLAUDE.md
 - У каждой цели есть комментарий `## ...` с описанием и, если она принимает параметры, примером вызова.
 - Параметры передаются переменными с безопасными значениями по умолчанию (`VAR ?= ...`).
 - В корне монорепо `test`, `test-isolated`, `lint` без `MODULE` проходят по `modules/*`, `spec/` и `reference/`;
-  `MODULE=<name>` — `modules/<name>`, `MODULE=spec` и `MODULE=reference` — одноимённые каталоги. `run`, `dev`, `migrate`, `seed`, `user-create`, `reset`, `generate`, `generate-check`, `e2e` делегируются в `reference/Makefile`.
+  `MODULE=<name>` — `modules/<name>`, `MODULE=spec` и `MODULE=reference` — одноимённые каталоги. `run`, `dev`, `migrate`, `seed`, `user-create`, `reset`, `generate`, `generate-check`, `e2e`, `e2e-browser` делегируются в `reference/Makefile`.
 - Совместимость с GNU Make 3.81 (стоит по умолчанию на macOS): без `.ONESHELL`, `$(file ...)` и других возможностей 4.x.
 
 Пример оформления:
@@ -307,7 +309,7 @@ test-isolated: ## Тесты модуля только на опубликова
 GitHub Actions; джобы вызывают только цели `make`.
 - Path-фильтры: изменения в `modules/<X>` или `spec/` запускают джобы для этого модуля и для `reference/`.
 - Модуль: `make lint`, `make test`, `make test-isolated`, `make generate-check`, `make deps-check`.
-- `reference/`: то же плюс `make e2e`, всё с `GOWORK=off`.
+- `reference/`: то же плюс `make e2e` и `make e2e-browser` (chromedp, Chrome есть на раннере), всё с `GOWORK=off`.
 - Эвалы скиллов — вручную (`workflow_dispatch`).
 
 ## Как работать агенту
@@ -348,6 +350,7 @@ GitHub Actions; джобы вызывают только цели `make`.
 | Санитайзер HTML для `richtext` | `microcosm-cc/bluemonday` (v1.0.27), политика UGC | стандарт де-факто, не в архиве, BSD-3; релизы редкие — goldmark и так вырезает сырой HTML, санитайзер — второй рубеж |
 | Хеширование паролей | argon2id из `golang.org/x/crypto/argon2` (v0.57.0); m=64 МиБ, t=3, p=4, соль 16 байт, ключ 32 байта; формат PHC `$argon2id$v=19$m=…,t=…,p=…$соль$хеш` | рекомендация OWASP и RFC 9106; нет лимита bcrypt в 72 байта; параметры хранятся в хеше — их можно усилить без миграции, перехешируя при входе |
 | Ввод пароля в CLI | `golang.org/x/term` (v0.46.0), `term.ReadPassword` в `site user create` | без эха в терминале на всех ОС; модуль уже в графе через `golang.org/x/crypto`, зависит только от `x/sys` |
+| Транслитерация для slug | своя таблица в `internal/slug` (кириллица → упрощённая латиница: ж→zh, х→kh, ц→ts, щ→shch, ю→yu, я→ya, ъ/ь опускаются) | ~40 строк без внешних зависимостей; другие алфавиты — по мере надобности |
 | Где миграции типов контента | все миграции сайта — в `db/migrations/`; в `internal/content/<type>/` — запросы, хендлеры, templ | у goose одна последовательность версий на таблицу версий; sqlc читает схему из одного каталога |
 
 ## Открытые решения (не принимать без человека)

@@ -1,0 +1,188 @@
+package pages
+
+import (
+	"github.com/keelkit/keelkit/reference/internal/admin"
+	"github.com/keelkit/keelkit/reference/internal/richtext"
+)
+
+// ListPage — список страниц в админке.
+templ ListPage(list []ListPagesRow, deleted bool) {
+	@admin.Layout("Страницы") {
+		<div class="admin-title">
+			<h1>Страницы</h1>
+			<a class="button" href={ templ.SafeURL(AdminPath + "/new") }>Создать страницу</a>
+		</div>
+		if deleted {
+			<p class="flash" role="status">Страница удалена.</p>
+		}
+		if len(list) == 0 {
+			<p>Страниц пока нет.</p>
+		} else {
+			<div class="table-wrap">
+				<table class="admin-table">
+					<thead>
+						<tr>
+							<th>Заголовок</th>
+							<th>Адрес</th>
+							<th>Обновлена</th>
+							<th><span class="visually-hidden">Действия</span></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, p := range list {
+							<tr>
+								<td><a href={ templ.SafeURL(editPath(p.ID)) }>{ p.Title }</a></td>
+								<td><a href={ templ.SafeURL(publicPath(p.Slug)) }>{ publicPath(p.Slug) }</a></td>
+								<td>{ formatTime(p.UpdatedAt) }</td>
+								<td><a class="danger-link" href={ templ.SafeURL(editPath(p.ID) + "/delete") }>Удалить</a></td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	}
+}
+
+// FormPage — страница создания или редактирования.
+templ FormPage(f pageForm) {
+	@admin.Layout(formTitle(f)) {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Страницы</a></p>
+		<div class="admin-title">
+			<h1>{ formTitle(f) }</h1>
+			if f.ID != 0 && f.Errors == nil {
+				<a href={ templ.SafeURL(publicPath(f.Slug)) }>Открыть на сайте</a>
+			}
+		</div>
+		if f.Saved {
+			<p class="flash" role="status">Сохранено.</p>
+		}
+		@Form(f)
+	}
+}
+
+// Form — форма страницы. Отправляется через htmx: с ошибками сервер возвращает только этот фрагмент (422),
+// и он заменяет форму целиком; без JavaScript та же форма работает обычным POST.
+// Превью Markdown обновляется при наборе с задержкой; hx-sync отменяет устаревший запрос.
+templ Form(f pageForm) {
+	<form
+		id="page-form"
+		class="form page-form"
+		method="post"
+		action={ templ.SafeURL(formAction(f)) }
+		hx-post={ formAction(f) }
+		hx-target="this"
+		hx-swap="outerHTML"
+	>
+		@admin.CSRFInput()
+		if len(f.Errors) > 0 {
+			<p class="form-error" role="alert">Исправьте ошибки в форме.</p>
+		}
+		<label>
+			Заголовок
+			<input
+				type="text"
+				name="title"
+				value={ f.Title }
+				required
+				maxlength="200"
+				if f.Errors["title"] != "" {
+					aria-invalid="true"
+					aria-describedby="title-error"
+				}
+			/>
+			@fieldError(f, "title")
+		</label>
+		<label>
+			Slug
+			<input
+				type="text"
+				name="slug"
+				value={ f.Slug }
+				placeholder="составится из заголовка"
+				if f.Errors["slug"] != "" {
+					aria-invalid="true"
+					aria-describedby="slug-hint slug-error"
+				} else {
+					aria-describedby="slug-hint"
+				}
+			/>
+			<span class="field-hint" id="slug-hint">Адрес страницы: латиница, цифры и дефисы. Пусто — составится из заголовка.</span>
+			@fieldError(f, "slug")
+		</label>
+		<div class="editor">
+			<label>
+				Текст (Markdown)
+				<textarea
+					name="body"
+					rows="18"
+					hx-post={ AdminPath + "/preview" }
+					hx-trigger="input changed delay:400ms"
+					hx-target="#page-preview"
+					hx-swap="innerHTML"
+					hx-sync="this:replace"
+					if f.Errors["body"] != "" {
+						aria-invalid="true"
+						aria-describedby="body-error"
+					}
+				>{ f.Body }</textarea>
+				@fieldError(f, "body")
+			</label>
+			<section class="preview" aria-labelledby="preview-title">
+				<h2 id="preview-title" class="preview-title">Превью</h2>
+				<div id="page-preview" class="page" aria-live="polite">
+					@Preview(f.Preview)
+				</div>
+			</section>
+		</div>
+		<div class="form-actions">
+			<button type="submit">Сохранить</button>
+			if f.ID != 0 {
+				<a class="danger-link" href={ templ.SafeURL(editPath(f.ID) + "/delete") }>Удалить</a>
+			}
+		</div>
+	</form>
+}
+
+// Preview — содержимое блока превью (ответ на POST /admin/pages/preview).
+templ Preview(body richtext.HTML) {
+	if body == "" {
+		<p class="preview-empty">Здесь появится превью текста.</p>
+	} else {
+		@body
+	}
+}
+
+templ fieldError(f pageForm, field string) {
+	if msg := f.Errors[field]; msg != "" {
+		<span class="field-error" id={ field + "-error" }>{ msg }</span>
+	}
+}
+
+// DeletePage — подтверждение удаления.
+templ DeletePage(p Page) {
+	@admin.Layout("Удаление страницы") {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Страницы</a></p>
+		<h1>Удалить страницу «{ p.Title }»?</h1>
+		<p>Страница пропадёт с сайта, адрес <a href={ templ.SafeURL(publicPath(p.Slug)) }>{ publicPath(p.Slug) }</a> начнёт отдавать 404. Отменить удаление нельзя.</p>
+		<form method="post" action={ templ.SafeURL(editPath(p.ID) + "/delete") } class="form-actions">
+			@admin.CSRFInput()
+			<button type="submit" class="danger">Удалить</button>
+			<a href={ templ.SafeURL(editPath(p.ID)) }>Отмена</a>
+		</form>
+	}
+}
+
+func formTitle(f pageForm) string {
+	if f.ID == 0 {
+		return "Новая страница"
+	}
+	return "Редактирование страницы"
+}
+
+func formAction(f pageForm) string {
+	if f.ID == 0 {
+		return AdminPath
+	}
+	return editPath(f.ID)
+}

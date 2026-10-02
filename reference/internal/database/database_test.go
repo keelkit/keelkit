@@ -133,3 +133,31 @@ func TestMigrateRefusesWithoutSnapshot(t *testing.T) {
 		t.Errorf("pending after refused migrate = %d, want 3", got)
 	}
 }
+
+func TestIsUniqueViolation(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "site.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+
+	if _, err := db.ExecContext(ctx, `CREATE TABLE t (slug TEXT NOT NULL UNIQUE CHECK (slug <> ''))`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO t (slug) VALUES ('a')`); err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.ExecContext(ctx, `INSERT INTO t (slug) VALUES ('a')`)
+	if !IsUniqueViolation(err) {
+		t.Errorf("duplicate: IsUniqueViolation(%v) = false", err)
+	}
+	// Другие нарушения ограничений — не UNIQUE.
+	_, err = db.ExecContext(ctx, `INSERT INTO t (slug) VALUES ('')`)
+	if err == nil || IsUniqueViolation(err) {
+		t.Errorf("check: IsUniqueViolation(%v) = true", err)
+	}
+	if IsUniqueViolation(nil) {
+		t.Error("IsUniqueViolation(nil) = true")
+	}
+}

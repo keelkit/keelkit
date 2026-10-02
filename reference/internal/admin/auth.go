@@ -38,10 +38,12 @@ type User struct {
 	Role  string
 }
 
-// session — сессия текущего запроса.
+// session — сессия текущего запроса и данные для меню оболочки.
 type session struct {
-	user User
-	csrf string
+	user     User
+	csrf     string
+	sections []Section // разделы меню (Options.Sections)
+	path     string    // путь запроса: текущий пункт меню
 }
 
 type sessionKey struct{}
@@ -49,6 +51,12 @@ type sessionKey struct{}
 func sessionFrom(ctx context.Context) (session, bool) {
 	s, ok := ctx.Value(sessionKey{}).(session)
 	return s, ok
+}
+
+// requestPath — путь запроса для меню (только внутри RequireUser).
+func requestPath(ctx context.Context) string {
+	s, _ := sessionFrom(ctx)
+	return s.path
 }
 
 // UserFrom возвращает вошедшего пользователя (только внутри RequireUser).
@@ -236,6 +244,7 @@ func (h *Handler) RequireUser(next http.Handler) http.Handler {
 			h.render(w, r, http.StatusForbidden, ForbiddenPage())
 			return
 		}
+		s.sections, s.path = h.opts.Sections, r.URL.Path
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), sessionKey{}, s)))
 	})
 }

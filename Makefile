@@ -29,7 +29,7 @@ DIRS := modules/$(MODULE)
 endif
 endif
 
-.PHONY: help test test-isolated lint spec-validate run dev migrate seed user-create reset generate generate-check e2e
+.PHONY: help test test-isolated lint spec-validate run dev migrate seed user-create reset generate generate-check e2e e2e-browser
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -73,3 +73,6 @@ generate-check: ## Проверить, что кодогенерация нич�
 
 e2e: ## e2e-тесты эталонного сайта (httptest + goquery)
 	@$(MAKE) -C reference e2e
+
+e2e-browser: ## Браузерные тесты эталонного сайта (chromedp, нужен Chrome)
+	@$(MAKE) -C reference e2e-browser

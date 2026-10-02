@@ -21,15 +21,22 @@ import (
 // defaultSiteName — название, пока в site_settings нет строки (до seed или настройки в админке).
 const defaultSiteName = "Keelkit reference"
 
+// reservedSlugs — первые сегменты путей, занятые маршрутами newMux. Страница с таким slug была бы не видна,
+// поэтому админка их не принимает. Новый маршрут верхнего уровня — новая запись здесь; если маршрут — поддерево
+// (/static/), сам путь без слеша тоже нужно занять, иначе его заберёт GET /{slug} (проверяет e2e).
+var reservedSlugs = []string{"admin", "static", "healthz"}
+
 // newMux — все маршруты сайта. HTML-маршруты оборачиваются в html: данные шапки в контексте запроса.
 // Маршруты админки — ещё и в adminOnly: защита от межсайтовых запросов (http.CrossOriginProtection),
 // а всё, кроме входа, — в adminH.RequireUser (сессия и CSRF-токен).
 func newMux(db *sql.DB, cfg config) *http.ServeMux {
 	html := web.WithSite(siteLoader(db))
 	pagesH := pages.NewHandler(db)
+	pagesAdmin := pages.NewAdmin(db, reservedSlugs)
 	adminH := admin.NewHandler(db, admin.Options{
 		SecureCookies: cfg.CookieSecure,
 		Counters:      adminCounters(db),
+		Sections:      []admin.Section{{Title: "Страницы", URL: pages.AdminPath}},
 	})
 	crossOrigin := http.NewCrossOriginProtection()
 	adminOnly := func(h http.HandlerFunc) http.Handler { return crossOrigin.Handler(html(h)) }
@@ -38,6 +45,7 @@ func newMux(db *sql.DB, cfg config) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", handleHealthz(db))
 	mux.Handle("GET /static/", static.Handler())
+	mux.Handle("GET /static", html(http.HandlerFunc(web.NotFound)))
 
 	mux.Handle("GET /{$}", html(http.HandlerFunc(pagesH.Home)))
 	mux.Handle("GET /{slug}", html(http.HandlerFunc(pagesH.Show)))
@@ -47,6 +55,15 @@ func newMux(db *sql.DB, cfg config) *http.ServeMux {
 	mux.Handle("POST /admin/logout", signedIn(adminH.Logout))
 	mux.Handle("GET /admin", signedIn(adminH.Dashboard))
 	mux.Handle("GET /admin/{$}", http.RedirectHandler("/admin", http.StatusMovedPermanently))
+
+	mux.Handle("GET /admin/pages", signedIn(pagesAdmin.List))
+	mux.Handle("GET /admin/pages/new", signedIn(pagesAdmin.New))
+	mux.Handle("POST /admin/pages", signedIn(pagesAdmin.Create))
+	mux.Handle("POST /admin/pages/preview", signedIn(pagesAdmin.Preview))
+	mux.Handle("GET /admin/pages/{id}", signedIn(pagesAdmin.Edit))
+	mux.Handle("POST /admin/pages/{id}", signedIn(pagesAdmin.Update))
+	mux.Handle("GET /admin/pages/{id}/delete", signedIn(pagesAdmin.ConfirmDelete))
+	mux.Handle("POST /admin/pages/{id}/delete", signedIn(pagesAdmin.Delete))
 	// Остальное под /admin/ — 404 админки, но только после входа: без сессии — редирект на вход.
 	mux.Handle("/admin/", signedIn(adminH.NotFound))
 
@@ -88,7 +105,7 @@ func adminCounters(db *sql.DB) func(context.Context) ([]admin.Counter, error) {
 		if err != nil {
 			return nil, fmt.Errorf("count pages: %w", err)
 		}
-		return []admin.Counter{{Label: "Страниц", Value: n}}, nil
+		return []admin.Counter{{Label: "Страниц", Value: n, URL: pages.AdminPath}}, nil
 	}
 }
 

@@ -3,16 +3,19 @@ package admin
 import (
 	"encoding/json"
 	"strconv"
+	"strings"
 
 	"github.com/keelkit/keelkit/reference/internal/web"
 	"github.com/keelkit/keelkit/reference/static"
 )
 
-// layout — оболочка страниц админки. Вошедшему пользователю — меню и кнопка «Выйти»;
-// CSRF-токен сессии передаётся в htmx-запросы заголовком через hx-headers.
-templ layout(title string) {
+// Layout — оболочка страниц админки, в том числе разделов типов контента. Вошедшему пользователю — меню
+// (дашборд, разделы из Options.Sections, сайт) и кнопка «Выйти»; CSRF-токен сессии передаётся в htmx-запросы
+// заголовком через hx-headers. htmx-config разрешает подменять разметку ответом 422: так приходят ошибки валидации форм.
+templ Layout(title string) {
 	{{ site := web.SiteFrom(ctx) }}
 	{{ s, signedIn := sessionFrom(ctx) }}
+	{{ path := requestPath(ctx) }}
 	<!DOCTYPE html>
 	<html lang="ru">
 		<head>
@@ -22,6 +25,7 @@ templ layout(title string) {
 			<title>{ title } — Админка — { site.Name }</title>
 			<link rel="icon" type="image/svg+xml" href={ static.Path("favicon.svg") }/>
 			<link rel="stylesheet" href={ static.Path("style.css") }/>
+			<meta name="htmx-config" content={ htmxConfig }/>
 			<script src={ static.Path("htmx-2.0.11.min.js") } defer></script>
 		</head>
 		<body
@@ -36,7 +40,10 @@ templ layout(title string) {
 					if signedIn {
 						<nav class="site-nav" aria-label="Меню админки">
 							<ul>
-								<li><a href={ templ.SafeURL(dashboardPath) }>Дашборд</a></li>
+								@navLink(dashboardPath, "Дашборд", path == dashboardPath)
+								for _, sec := range s.sections {
+									@navLink(sec.URL, sec.Title, path == sec.URL || strings.HasPrefix(path, sec.URL+"/"))
+								}
 								<li><a href="/">На сайт</a></li>
 								<li>
 									<form class="logout" method="post" action={ templ.SafeURL(logoutPath) }>
@@ -59,7 +66,7 @@ templ layout(title string) {
 
 // LoginPage — форма входа.
 templ LoginPage(f loginForm) {
-	@layout("Вход") {
+	@Layout("Вход") {
 		<section class="login">
 			<h1>Вход</h1>
 			if f.Error != "" {
@@ -84,12 +91,18 @@ templ LoginPage(f loginForm) {
 
 // DashboardPage — дашборд: счётчики контента.
 templ DashboardPage(counters []Counter) {
-	@layout("Дашборд") {
+	@Layout("Дашборд") {
 		<h1>Дашборд</h1>
 		if len(counters) > 0 {
 			<ul class="counters">
 				for _, c := range counters {
-					<li class="counter">{ c.Label }: <strong>{ strconv.FormatInt(c.Value, 10) }</strong></li>
+					<li class="counter">
+						if c.URL != "" {
+							<a href={ templ.SafeURL(c.URL) }>{ c.Label }</a>: <strong>{ strconv.FormatInt(c.Value, 10) }</strong>
+						} else {
+							{ c.Label }: <strong>{ strconv.FormatInt(c.Value, 10) }</strong>
+						}
+					</li>
 				}
 			</ul>
 		}
@@ -98,7 +111,7 @@ templ DashboardPage(counters []Counter) {
 
 // ForbiddenPage — 403: запрос без верного CSRF-токена.
 templ ForbiddenPage() {
-	@layout("Доступ запрещён") {
+	@Layout("Доступ запрещён") {
 		<section class="error-page">
 			<p class="error-code">403</p>
 			<h1>Доступ запрещён</h1>
@@ -108,12 +121,13 @@ templ ForbiddenPage() {
 	}
 }
 
-// NotFoundPage — 404 внутри админки.
+// NotFoundPage — 404 внутри админки: неизвестный путь или запись, которой нет.
 templ NotFoundPage() {
-	@layout("Не найдено") {
+	@Layout("Не найдено") {
 		<section class="error-page">
 			<p class="error-code">404</p>
-			<h1>Раздел не найден</h1>
+			<h1>Не найдено</h1>
+			<p>Такого раздела или записи нет: возможно, её удалили.</p>
 			<p><a href={ templ.SafeURL(dashboardPath) }>На дашборд</a></p>
 		</section>
 	}
@@ -121,7 +135,7 @@ templ NotFoundPage() {
 
 // ErrorPage — 500; подробности ошибки только в логе.
 templ ErrorPage() {
-	@layout("Ошибка сервера") {
+	@Layout("Ошибка сервера") {
 		<section class="error-page">
 			<p class="error-code">500</p>
 			<h1>Что-то пошло не так</h1>
@@ -129,6 +143,25 @@ templ ErrorPage() {
 		</section>
 	}
 }
+
+templ navLink(url, title string, current bool) {
+	<li>
+		if current {
+			<a href={ templ.SafeURL(url) } aria-current="page">{ title }</a>
+		} else {
+			<a href={ templ.SafeURL(url) }>{ title }</a>
+		}
+	</li>
+}
+
+// CSRFInput — скрытое поле с CSRF-токеном сессии для форм админки (только внутри RequireUser).
+templ CSRFInput() {
+	<input type="hidden" name={ csrfField } value={ CSRFToken(ctx) }/>
+}
+
+// htmxConfig — настройки htmx админки: ответ 422 (ошибки валидации) подменяет разметку, как 2xx;
+// остальные коды — по умолчанию htmx (204 не трогает страницу, 4xx/5xx — ошибка без подмены).
+const htmxConfig = `{"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"422","swap":true},{"code":"[45]..","swap":false,"error":true}]}`
 
 // csrfHeaders — значение hx-headers: JSON с CSRF-токеном.
 func csrfHeaders(token string) string {

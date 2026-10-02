@@ -13,7 +13,8 @@ import (
 	"time"
 
 	"github.com/pressly/goose/v3"
-	_ "modernc.org/sqlite" // драйвер "sqlite" без CGO
+	"modernc.org/sqlite" // драйвер "sqlite" без CGO
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 // Open открывает (или создаёт) файл БД с прагмами сайта: WAL, внешние ключи, ожидание блокировки.
@@ -31,6 +32,13 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
 	return db, nil
+}
+
+// IsUniqueViolation сообщает, что запрос нарушил ограничение UNIQUE (например, slug уже занят).
+// Проверять уникальность так, а не запросом перед вставкой: ограничение в БД не пропустит и гонку двух запросов.
+func IsUniqueViolation(err error) bool {
+	var se *sqlite.Error
+	return errors.As(err, &se) && se.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE
 }
 
 // Source — набор миграций одного владельца: модуля или сайта.

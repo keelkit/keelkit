@@ -183,7 +183,7 @@ func TestE2EAdminLoginLogout(t *testing.T) {
 
 	// Неизвестный раздел — 404 админки.
 	resp, body = fetch(t, client, srv.URL+"/admin/nope")
-	if resp.StatusCode != http.StatusNotFound || text(parse(t, body).Find("main h1")) != "Раздел не найден" {
+	if resp.StatusCode != http.StatusNotFound || text(parse(t, body).Find("main h1")) != "Не найдено" {
 		t.Errorf("GET /admin/nope: status %d", resp.StatusCode)
 	}
 

@@ -20,6 +20,54 @@ func (q *Queries) CountPages(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const createPage = `-- name: CreatePage :one
+INSERT INTO pages (title, slug, body) VALUES (?, ?, ?)
+RETURNING id
+`
+
+type CreatePageParams struct {
+	Title string
+	Slug  string
+	Body  string
+}
+
+func (q *Queries) CreatePage(ctx context.Context, arg CreatePageParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, createPage, arg.Title, arg.Slug, arg.Body)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const deletePage = `-- name: DeletePage :execrows
+DELETE FROM pages WHERE id = ?
+`
+
+func (q *Queries) DeletePage(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deletePage, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const getPage = `-- name: GetPage :one
+SELECT id, title, slug, body, created_at, updated_at FROM pages WHERE id = ?
+`
+
+func (q *Queries) GetPage(ctx context.Context, id int64) (Page, error) {
+	row := q.db.QueryRowContext(ctx, getPage, id)
+	var i Page
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Slug,
+		&i.Body,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getPageBySlug = `-- name: GetPageBySlug :one
 SELECT id, title, slug, body, created_at, updated_at FROM pages WHERE slug = ?
 `
@@ -86,4 +134,70 @@ func (q *Queries) ListPageLinks(ctx context.Context, excludeSlug string) ([]List
 		return nil, err
 	}
 	return items, nil
+}
+
+const listPages = `-- name: ListPages :many
+SELECT id, title, slug, updated_at FROM pages ORDER BY id
+`
+
+type ListPagesRow struct {
+	ID        int64
+	Title     string
+	Slug      string
+	UpdatedAt string
+}
+
+// Admin list, in creation order (the same order as the header menu).
+func (q *Queries) ListPages(ctx context.Context) ([]ListPagesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPages)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPagesRow
+	for rows.Next() {
+		var i ListPagesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Slug,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updatePage = `-- name: UpdatePage :execrows
+UPDATE pages
+SET title = ?, slug = ?, body = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+WHERE id = ?
+`
+
+type UpdatePageParams struct {
+	Title string
+	Slug  string
+	Body  string
+	ID    int64
+}
+
+func (q *Queries) UpdatePage(ctx context.Context, arg UpdatePageParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updatePage,
+		arg.Title,
+		arg.Slug,
+		arg.Body,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

@@ -2,6 +2,11 @@
 # Копия лежит в reference/.golangci.yml: сайт в отдельном репозитории должен быть самодостаточным.
 version: "2"
 
+run:
+  # Браузерные тесты сайтов (make e2e-browser) собираются с тегом browser — линтер проверяет и их.
+  build-tags:
+    - browser
+
 linters:
   default: standard # errcheck, govet, ineffassign, staticcheck, unused
   enable:

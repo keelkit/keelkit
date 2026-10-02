@@ -26,7 +26,7 @@ TEMPL = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/a-h/templ/cmd/templ@$(TEMP
 
 SITE = ADDR=$(ADDR) DATA_DIR=$(DATA_DIR) BACKUP_DIR=$(BACKUP_DIR) COOKIE_SECURE=$(COOKIE_SECURE) go run ./cmd/site
 
-.PHONY: help run dev migrate seed user-create reset generate generate-check test test-isolated e2e lint
+.PHONY: help run dev migrate seed user-create reset generate generate-check test test-isolated e2e e2e-browser lint
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -70,6 +70,9 @@ test-isolated: ## Тесты только на опубликованных ве
 
 e2e: ## e2e-тесты ключевых сценариев (httptest + goquery; входят и в make test)
 	go test -count=1 -run '^TestE2E' ./cmd/site
+
+e2e-browser: ## Браузерные тесты htmx-взаимодействий (chromedp, нужен Chrome; тег сборки browser)
+	go test -count=1 -tags browser -run '^TestBrowser' ./cmd/site
 
 lint: ## Линтер golangci-lint
 	$(GOLANGCI_LINT) run ./...

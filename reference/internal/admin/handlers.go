@@ -35,10 +35,17 @@ const (
 	loginWindow      = 15 * time.Minute
 )
 
-// Counter — счётчик на дашборде: «Страниц: 3».
+// Counter — счётчик на дашборде: «Страниц: 3». URL — ссылка на раздел (необязательно).
 type Counter struct {
 	Label string
 	Value int64
+	URL   string
+}
+
+// Section — раздел админки в меню: «Страницы» → /admin/pages. Пункт подсвечивается на URL и вложенных путях.
+type Section struct {
+	Title string
+	URL   string
 }
 
 // Options — настройки админки.
@@ -47,6 +54,8 @@ type Options struct {
 	SecureCookies bool
 	// Counters — счётчики контента для дашборда.
 	Counters func(context.Context) ([]Counter, error)
+	// Sections — разделы типов контента в меню, по порядку.
+	Sections []Section
 }
 
 // Handler — хендлеры и middleware админки.
@@ -169,15 +178,24 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 
 // NotFound — неизвестный путь внутри админки (внутри RequireUser).
 func (h *Handler) NotFound(w http.ResponseWriter, r *http.Request) {
-	h.render(w, r, http.StatusNotFound, NotFoundPage())
+	NotFound(w, r)
 }
 
 func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, c templ.Component) {
 	web.Render(w, r, status, c)
 }
 
-// serverError логирует ошибку и отдаёт страницу 500 админки без подробностей.
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request, err error) {
+	ServerError(w, r, err)
+}
+
+// NotFound — 404 админки: для разделов типов контента, когда запись не найдена.
+func NotFound(w http.ResponseWriter, r *http.Request) {
+	web.Render(w, r, http.StatusNotFound, NotFoundPage())
+}
+
+// ServerError логирует ошибку и отдаёт страницу 500 админки без подробностей.
+func ServerError(w http.ResponseWriter, r *http.Request, err error) {
 	slog.Error("admin request failed", "method", r.Method, "path", r.URL.Path, "err", err)
-	h.render(w, r, http.StatusInternalServerError, ErrorPage())
+	web.Render(w, r, http.StatusInternalServerError, ErrorPage())
 }

@@ -343,3 +343,162 @@ th {
   border-radius: var(--radius);
   background: var(--surface);
 }
+
+/* Админка: разделы типов контента */
+
+body.admin {
+  --measure: 72rem;
+}
+
+.admin-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.admin-title h1 {
+  margin: 0;
+}
+
+.breadcrumbs {
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.button,
+button.danger {
+  display: inline-block;
+  padding: 0.5rem 1.25rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--accent-hover);
+  color: var(--bg);
+}
+
+button.danger {
+  background: #b42318;
+  color: #fff;
+}
+
+button.danger:hover {
+  background: #912018;
+}
+
+.danger-link {
+  color: #b42318;
+}
+
+.flash {
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.admin-table {
+  display: table;
+  width: 100%;
+}
+
+.form textarea {
+  width: 100%;
+  min-height: 24rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: 0.95rem/1.55 var(--mono);
+  resize: vertical;
+}
+
+.form [aria-invalid="true"] {
+  border-color: #b42318;
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.field-error {
+  color: #b42318;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.5rem;
+}
+
+/* Редактор: текст и превью рядом на широком экране, друг под другом на узком. */
+.editor {
+  display: grid;
+  gap: 1rem 1.5rem;
+}
+
+@media (min-width: 60rem) {
+  .editor {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+.preview {
+  min-width: 0;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.preview-title {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.preview-empty {
+  color: var(--muted);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-color-scheme: dark) {
+  .danger-link,
+  .field-error {
+    color: #f97066;
+  }
+
+  .form [aria-invalid="true"] {
+    border-color: #f97066;
+  }
+}

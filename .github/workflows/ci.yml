@@ -36,6 +36,10 @@ jobs:
       - name: E2E
         if: matrix.module == 'reference'
         run: make e2e
+      # Chrome предустановлен на ubuntu-latest.
+      - name: E2E (browser)
+        if: matrix.module == 'reference'
+        run: make e2e-browser
       - name: Validate reference/site.yaml
         if: matrix.module == 'spec'
         run: make spec-validate FILE=reference/site.yaml

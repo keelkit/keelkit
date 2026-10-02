@@ -9,7 +9,8 @@
 - Модули Keelkit: пока не подключены (`images` — с этапа 8 плана).
 - Зависимости: `modernc.org/sqlite` v1.60.1, `github.com/pressly/goose/v3` v3.28.0 (только библиотека, CLI goose не используется),
   `github.com/a-h/templ` v0.3.1020, `github.com/yuin/goldmark` v1.8.6, `github.com/microcosm-cc/bluemonday` v1.0.27,
-  `golang.org/x/crypto` v0.57.0 (argon2id), `golang.org/x/term` v0.46.0 (ввод пароля без эха); в тестах — `github.com/PuerkitoBio/goquery` v1.13.0.
+  `golang.org/x/crypto` v0.57.0 (argon2id), `golang.org/x/term` v0.46.0 (ввод пароля без эха); в тестах — `github.com/PuerkitoBio/goquery` v1.13.0,
+  `github.com/chromedp/chromedp` v0.16.0 (только браузерные тесты с тегом `browser`; его `cdproto` — псевдоверсия, теги у неё не ставятся).
 - Инструменты (версии закреплены в `Makefile`): sqlc v1.31.1; CLI templ — `TEMPL_VERSION`, обязан совпадать с библиотекой
   в `go.mod` (`make generate` проверяет это и откажется запускаться при расхождении).
 - Вендоренный JS: htmx 2.0.11 — `static/htmx-2.0.11.min.js` (сверен с sha512 из npm).
@@ -30,6 +31,7 @@
 | `make generate-check` | проверить, что генерация ничего не меняет (в CI) |
 | `make test` | все тесты, включая e2e |
 | `make e2e` | только e2e (`TestE2E*` в `cmd/site`) |
+| `make e2e-browser` | браузерные тесты htmx-взаимодействий (`TestBrowser*`, тег `browser`, chromedp; нужен Chrome) |
 | `make test-isolated` | тесты с `GOWORK=off`, только на опубликованных версиях модулей |
 | `make lint` | golangci-lint, версия закреплена в `Makefile` |
 
@@ -49,6 +51,12 @@
 - `GET /static/…` — файлы из `static/` (embed); ссылки с `?v=<хеш>` кэшируются на год, список каталога не отдаётся.
 - `GET /admin/login`, `POST /admin/login`, `POST /admin/logout`, `GET /admin` (дашборд); `/admin/` → 301 на `/admin`;
   прочие пути под `/admin/` — 404 админки, но только после входа (без сессии — редирект на вход).
+- Раздел страниц: `GET /admin/pages` (список), `GET /admin/pages/new`, `POST /admin/pages` (создать),
+  `GET|POST /admin/pages/{id}` (форма, сохранить), `GET|POST /admin/pages/{id}/delete` (подтверждение, удалить),
+  `POST /admin/pages/preview` (htmx: превью Markdown).
+- Зарезервированные slug — `reservedSlugs` в `cmd/site/server.go` (`admin`, `static`, `healthz`): их маршруты перекрывают
+  страницу, админка такие slug не принимает. Маршрут-поддерево (`/static/`) занимает и путь без слеша (`GET /static` → 404),
+  иначе его забрал бы `GET /{slug}`; e2e `TestE2EReservedSlugsShadowPages` проверяет каждый slug из списка.
 - Всё остальное — оформленная 404 (`web.NotFound`).
 - `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"site":{"version":3,"pending":0}}}`.
 
@@ -103,24 +111,47 @@
 - Вход: 5 неудач за 15 минут для одного email → блокировка до конца окна (429, `Retry-After`); счётчики в памяти процесса.
   Неверный email и неверный пароль дают одно сообщение; для неизвестного email пароль сверяется с фиктивным хешем.
 - `next` после входа — только путь внутри `/admin` (`safeNext`), иначе дашборд.
-- Пакет не знает о типах контента: счётчики дашборда передаёт `adminCounters` в `cmd/site/server.go` через `admin.Options.Counters`.
-  Новый тип контента добавляет туда свой счётчик.
+- Пакет не знает о типах контента: счётчики дашборда передаёт `adminCounters` в `cmd/site/server.go` через `admin.Options.Counters`
+  (`Counter.URL` — ссылка на раздел), пункты меню — `admin.Options.Sections`. Новый тип контента добавляет туда счётчик и раздел.
+- Для разделов типов контента пакет экспортирует: `admin.Layout(title)` (оболочка с меню, текущий пункт — по префиксу пути),
+  `admin.CSRFInput()` (скрытое поле токена), `admin.NotFound`, `admin.ServerError`.
+- htmx в админке: `<meta name="htmx-config">` разрешает подмену разметки ответом 422 (по умолчанию htmx не подменяет 4xx).
 - Dev-пользователь из seed: `admin@example.com` / `admin` (короче политики — seed пишет напрямую и в проде не запускается).
 
 ## Тип контента
 
 Один тип — один пакет `internal/content/<type>/` (пример — `pages`):
-`queries.sql` + код sqlc, `handlers.go` (`Handler`, `NewHandler(db)`, методы-хендлеры), `views.templ`.
+`queries.sql` + код sqlc, `handlers.go` (`Handler`, `NewHandler(db)`, публичные хендлеры), `views.templ`,
+`admin.go` (`Admin`, `NewAdmin(db, …)`, `AdminPath`, хендлеры раздела админки), `admin.templ`.
 Миграция — в `db/migrations/`, маршруты — в `newMux`, dev-данные — в `cmd/site/seed.go`, запись sqlc — в `sqlc.yaml`,
-счётчик дашборда — в `adminCounters`.
+счётчик дашборда — в `adminCounters`, пункт меню — в `admin.Options.Sections`.
+
+Раздел админки (образец — `pages/admin.go`):
+- Маршруты — `signedIn(...)`: сессия и CSRF уже проверены. Список, `new`, создание `POST /admin/<type>`,
+  форма и сохранение `/{id}`, удаление через страницу подтверждения `/{id}/delete` (работает без JavaScript).
+- Форма отправляется и обычным POST, и через htmx (`hx-post`, `hx-target="this"`, `hx-swap="outerHTML"`).
+  Ошибки валидации — 422: при `HX-Request` только фрагмент формы, без него — страница целиком; введённые данные
+  возвращаются в форму, сообщение — у поля (`#<поле>-error`, `aria-invalid`, `aria-describedby`).
+- Успех: обычной форме — 303 на форму с `?saved=1` («Сохранено»), htmx — 204 и `HX-Redirect`.
+- Нормализация в `validate`: `TrimSpace` заголовка, CRLF → LF в тексте. Уникальность — ограничением `UNIQUE` в БД
+  (`database.IsUniqueViolation`), без предварительного `SELECT`: так не проходит и гонка двух запросов.
+- slug — `internal/slug`: пустой составляется из заголовка (`slug.Make`, транслитерация кириллицы своей таблицей),
+  введённый вручную приводится к тому же виду; затем проверка `reservedSlugs` и уникальности.
+- Поле `richtext`: textarea + превью (`hx-post` на `…/preview`, `hx-trigger="input changed delay:400ms"`,
+  `hx-sync="this:replace"`); превью при открытии формы рисует сервер, ответ превью — тот же `richtext.Render`.
 
 ## Тесты
 
-- Unit-тесты — рядом с пакетом (`internal/richtext`, `internal/database`, `internal/admin`).
+- Unit-тесты — рядом с пакетом (`internal/richtext`, `internal/database`, `internal/admin`, `internal/slug`).
 - e2e — `cmd/site/e2e_test.go`, функции `TestE2E*`: `httptest.NewServer(newMux(db, config{}))` над БД после `migrate` и `seed`,
   HTML разбирается goquery. Хелперы `fetch` (тело уже прочитано и закрыто) и `page` (статус, `Content-Type`, документ).
 - e2e админки — `cmd/site/e2e_admin_test.go`: `adminClient` (cookie jar, редиректы не выполняются), `post`, `login`, `loginOK`
   (вход dev-пользователем, возвращает CSRF-токен сессии), `csrfToken` (скрытое поле формы).
+- e2e раздела типа контента — `cmd/site/e2e_<type>_admin_test.go` (образец — `pages`): `newPageAdmin` (сайт + вошедший клиент),
+  `save`, заголовки `htmx`; каждая ошибка валидации проверяется и без `HX-Request` (страница), и с ним (фрагмент).
+- Браузерные тесты — `cmd/site/browser_test.go` (`//go:build browser`, `TestBrowser*`, chromedp, headless Chrome):
+  только критичные htmx-взаимодействия — превью при наборе, сохранение через `HX-Redirect`, подмена формы с ошибкой
+  без перезагрузки. Запуск — `make e2e-browser`; `make test` их не собирает, линтер — собирает (`build-tags` в `.golangci.yml`).
 
 ## Спецификация
 
@@ -136,15 +167,18 @@ cmd/site/seed.go            # dev-данные
 cmd/site/user.go            # site user create
 cmd/site/e2e_test.go        # e2e (TestE2E*)
 cmd/site/e2e_admin_test.go  # e2e админки
+cmd/site/e2e_pages_admin_test.go  # e2e раздела «Страницы»
+cmd/site/browser_test.go    # браузерные тесты (тег browser, make e2e-browser)
 db/migrations/              # миграции сайта (goose) + embed.go
 internal/admin/             # админка: вход, сессии, CSRF, ограничение попыток, оболочка, дашборд
-internal/content/pages/     # тип контента pages: queries.sql, sqlc, handlers.go, views.templ
+internal/content/pages/     # тип контента pages: queries.sql, sqlc, handlers.go, views.templ, admin.go, admin.templ
 internal/database/          # открытие SQLite, статус схем, снимок, применение миграций
 internal/richtext/          # Markdown → очищенный HTML
+internal/slug/              # slug: Make (транслитерация), Valid
 internal/settings/          # site_settings: queries.sql и код sqlc
 internal/web/               # layout, страницы ошибок, рендер
 static/                     # CSS, htmx, иконка + static.go (embed, Path, Handler)
 site.yaml, sqlc.yaml        # спецификация сайта, конфиг sqlc
 ```
 
-Структура будет расти по плану: разделы админки (этап 5), новые `internal/content/<type>/`.
+Структура будет расти по плану: новые `internal/content/<type>/`.
