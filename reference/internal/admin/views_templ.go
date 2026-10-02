@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/keelkit/keelkit/reference/internal/web"
-	"github.com/keelkit/keelkit/reference/static"
+	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/voffkin/keelkit/reference/static"
 )
 
 // Layout — оболочка страниц админки, в том числе разделов типов контента. Вошедшему пользователю — меню

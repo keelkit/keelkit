@@ -44,7 +44,7 @@ open http://localhost:8080/      # страница «Keelkit reference»
 
 Цель: есть схема `site.yaml`, и её можно проверить командой.
 
-Сделано: модуль `spec/` (`github.com/keelkit/keelkit/spec`) — `schema.json`, `spec.Validate`, `cmd/spec-validate`;
+Сделано: модуль `spec/` (`github.com/voffkin/keelkit/spec`) — `schema.json`, `spec.Validate`, `cmd/spec-validate`;
 зависимости `go.yaml.in/yaml/v3` v3.0.5, `santhosh-tekuri/jsonschema/v6` v6.0.3, `golang.org/x/text` v0.42.0.
 Цели `spec-validate` в `reference/Makefile` пока нет: сайт будет вызывать `go run …/spec/cmd/spec-validate@vX`
 после первого релиза `spec` (этап 7).
@@ -259,21 +259,24 @@ make dev   # сайт по-прежнему работает (модуль ещ�
 - [ ] `migrations/` через `embed.FS`, таблица версий `goose_images_version`; у записи файла хранится версия профиля
 - [ ] Сервис: загрузка, получение метаданных и вариантов, удаление; `http.Handler` для отдачи файлов
 - [ ] Повторная обработка «всё с версией профиля ниже N»: идемпотентна, безопасна для прерывания (тест с отменой контекста посередине и повторным запуском)
-- [ ] S3-совместимое хранилище — за тем же интерфейсом (внешняя зависимость — согласовать; допустимо отложить до появления потребности)
+- [ ] ~~S3-совместимое хранилище~~ — отложено (решение человека): появится за тем же интерфейсом `Storage`, когда понадобится сайту
 - [ ] `testkit/`: контрактные тесты для сайта (загрузка → варианты доступны через handler → повторная обработка ничего не ломает)
 - [ ] `CHANGELOG.md`, `UPGRADE.md`
 - [ ] Цель `make release MODULE=images VERSION=v0.1.0`: проверяет CHANGELOG, UPGRADE, чистое дерево, зелёный CI; ставит тег `modules/images/v0.1.0`
 - [ ] `make deps-check` (`go list -m -u all` + govulncheck)
-- [ ] Релиз `spec v0.1.0` (`make release MODULE=spec VERSION=v0.1.0`); в `reference/Makefile` — цель `spec-validate` через `go run github.com/keelkit/keelkit/spec/cmd/spec-validate@v0.1.0`
-- [ ] Создать репозиторий `github.com/keelkit/keelkit` и запушить (**согласовать с человеком**: публичная публикация)
+- [ ] Релиз `spec v0.1.0` (`make release MODULE=spec VERSION=v0.1.0`); в `reference/Makefile` — цель `spec-validate` через `go run github.com/voffkin/keelkit/spec/cmd/spec-validate@v0.1.0`
+- [ ] Приватный репозиторий `https://github.com/voffkin/keelkit` (создаёт человек): `git remote add origin`, push `main` и тегов
+- [x] `GOPRIVATE` и SSH-подмена адресов (`GIT_CONFIG_*`) экспортируются в обоих `Makefile` — глобальные настройки не нужны
+- [ ] CI: deploy key только для чтения в секретах и `ssh-agent` в джобах (нужен, когда `reference/` начнёт зависеть от модулей)
+- [ ] `make release` отказывается ставить уже существующий тег (приватные модули не защищены `sum.golang.org`)
 
 ### Проверка
 ```sh
 make test MODULE=images && make test-isolated MODULE=images
 make deps-check                                # нет уязвимостей
 make release MODULE=images VERSION=v0.1.0 DRY_RUN=1   # показывает, что сделает, и что все проверки пройдены
-# после пуша тега:
-GOWORK=off GOFLAGS=-mod=mod go list -m -versions github.com/keelkit/keelkit/modules/images   # v0.1.0
+# после пуша тега (через make — GOPRIVATE и SSH уже настроены; напрямую — с теми же переменными):
+GOWORK=off GOFLAGS=-mod=mod go list -m -versions github.com/voffkin/keelkit/modules/images   # v0.1.0
 make images-demo IN=modules/images/testdata   # демо-страница работает как на этапе 6
 ```
 
@@ -427,5 +430,5 @@ make evals SKILL=upgrade-site     # копия reference на v0.1.0 → обн�
 - [x] Хеширование паролей — этап 4. Решено: argon2id из `golang.org/x/crypto/argon2` v0.57.0 (параметры — в `AGENTS.md`, «Принятые решения»)
 - [x] Ввод пароля без эха для `site user create` — этап 4. Решено: `golang.org/x/term` v0.46.0
 - [x] Чтение ориентации EXIF — этап 6. Решено: свой минимальный парсер (`modules/images/internal/exif`); `rwcarlsen/goexif` без тегов semver, `dsoprea/go-exif` избыточно тяжёл
-- [ ] Клиент S3 (кандидат: `minio/minio-go`) или отложить S3 — этап 7
+- [x] Клиент S3 — этап 7. Решено: отложить до появления потребности; пока только `DiskStorage` (кандидат на будущее — `minio/minio-go`)
 - [x] Транслитерация для slug — этап 5. Решено: своя таблица (`reference/internal/slug`)

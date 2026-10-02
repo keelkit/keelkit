@@ -1,4 +1,4 @@
-module github.com/keelkit/keelkit/reference
+module github.com/voffkin/keelkit/reference
 
 go 1.26.0
 

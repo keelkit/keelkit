@@ -14,8 +14,8 @@ import (
 	"golang.org/x/image/draw"
 	xwebp "golang.org/x/image/webp"
 
-	"github.com/keelkit/keelkit/modules/images/internal/exif"
-	"github.com/keelkit/keelkit/modules/images/internal/orient"
+	"github.com/voffkin/keelkit/modules/images/internal/exif"
+	"github.com/voffkin/keelkit/modules/images/internal/orient"
 )
 
 // Параметры профиля v1. Меняются только вместе с ProfileVersion.

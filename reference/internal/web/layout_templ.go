@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/keelkit/keelkit/reference/static"
+	"github.com/voffkin/keelkit/reference/static"
 )
 
 // Layout — оболочка любой публичной страницы. title пуст — в <title> только название сайта.

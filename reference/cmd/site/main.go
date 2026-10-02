@@ -22,8 +22,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/keelkit/keelkit/reference/db/migrations"
-	"github.com/keelkit/keelkit/reference/internal/database"
+	"github.com/voffkin/keelkit/reference/db/migrations"
+	"github.com/voffkin/keelkit/reference/internal/database"
 )
 
 // version вшивается при сборке: -ldflags "-X main.version=<тег или хеш>".

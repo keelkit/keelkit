@@ -6,8 +6,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/keelkit/keelkit/reference/internal/richtext"
-	"github.com/keelkit/keelkit/reference/internal/web"
+	"github.com/voffkin/keelkit/reference/internal/richtext"
+	"github.com/voffkin/keelkit/reference/internal/web"
 )
 
 // HomeSlug — slug страницы, которая показывается на главной (/).

@@ -1,4 +1,4 @@
-module github.com/keelkit/keelkit/modules/images
+module github.com/voffkin/keelkit/modules/images
 
 go 1.26.0
 

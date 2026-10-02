@@ -14,7 +14,7 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/keelkit/keelkit/reference/internal/admin"
+	"github.com/voffkin/keelkit/reference/internal/admin"
 )
 
 // errUserExists — пользователь с таким email уже есть.

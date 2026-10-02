@@ -18,7 +18,7 @@ import (
 
 	"github.com/a-h/templ"
 
-	"github.com/keelkit/keelkit/reference/internal/web"
+	"github.com/voffkin/keelkit/reference/internal/web"
 )
 
 // Пути админки.

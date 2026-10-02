@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/keelkit/keelkit/reference/internal/admin"
+	"github.com/voffkin/keelkit/reference/internal/admin"
 )
 
 // testConfig — каталоги данных и снимков во временной папке теста.

@@ -10,12 +10,12 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/keelkit/keelkit/reference/internal/admin"
-	"github.com/keelkit/keelkit/reference/internal/content/pages"
-	"github.com/keelkit/keelkit/reference/internal/database"
-	"github.com/keelkit/keelkit/reference/internal/settings"
-	"github.com/keelkit/keelkit/reference/internal/web"
-	"github.com/keelkit/keelkit/reference/static"
+	"github.com/voffkin/keelkit/reference/internal/admin"
+	"github.com/voffkin/keelkit/reference/internal/content/pages"
+	"github.com/voffkin/keelkit/reference/internal/database"
+	"github.com/voffkin/keelkit/reference/internal/settings"
+	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/voffkin/keelkit/reference/static"
 )
 
 // defaultSiteName — название, пока в site_settings нет строки (до seed или настройки в админке).

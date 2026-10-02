@@ -15,6 +15,13 @@
   в `go.mod` (`make generate` проверяет это и откажется запускаться при расхождении).
 - Вендоренный JS: htmx 2.0.11 — `static/htmx-2.0.11.min.js` (сверен с sha512 из npm).
 
+## Доступ к модулям Keelkit
+
+Модули Keelkit лежат в приватном репозитории `github.com/voffkin/keelkit`. `Makefile` экспортирует `GOPRIVATE`
+и правило git `insteadOf` (через `GIT_CONFIG_*`), поэтому `make` скачивает модули по SSH, не трогая глобальные
+настройки git и Go. Нужен только SSH-ключ с доступом к репозиторию: `ssh -T git@github.com` должен поздороваться.
+Для gopls в IDE (запускается вне `make`) — один раз `go env -w 'GOPRIVATE=github.com/voffkin/*'`. В CI — deploy key только для чтения.
+
 ## Команды
 
 Все команды — через `make` (список: `make help`).

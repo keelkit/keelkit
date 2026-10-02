@@ -1,4 +1,4 @@
-module github.com/keelkit/keelkit/spec
+module github.com/voffkin/keelkit/spec
 
 go 1.26.0
 

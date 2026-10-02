@@ -21,8 +21,8 @@ import (
 
 	"github.com/gen2brain/webp"
 
-	"github.com/keelkit/keelkit/modules/images"
-	"github.com/keelkit/keelkit/modules/images/internal/exif"
+	"github.com/voffkin/keelkit/modules/images"
+	"github.com/voffkin/keelkit/modules/images/internal/exif"
 )
 
 type row struct {

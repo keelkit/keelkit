@@ -9,8 +9,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/keelkit/keelkit/reference/internal/richtext"
-	"github.com/keelkit/keelkit/reference/internal/web"
+	"github.com/voffkin/keelkit/reference/internal/richtext"
+	"github.com/voffkin/keelkit/reference/internal/web"
 )
 
 // View — публичная страница. На главной в <title> только название сайта.

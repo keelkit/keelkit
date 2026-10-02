@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/keelkit/keelkit/reference/internal/admin"
-	"github.com/keelkit/keelkit/reference/internal/content/pages"
-	"github.com/keelkit/keelkit/reference/internal/settings"
+	"github.com/voffkin/keelkit/reference/internal/admin"
+	"github.com/voffkin/keelkit/reference/internal/content/pages"
+	"github.com/voffkin/keelkit/reference/internal/settings"
 )
 
 // seed заполняет БД данными для разработки. Идемпотентен: существующие записи не трогает.

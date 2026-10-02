@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/keelkit/keelkit/main/spec/schema.json",
+  "$id": "https://raw.githubusercontent.com/voffkin/keelkit/main/spec/schema.json",
   "title": "Keelkit site spec",
   "description": "Спецификация сайта Keelkit (site.yaml), версия схемы 1. Правила, которые не выражаются в JSON Schema, проверяет spec-validate: ref указывает на существующий тип контента, to — только у ref, не больше одного поля slug в типе, служебные имена полей (id, created_at, updated_at, draft, publish_date) запрещены.",
   "type": "object",
