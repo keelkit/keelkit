@@ -9,6 +9,17 @@ import (
 	"context"
 )
 
+const countPages = `-- name: CountPages :one
+SELECT count(*) FROM pages
+`
+
+func (q *Queries) CountPages(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countPages)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getPageBySlug = `-- name: GetPageBySlug :one
 SELECT id, title, slug, body, created_at, updated_at FROM pages WHERE slug = ?
 `

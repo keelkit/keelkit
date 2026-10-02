@@ -5,6 +5,9 @@
 # Модуль в modules/<MODULE>; MODULE=spec или MODULE=reference — каталог в корне; пусто — все.
 MODULE ?=
 
+# Email пользователя админки для user-create.
+EMAIL ?=
+
 # Спецификация сайта для spec-validate.
 FILE ?= reference/site.yaml
 
@@ -26,7 +29,7 @@ DIRS := modules/$(MODULE)
 endif
 endif
 
-.PHONY: help test test-isolated lint spec-validate run dev migrate seed reset generate generate-check e2e
+.PHONY: help test test-isolated lint spec-validate run dev migrate seed user-create reset generate generate-check e2e
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -54,6 +57,9 @@ migrate: ## Снимок БД и миграции эталонного сайт�
 
 seed: ## Заполнить эталонный сайт dev-данными (идемпотентно)
 	@$(MAKE) -C reference seed
+
+user-create: ## Создать пользователя админки эталонного сайта. Пример: make user-create EMAIL=me@example.com
+	@$(MAKE) -C reference user-create EMAIL="$(EMAIL)"
 
 reset: ## Удалить локальную БД и загрузки эталонного сайта (reference/data/)
 	@$(MAKE) -C reference reset

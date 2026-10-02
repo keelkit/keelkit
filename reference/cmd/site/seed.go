@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/keelkit/keelkit/reference/internal/admin"
 	"github.com/keelkit/keelkit/reference/internal/content/pages"
 	"github.com/keelkit/keelkit/reference/internal/settings"
 )
@@ -31,9 +32,27 @@ func seed(ctx context.Context, cfg config) error {
 			return fmt.Errorf("seed page %s: %w", p.Slug, err)
 		}
 	}
+
+	hash, err := admin.HashPassword(ctx, seedAdminPassword)
+	if err != nil {
+		return err
+	}
+	err = admin.New(db).InsertUserIfMissing(ctx, admin.InsertUserIfMissingParams{Email: seedAdminEmail, PasswordHash: hash})
+	if err != nil {
+		return fmt.Errorf("seed user: %w", err)
+	}
+	// Только для разработки: seed в проде не запускается, поэтому пароль можно напечатать.
+	slog.Warn("dev admin (только для разработки)", "url", "/admin", "email", seedAdminEmail, "password", seedAdminPassword)
 	slog.Info("seed done")
 	return nil
 }
+
+// Пользователь админки для разработки. Пароль короче политики CheckPasswordPolicy — это нормально:
+// seed пишет в БД напрямую и в проде не запускается.
+const (
+	seedAdminEmail    = "admin@example.com"
+	seedAdminPassword = "admin"
+)
 
 // seedPages — страницы в порядке меню. «О проекте» проверяет Markdown (таблица, код, ссылки),
 // «Контакты» — санитайзер: скрипт, обработчик события и javascript:-ссылка не должны попасть в HTML.

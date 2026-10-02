@@ -5,6 +5,7 @@
 //	site serve    HTTP-сервер; не стартует при непримененных миграциях
 //	site migrate  снимок БД и применение миграций (модули, затем сайт)
 //	site seed     dev-данные, идемпотентно
+//	site user create EMAIL  пользователь админки; пароль спрашивается интерактивно
 package main
 
 import (
@@ -17,6 +18,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -37,14 +39,22 @@ type config struct {
 	Addr      string // ADDR: адрес HTTP-сервера
 	DataDir   string // DATA_DIR: каталог с БД и загрузками
 	BackupDir string // BACKUP_DIR: каталог снимков БД
+	// COOKIE_SECURE: флаг Secure у cookie админки. По умолчанию true; false — только для локальной
+	// разработки по http (make run и make dev выставляют его сами).
+	CookieSecure bool
 }
 
-func loadConfig() config {
-	return config{
-		Addr:      envOr("ADDR", ":8080"),
-		DataDir:   envOr("DATA_DIR", "data"),
-		BackupDir: envOr("BACKUP_DIR", "backups"),
+func loadConfig() (config, error) {
+	cookieSecure, err := strconv.ParseBool(envOr("COOKIE_SECURE", "true"))
+	if err != nil {
+		return config{}, fmt.Errorf("COOKIE_SECURE: %w", err)
 	}
+	return config{
+		Addr:         envOr("ADDR", ":8080"),
+		DataDir:      envOr("DATA_DIR", "data"),
+		BackupDir:    envOr("BACKUP_DIR", "backups"),
+		CookieSecure: cookieSecure,
+	}, nil
 }
 
 func (c config) dbPath() string { return filepath.Join(c.DataDir, "site.db") }
@@ -56,29 +66,35 @@ func envOr(key, def string) string {
 	return def
 }
 
-const usage = "usage: site <serve|migrate|seed>"
+const usage = "usage: site <serve|migrate|seed> | site user create EMAIL"
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	slog.SetDefault(logger)
 
-	if len(os.Args) != 2 {
+	args := os.Args[1:]
+	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, usage)
 		os.Exit(2)
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	cfg := loadConfig()
-	cmd := os.Args[1]
-	var err error
-	switch cmd {
-	case "serve":
+	cfg, err := loadConfig()
+	if err != nil {
+		slog.Error("config", "err", err)
+		os.Exit(2)
+	}
+	cmd := args[0]
+	switch {
+	case cmd == "serve" && len(args) == 1:
 		err = serve(ctx, cfg)
-	case "migrate":
+	case cmd == "migrate" && len(args) == 1:
 		err = migrate(ctx, cfg)
-	case "seed":
+	case cmd == "seed" && len(args) == 1:
 		err = seed(ctx, cfg)
+	case cmd == "user" && len(args) == 3 && args[1] == "create":
+		err = userCreate(ctx, cfg, args[2], readPasswordTerminal)
 	default:
 		fmt.Fprintln(os.Stderr, usage)
 		os.Exit(2)
@@ -117,7 +133,7 @@ func serve(ctx context.Context, cfg config) error {
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           newMux(db),
+		Handler:           newMux(db, cfg),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

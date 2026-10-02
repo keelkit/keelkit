@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/keelkit/keelkit/reference/internal/admin"
 	"github.com/keelkit/keelkit/reference/internal/content/pages"
 	"github.com/keelkit/keelkit/reference/internal/database"
 	"github.com/keelkit/keelkit/reference/internal/settings"
@@ -21,9 +22,18 @@ import (
 const defaultSiteName = "Keelkit reference"
 
 // newMux — все маршруты сайта. HTML-маршруты оборачиваются в html: данные шапки в контексте запроса.
-func newMux(db *sql.DB) *http.ServeMux {
+// Маршруты админки — ещё и в adminOnly: защита от межсайтовых запросов (http.CrossOriginProtection),
+// а всё, кроме входа, — в adminH.RequireUser (сессия и CSRF-токен).
+func newMux(db *sql.DB, cfg config) *http.ServeMux {
 	html := web.WithSite(siteLoader(db))
 	pagesH := pages.NewHandler(db)
+	adminH := admin.NewHandler(db, admin.Options{
+		SecureCookies: cfg.CookieSecure,
+		Counters:      adminCounters(db),
+	})
+	crossOrigin := http.NewCrossOriginProtection()
+	adminOnly := func(h http.HandlerFunc) http.Handler { return crossOrigin.Handler(html(h)) }
+	signedIn := func(h http.HandlerFunc) http.Handler { return adminOnly(adminH.RequireUser(h).ServeHTTP) }
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", handleHealthz(db))
@@ -31,6 +41,14 @@ func newMux(db *sql.DB) *http.ServeMux {
 
 	mux.Handle("GET /{$}", html(http.HandlerFunc(pagesH.Home)))
 	mux.Handle("GET /{slug}", html(http.HandlerFunc(pagesH.Show)))
+
+	mux.Handle("GET /admin/login", adminOnly(adminH.LoginForm))
+	mux.Handle("POST /admin/login", adminOnly(adminH.Login))
+	mux.Handle("POST /admin/logout", signedIn(adminH.Logout))
+	mux.Handle("GET /admin", signedIn(adminH.Dashboard))
+	mux.Handle("GET /admin/{$}", http.RedirectHandler("/admin", http.StatusMovedPermanently))
+	// Остальное под /admin/ — 404 админки, но только после входа: без сессии — редирект на вход.
+	mux.Handle("/admin/", signedIn(adminH.NotFound))
 
 	// Всё остальное — оформленная 404.
 	mux.Handle("/", html(http.HandlerFunc(web.NotFound)))
@@ -59,6 +77,18 @@ func siteLoader(db *sql.DB) func(context.Context) (web.Site, error) {
 			site.Nav = append(site.Nav, web.Link{Title: l.Title, URL: "/" + url.PathEscape(l.Slug)})
 		}
 		return site, nil
+	}
+}
+
+// adminCounters — счётчики контента для дашборда админки.
+func adminCounters(db *sql.DB) func(context.Context) ([]admin.Counter, error) {
+	pq := pages.New(db)
+	return func(ctx context.Context) ([]admin.Counter, error) {
+		n, err := pq.CountPages(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("count pages: %w", err)
+		}
+		return []admin.Counter{{Label: "Страниц", Value: n}}, nil
 	}
 }
 

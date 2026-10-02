@@ -8,8 +8,8 @@
 - Go: `go 1.26.0` в `go.mod` (актуальный релиз минус один минор), тулчейн `go1.27.1`.
 - Модули Keelkit: пока не подключены (`images` — с этапа 8 плана).
 - Зависимости: `modernc.org/sqlite` v1.60.1, `github.com/pressly/goose/v3` v3.28.0 (только библиотека, CLI goose не используется),
-  `github.com/a-h/templ` v0.3.1020, `github.com/yuin/goldmark` v1.8.6, `github.com/microcosm-cc/bluemonday` v1.0.27;
-  в тестах — `github.com/PuerkitoBio/goquery` v1.13.0.
+  `github.com/a-h/templ` v0.3.1020, `github.com/yuin/goldmark` v1.8.6, `github.com/microcosm-cc/bluemonday` v1.0.27,
+  `golang.org/x/crypto` v0.57.0 (argon2id), `golang.org/x/term` v0.46.0 (ввод пароля без эха); в тестах — `github.com/PuerkitoBio/goquery` v1.13.0.
 - Инструменты (версии закреплены в `Makefile`): sqlc v1.31.1; CLI templ — `TEMPL_VERSION`, обязан совпадать с библиотекой
   в `go.mod` (`make generate` проверяет это и откажется запускаться при расхождении).
 - Вендоренный JS: htmx 2.0.11 — `static/htmx-2.0.11.min.js` (сверен с sha512 из npm).
@@ -23,7 +23,8 @@
 | `make run` | запустить сайт (`ADDR`, `DATA_DIR`); при непримененных миграциях отказывается стартовать |
 | `make dev` | для разработки: `migrate`, `seed`, запуск |
 | `make migrate` | снимок БД в `BACKUP_DIR` (`VACUUM INTO`), затем миграции: модули в порядке `site.yaml`, потом сайт |
-| `make seed` | dev-данные; идемпотентно, в проде не запускается |
+| `make seed` | dev-данные; идемпотентно, в проде не запускается; печатает dev-пользователя админки |
+| `make user-create EMAIL=…` | пользователь админки; пароль спрашивается дважды без эха (не из терминала — строками из stdin) |
 | `make reset` | удалить `DATA_DIR` (БД и загрузки); снимки в `backups/` остаются |
 | `make generate` | кодогенерация: templ, затем sqlc |
 | `make generate-check` | проверить, что генерация ничего не меняет (в CI) |
@@ -39,18 +40,21 @@
 | `ADDR` | `:8080` | адрес HTTP-сервера |
 | `DATA_DIR` | `data` | каталог с БД (`site.db`) и загрузками |
 | `BACKUP_DIR` | `backups` | каталог снимков БД перед миграциями |
+| `COOKIE_SECURE` | `true` | флаг `Secure` у cookie админки; `false` — только для разработки по http (`make run`/`make dev` передают `false`) |
 
 ## Маршруты
 
 - `GET /` — страница со slug `home`; пока её нет — заглушка с названием и описанием сайта.
 - `GET /{slug}` — страница из `pages`; `/home` → 301 на `/`.
 - `GET /static/…` — файлы из `static/` (embed); ссылки с `?v=<хеш>` кэшируются на год, список каталога не отдаётся.
+- `GET /admin/login`, `POST /admin/login`, `POST /admin/logout`, `GET /admin` (дашборд); `/admin/` → 301 на `/admin`;
+  прочие пути под `/admin/` — 404 админки, но только после входа (без сессии — редирект на вход).
 - Всё остальное — оформленная 404 (`web.NotFound`).
-- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"site":{"version":2,"pending":0}}}`.
+- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"site":{"version":3,"pending":0}}}`.
 
 ## Бинарник
 
-`site serve | migrate | seed`. Миграции применяются только `site migrate`, никогда при старте.
+`site serve | migrate | seed | user create EMAIL`. Миграции применяются только `site migrate`, никогда при старте.
 
 ## БД и миграции
 
@@ -81,17 +85,42 @@
   а неизвестное имя паникует (ловится e2e). Вендоренные библиотеки — с версией в имени файла.
 - Стили — `static/style.css`, чистый CSS с переменными; тёмная тема по `prefers-color-scheme`.
 
+## Админка и авторизация
+
+Всё в `internal/admin/` (вынос в модуль — после второго сайта). «Простой режим»: любой пользователь из `users` —
+администратор; `users.role` зарезервирована (по умолчанию `admin`, без `CHECK`, чтобы новые роли не требовали пересборки таблицы).
+
+- Пароли — argon2id, формат PHC (`admin.HashPassword`, `admin.VerifyPassword`); параметры — в корневом `AGENTS.md`.
+  Хеш со старыми параметрами пересчитывается при входе. Одновременно считается не больше двух хешей (по 64 МиБ).
+  Политика для новых паролей — `admin.CheckPasswordPolicy`: от 8 символов до 1024 байт. email хранится в нижнем регистре (`admin.NormalizeEmail`).
+- Сессия: cookie `session` со случайным токеном (14 дней), в `sessions` — только SHA-256 токена. При входе всегда новый токен,
+  истёкшие сессии удаляются. Cookie: `HttpOnly`, `SameSite=Lax`, `Secure` по `COOKIE_SECURE`.
+- Маршруты админки оборачиваются в `newMux`: `adminOnly` (`http.CrossOriginProtection` + данные шапки), защищённые — ещё и
+  `signedIn` (`adminH.RequireUser`): без сессии — 303 на `/admin/login?next=…` (для GET), небезопасный метод без CSRF-токена
+  сессии — 403. Ответы админки — `Cache-Control: no-store`, страницы — `noindex`.
+- CSRF-токен сессии: в формах — скрытое поле `csrf_token` (`admin.CSRFToken(ctx)`), в htmx — заголовок `X-CSRF-Token`
+  (layout админки ставит `hx-headers` на `<body>`). Форма входа — double submit cookie `admin_csrf`.
+- Вход: 5 неудач за 15 минут для одного email → блокировка до конца окна (429, `Retry-After`); счётчики в памяти процесса.
+  Неверный email и неверный пароль дают одно сообщение; для неизвестного email пароль сверяется с фиктивным хешем.
+- `next` после входа — только путь внутри `/admin` (`safeNext`), иначе дашборд.
+- Пакет не знает о типах контента: счётчики дашборда передаёт `adminCounters` в `cmd/site/server.go` через `admin.Options.Counters`.
+  Новый тип контента добавляет туда свой счётчик.
+- Dev-пользователь из seed: `admin@example.com` / `admin` (короче политики — seed пишет напрямую и в проде не запускается).
+
 ## Тип контента
 
 Один тип — один пакет `internal/content/<type>/` (пример — `pages`):
 `queries.sql` + код sqlc, `handlers.go` (`Handler`, `NewHandler(db)`, методы-хендлеры), `views.templ`.
-Миграция — в `db/migrations/`, маршруты — в `newMux`, dev-данные — в `cmd/site/seed.go`, запись sqlc — в `sqlc.yaml`.
+Миграция — в `db/migrations/`, маршруты — в `newMux`, dev-данные — в `cmd/site/seed.go`, запись sqlc — в `sqlc.yaml`,
+счётчик дашборда — в `adminCounters`.
 
 ## Тесты
 
-- Unit-тесты — рядом с пакетом (`internal/richtext`, `internal/database`).
-- e2e — `cmd/site/e2e_test.go`, функции `TestE2E*`: `httptest.NewServer(newMux(db))` над БД после `migrate` и `seed`,
+- Unit-тесты — рядом с пакетом (`internal/richtext`, `internal/database`, `internal/admin`).
+- e2e — `cmd/site/e2e_test.go`, функции `TestE2E*`: `httptest.NewServer(newMux(db, config{}))` над БД после `migrate` и `seed`,
   HTML разбирается goquery. Хелперы `fetch` (тело уже прочитано и закрыто) и `page` (статус, `Content-Type`, документ).
+- e2e админки — `cmd/site/e2e_admin_test.go`: `adminClient` (cookie jar, редиректы не выполняются), `post`, `login`, `loginOK`
+  (вход dev-пользователем, возвращает CSRF-токен сессии), `csrfToken` (скрытое поле формы).
 
 ## Спецификация
 
@@ -104,8 +133,11 @@
 cmd/site/main.go            # точка входа: конфиг, подкоманды, источники миграций
 cmd/site/server.go          # маршруты, данные шапки (siteLoader), /healthz
 cmd/site/seed.go            # dev-данные
+cmd/site/user.go            # site user create
 cmd/site/e2e_test.go        # e2e (TestE2E*)
+cmd/site/e2e_admin_test.go  # e2e админки
 db/migrations/              # миграции сайта (goose) + embed.go
+internal/admin/             # админка: вход, сессии, CSRF, ограничение попыток, оболочка, дашборд
 internal/content/pages/     # тип контента pages: queries.sql, sqlc, handlers.go, views.templ
 internal/database/          # открытие SQLite, статус схем, снимок, применение миграций
 internal/richtext/          # Markdown → очищенный HTML
@@ -115,4 +147,4 @@ static/                     # CSS, htmx, иконка + static.go (embed, Path, 
 site.yaml, sqlc.yaml        # спецификация сайта, конфиг sqlc
 ```
 
-Структура будет расти по плану: `internal/admin/` (этап 4), новые `internal/content/<type>/`.
+Структура будет расти по плану: разделы админки (этап 5), новые `internal/content/<type>/`.

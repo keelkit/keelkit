@@ -1,0 +1,137 @@
+package admin
+
+import (
+	"encoding/json"
+	"strconv"
+
+	"github.com/keelkit/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/static"
+)
+
+// layout — оболочка страниц админки. Вошедшему пользователю — меню и кнопка «Выйти»;
+// CSRF-токен сессии передаётся в htmx-запросы заголовком через hx-headers.
+templ layout(title string) {
+	{{ site := web.SiteFrom(ctx) }}
+	{{ s, signedIn := sessionFrom(ctx) }}
+	<!DOCTYPE html>
+	<html lang="ru">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="robots" content="noindex, nofollow"/>
+			<title>{ title } — Админка — { site.Name }</title>
+			<link rel="icon" type="image/svg+xml" href={ static.Path("favicon.svg") }/>
+			<link rel="stylesheet" href={ static.Path("style.css") }/>
+			<script src={ static.Path("htmx-2.0.11.min.js") } defer></script>
+		</head>
+		<body
+			class="admin"
+			if signedIn {
+				hx-headers={ csrfHeaders(s.csrf) }
+			}
+		>
+			<header class="site-header admin-header">
+				<div class="container">
+					<a class="site-name" href={ templ.SafeURL(dashboardPath) }>{ site.Name } · Админка</a>
+					if signedIn {
+						<nav class="site-nav" aria-label="Меню админки">
+							<ul>
+								<li><a href={ templ.SafeURL(dashboardPath) }>Дашборд</a></li>
+								<li><a href="/">На сайт</a></li>
+								<li>
+									<form class="logout" method="post" action={ templ.SafeURL(logoutPath) }>
+										<input type="hidden" name={ csrfField } value={ s.csrf }/>
+										<span class="admin-user">{ s.user.Email }</span>
+										<button type="submit" class="link-button">Выйти</button>
+									</form>
+								</li>
+							</ul>
+						</nav>
+					}
+				</div>
+			</header>
+			<main class="container">
+				{ children... }
+			</main>
+		</body>
+	</html>
+}
+
+// LoginPage — форма входа.
+templ LoginPage(f loginForm) {
+	@layout("Вход") {
+		<section class="login">
+			<h1>Вход</h1>
+			if f.Error != "" {
+				<p class="form-error" role="alert">{ f.Error }</p>
+			}
+			<form method="post" action={ templ.SafeURL(loginPath) } class="form">
+				<input type="hidden" name={ csrfField } value={ f.CSRF }/>
+				<input type="hidden" name="next" value={ f.Next }/>
+				<label>
+					Email
+					<input type="email" name="email" value={ f.Email } autocomplete="username" required autofocus?={ f.Email == "" }/>
+				</label>
+				<label>
+					Пароль
+					<input type="password" name="password" autocomplete="current-password" required autofocus?={ f.Email != "" }/>
+				</label>
+				<button type="submit">Войти</button>
+			</form>
+		</section>
+	}
+}
+
+// DashboardPage — дашборд: счётчики контента.
+templ DashboardPage(counters []Counter) {
+	@layout("Дашборд") {
+		<h1>Дашборд</h1>
+		if len(counters) > 0 {
+			<ul class="counters">
+				for _, c := range counters {
+					<li class="counter">{ c.Label }: <strong>{ strconv.FormatInt(c.Value, 10) }</strong></li>
+				}
+			</ul>
+		}
+	}
+}
+
+// ForbiddenPage — 403: запрос без верного CSRF-токена.
+templ ForbiddenPage() {
+	@layout("Доступ запрещён") {
+		<section class="error-page">
+			<p class="error-code">403</p>
+			<h1>Доступ запрещён</h1>
+			<p>Форма устарела или отправлена с другого сайта. Обновите страницу и попробуйте ещё раз.</p>
+			<p><a href={ templ.SafeURL(dashboardPath) }>На дашборд</a></p>
+		</section>
+	}
+}
+
+// NotFoundPage — 404 внутри админки.
+templ NotFoundPage() {
+	@layout("Не найдено") {
+		<section class="error-page">
+			<p class="error-code">404</p>
+			<h1>Раздел не найден</h1>
+			<p><a href={ templ.SafeURL(dashboardPath) }>На дашборд</a></p>
+		</section>
+	}
+}
+
+// ErrorPage — 500; подробности ошибки только в логе.
+templ ErrorPage() {
+	@layout("Ошибка сервера") {
+		<section class="error-page">
+			<p class="error-code">500</p>
+			<h1>Что-то пошло не так</h1>
+			<p>Попробуйте обновить страницу чуть позже.</p>
+		</section>
+	}
+}
+
+// csrfHeaders — значение hx-headers: JSON с CSRF-токеном.
+func csrfHeaders(token string) string {
+	b, _ := json.Marshal(map[string]string{csrfHeader: token})
+	return string(b)
+}

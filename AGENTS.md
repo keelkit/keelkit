@@ -256,7 +256,7 @@ site.yaml, sqlc.yaml, Makefile, AGENTS.md, CLAUDE.md
 - У каждой цели есть комментарий `## ...` с описанием и, если она принимает параметры, примером вызова.
 - Параметры передаются переменными с безопасными значениями по умолчанию (`VAR ?= ...`).
 - В корне монорепо `test`, `test-isolated`, `lint` без `MODULE` проходят по `modules/*`, `spec/` и `reference/`;
-  `MODULE=<name>` — `modules/<name>`, `MODULE=spec` и `MODULE=reference` — одноимённые каталоги. `run`, `dev`, `migrate`, `seed`, `reset`, `generate`, `generate-check`, `e2e` делегируются в `reference/Makefile`.
+  `MODULE=<name>` — `modules/<name>`, `MODULE=spec` и `MODULE=reference` — одноимённые каталоги. `run`, `dev`, `migrate`, `seed`, `user-create`, `reset`, `generate`, `generate-check`, `e2e` делегируются в `reference/Makefile`.
 - Совместимость с GNU Make 3.81 (стоит по умолчанию на macOS): без `.ONESHELL`, `$(file ...)` и других возможностей 4.x.
 
 Пример оформления:
@@ -347,6 +347,7 @@ GitHub Actions; джобы вызывают только цели `make`.
 | YAML и JSON Schema | `go.yaml.in/yaml/v3`, `santhosh-tekuri/jsonschema/v6` | `gopkg.in/yaml.v3` в архиве; преемник — `go.yaml.in/yaml/v3` |
 | Санитайзер HTML для `richtext` | `microcosm-cc/bluemonday` (v1.0.27), политика UGC | стандарт де-факто, не в архиве, BSD-3; релизы редкие — goldmark и так вырезает сырой HTML, санитайзер — второй рубеж |
 | Хеширование паролей | argon2id из `golang.org/x/crypto/argon2` (v0.57.0); m=64 МиБ, t=3, p=4, соль 16 байт, ключ 32 байта; формат PHC `$argon2id$v=19$m=…,t=…,p=…$соль$хеш` | рекомендация OWASP и RFC 9106; нет лимита bcrypt в 72 байта; параметры хранятся в хеше — их можно усилить без миграции, перехешируя при входе |
+| Ввод пароля в CLI | `golang.org/x/term` (v0.46.0), `term.ReadPassword` в `site user create` | без эха в терминале на всех ОС; модуль уже в графе через `golang.org/x/crypto`, зависит только от `x/sys` |
 | Где миграции типов контента | все миграции сайта — в `db/migrations/`; в `internal/content/<type>/` — запросы, хендлеры, templ | у goose одна последовательность версий на таблицу версий; sqlc читает схему из одного каталога |
 
 ## Открытые решения (не принимать без человека)

@@ -18,3 +18,11 @@ sql:
         package: pages
         out: internal/content/pages
         omit_unused_structs: true
+  - engine: sqlite
+    schema: db/migrations
+    queries: internal/admin/queries.sql
+    gen:
+      go:
+        package: admin
+        out: internal/admin
+        omit_unused_structs: true

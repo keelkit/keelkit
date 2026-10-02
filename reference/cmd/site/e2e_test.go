@@ -16,7 +16,7 @@ import (
 // e2eServer — сайт на случайном порту; withSeed — с dev-данными.
 func e2eServer(t *testing.T, withSeed bool) *httptest.Server {
 	t.Helper()
-	srv := httptest.NewServer(newMux(migratedDB(t, withSeed)))
+	srv := httptest.NewServer(newMux(migratedDB(t, withSeed), config{}))
 	t.Cleanup(srv.Close)
 	return srv
 }
@@ -30,6 +30,11 @@ var noRedirect = &http.Client{
 type response struct {
 	StatusCode int
 	Header     http.Header
+}
+
+// Cookies — cookie из заголовков Set-Cookie ответа.
+func (r response) Cookies() []*http.Cookie {
+	return (&http.Response{Header: r.Header}).Cookies()
 }
 
 // fetch выполняет GET и возвращает статус, заголовки и тело.

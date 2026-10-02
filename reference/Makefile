@@ -6,6 +6,11 @@
 ADDR ?= :8080
 DATA_DIR ?= data
 BACKUP_DIR ?= backups
+# Флаг Secure у cookie админки. make run/dev — локальная разработка по http, поэтому false;
+# в проде (бинарник под systemd) переменная не задаётся, и сайт ставит Secure.
+COOKIE_SECURE ?= false
+# Email пользователя админки для user-create.
+EMAIL ?=
 
 # Версии инструментов закреплены здесь, а не берутся из окружения.
 # Тулчейн для запуска инструментов через go run: должен совпадать с toolchain в go.mod.
@@ -19,9 +24,9 @@ SQLC = GOTOOLCHAIN=$(GO_TOOLCHAIN) CGO_ENABLED=0 go run github.com/sqlc-dev/sqlc
 TEMPL_VERSION ?= v0.3.1020
 TEMPL = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/a-h/templ/cmd/templ@$(TEMPL_VERSION)
 
-SITE = ADDR=$(ADDR) DATA_DIR=$(DATA_DIR) BACKUP_DIR=$(BACKUP_DIR) go run ./cmd/site
+SITE = ADDR=$(ADDR) DATA_DIR=$(DATA_DIR) BACKUP_DIR=$(BACKUP_DIR) COOKIE_SECURE=$(COOKIE_SECURE) go run ./cmd/site
 
-.PHONY: help run dev migrate seed reset generate generate-check test test-isolated e2e lint
+.PHONY: help run dev migrate seed user-create reset generate generate-check test test-isolated e2e lint
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -37,6 +42,10 @@ migrate: ## Снимок БД в BACKUP_DIR и применение миграц
 
 seed: ## Заполнить dev-данными (идемпотентно, только для разработки)
 	$(SITE) seed
+
+user-create: ## Создать пользователя админки (пароль спрашивается). Пример: make user-create EMAIL=me@example.com
+	@if [ -z "$(EMAIL)" ]; then echo "user-create: укажите EMAIL, например make user-create EMAIL=me@example.com"; exit 1; fi
+	$(SITE) user create "$(EMAIL)"
 
 reset: ## Удалить локальную БД и загрузки (DATA_DIR), чтобы начать с нуля
 	rm -rf $(DATA_DIR)

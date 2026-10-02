@@ -9,3 +9,6 @@ SELECT title, slug FROM pages WHERE slug <> sqlc.arg(exclude_slug) ORDER BY id;
 -- Dev seed: inserts a page unless its slug already exists.
 INSERT INTO pages (title, slug, body) VALUES (?, ?, ?)
 ON CONFLICT (slug) DO NOTHING;
+
+-- name: CountPages :one
+SELECT count(*) FROM pages;

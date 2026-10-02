@@ -241,3 +241,105 @@ th {
   font: 600 0.95rem var(--mono);
   letter-spacing: 0.05em;
 }
+
+/* Админка */
+
+.admin-header .site-nav ul {
+  align-items: baseline;
+}
+
+.admin-user {
+  color: var(--muted);
+  margin-right: 0.75rem;
+}
+
+.logout {
+  display: inline;
+  margin: 0;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.login {
+  max-width: 22rem;
+}
+
+.form {
+  display: grid;
+  gap: 1rem;
+}
+
+.form label {
+  display: grid;
+  gap: 0.3rem;
+  font-weight: 600;
+}
+
+.form input {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-weight: 400;
+}
+
+.form button {
+  justify-self: start;
+  padding: 0.5rem 1.25rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.form button:hover {
+  background: var(--accent-hover);
+}
+
+.form-error {
+  padding: 0.6rem 0.9rem;
+  border: 1px solid #b42318;
+  border-radius: var(--radius);
+  color: #b42318;
+}
+
+@media (prefers-color-scheme: dark) {
+  .form-error {
+    border-color: #f97066;
+    color: #f97066;
+  }
+}
+
+.counters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.counter {
+  min-width: 10rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
