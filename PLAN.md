@@ -142,7 +142,7 @@ make e2e
 Цель: вход в админку одним пользователем («простой режим»).
 
 - [ ] Миграция: `users` (одна таблица, поле роли зарезервировано на будущее), `sessions`
-- [ ] Хеширование паролей (bcrypt/argon2 из `golang.org/x/crypto` — согласовать), cookie `HttpOnly`, `SameSite=Lax`, `Secure` вне dev
+- [ ] Хеширование паролей argon2id (`golang.org/x/crypto/argon2`, решение в `AGENTS.md`), cookie `HttpOnly`, `SameSite=Lax`, `Secure` вне dev
 - [ ] CSRF-защита форм, ограничение попыток входа
 - [ ] `internal/admin/`: вход, выход, оболочка (меню, дашборд со счётчиками контента)
 - [ ] Подкоманда `site user create` / `make user-create EMAIL=...` (пароль спрашивается интерактивно)
@@ -382,7 +382,7 @@ make evals SKILL=upgrade-site     # копия reference на v0.1.0 → обн�
 
 - [x] Санитайзер HTML для `richtext` — этап 3. Решено: `microcosm-cc/bluemonday` v1.0.27 (последний релиз 2024-07, репозиторий живой, BSD-3)
 - [x] YAML-парсер и валидатор JSON Schema — этап 1. Решено: `go.yaml.in/yaml/v3` (преемник архивного `gopkg.in/yaml.v3`) и `santhosh-tekuri/jsonschema/v6`
-- [ ] Хеширование паролей: `golang.org/x/crypto` (bcrypt или argon2id) — этап 4
+- [x] Хеширование паролей — этап 4. Решено: argon2id из `golang.org/x/crypto/argon2` v0.57.0 (параметры — в `AGENTS.md`, «Принятые решения»)
 - [ ] Чтение ориентации EXIF: свой минимальный парсер или внешняя библиотека — этап 6
 - [ ] Клиент S3 (кандидат: `minio/minio-go`) или отложить S3 — этап 7
 - [ ] Транслитерация для slug: своя таблица или библиотека — этап 5
