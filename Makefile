@@ -8,6 +8,9 @@ MODULE ?=
 # Email пользователя админки для user-create.
 EMAIL ?=
 
+# Файл или папка с изображениями для images-demo.
+IN ?= modules/images/testdata
+
 # Спецификация сайта для spec-validate.
 FILE ?= reference/site.yaml
 
@@ -29,7 +32,7 @@ DIRS := modules/$(MODULE)
 endif
 endif
 
-.PHONY: help test test-isolated lint spec-validate run dev migrate seed user-create reset generate generate-check e2e e2e-browser
+.PHONY: help test test-isolated lint spec-validate images-demo run dev migrate seed user-create reset generate generate-check e2e e2e-browser
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -45,6 +48,9 @@ lint: ## Линтер golangci-lint (по умолчанию все). Приме
 
 spec-validate: ## Проверить спецификацию сайта. Пример: make spec-validate FILE=spec/examples/blog.yaml
 	@go run ./spec/cmd/spec-validate $(FILE)
+
+images-demo: ## Обработать изображения модулем images и построить отчёт modules/images/demo-out/index.html. Пример: make images-demo IN=~/Pictures/photo.jpg
+	@cd modules/images && go run ./internal/cmd/images-demo -in "$(abspath $(IN))" -out demo-out
 
 run: ## Запустить эталонный сайт на http://localhost:8080 (нужен make migrate). Пример: make run ADDR=:9090
 	@$(MAKE) -C reference run
