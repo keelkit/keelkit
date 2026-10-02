@@ -31,10 +31,15 @@ SQLC = GOTOOLCHAIN=$(GO_TOOLCHAIN) CGO_ENABLED=0 go run github.com/sqlc-dev/sqlc
 # CLI templ обязан совпадать с библиотекой github.com/a-h/templ в go.mod: generate проверяет это перед запуском.
 TEMPL_VERSION ?= v0.3.1020
 TEMPL = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/a-h/templ/cmd/templ@$(TEMPL_VERSION)
+GOVULNCHECK_VERSION ?= v1.8.0
+GOVULNCHECK = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+# Валидатор спецификации — опубликованная версия модуля spec (тег spec/vX.Y.Z), в код сайта не копируется.
+SPEC_VERSION ?= v0.1.0
+SPEC_VALIDATE = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/voffkin/keelkit/spec/cmd/spec-validate@$(SPEC_VERSION)
 
 SITE = ADDR=$(ADDR) DATA_DIR=$(DATA_DIR) BACKUP_DIR=$(BACKUP_DIR) COOKIE_SECURE=$(COOKIE_SECURE) go run ./cmd/site
 
-.PHONY: help run dev migrate seed user-create reset generate generate-check test test-isolated e2e e2e-browser lint
+.PHONY: help run dev migrate seed user-create reset generate generate-check test test-isolated e2e e2e-browser lint deps-check spec-validate
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -84,3 +89,12 @@ e2e-browser: ## Браузерные тесты htmx-взаимодействи�
 
 lint: ## Линтер golangci-lint
 	$(GOLANGCI_LINT) run ./...
+
+deps-check: ## Доступные обновления прямых зависимостей и govulncheck (на опубликованных версиях, GOWORK=off)
+	@upd="$$(GOWORK=off go list -m -u -f '{{if .Update}}{{if .Indirect}}indirect{{else}}  {{.Path}} {{.Version}} -> {{.Update.Version}}{{end}}{{end}}' all)"; \
+	echo "$$upd" | grep -v '^indirect$$' | grep . || echo "  прямые зависимости актуальны"; \
+	n="$$(echo "$$upd" | grep -c '^indirect$$' || true)"; [ "$$n" = 0 ] || echo "  косвенных с обновлениями: $$n (GOWORK=off go list -m -u all)"
+	GOWORK=off $(GOVULNCHECK) ./...
+
+spec-validate: ## Проверить site.yaml опубликованным валидатором (SPEC_VERSION). Пример: make spec-validate SPEC_VERSION=v0.1.0
+	$(SPEC_VALIDATE) site.yaml

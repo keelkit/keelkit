@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-10-02
+
+Первый выпуск.
+
 ### Added
 - `schema.json` — JSON Schema спецификации сайта, `spec_version: 1`: `site` (name, ровно один язык),
   `modules` (`images`), `content` с типами полей `string, text, richtext, int, bool, date, image, ref, slug`

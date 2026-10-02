@@ -22,11 +22,17 @@ IN ?= modules/images/testdata
 # Спецификация сайта для spec-validate.
 FILE ?= reference/site.yaml
 
+# Версия для release (vX.Y.Z); DRY_RUN=1 — только проверки, без тега.
+VERSION ?=
+DRY_RUN ?=
+
 # Версии инструментов закреплены здесь, а не берутся из окружения.
 # Тулчейн для запуска инструментов через go run: должен совпадать с toolchain в go.work.
 GO_TOOLCHAIN ?= go1.27.1
 GOLANGCI_LINT_VERSION ?= v2.14.0
 GOLANGCI_LINT = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+GOVULNCHECK_VERSION ?= v1.8.0
+GOVULNCHECK = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
 ALL_MODULES := $(patsubst %/go.mod,%,$(wildcard modules/*/go.mod))
 
@@ -40,7 +46,7 @@ DIRS := modules/$(MODULE)
 endif
 endif
 
-.PHONY: help test test-isolated lint spec-validate images-demo run dev migrate seed user-create reset generate generate-check e2e e2e-browser
+.PHONY: help test test-isolated lint deps-check release spec-validate images-demo run dev migrate seed user-create reset generate generate-check e2e e2e-browser
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -53,6 +59,17 @@ test-isolated: ## Тесты только на опубликованных за
 
 lint: ## Линтер golangci-lint (по умолчанию все). Пример: make lint MODULE=reference
 	@set -e; for d in $(DIRS); do echo "==> lint $$d"; (cd $$d && $(GOLANGCI_LINT) run ./...); done
+
+# Как в CI: только опубликованные версии зависимостей (GOWORK=off). Обновления — для сведения, уязвимости — ошибка.
+deps-check: ## Доступные обновления зависимостей и govulncheck (по умолчанию все). Пример: make deps-check MODULE=images
+	@set -e; for d in $(DIRS); do echo "==> deps-check $$d"; \
+	(cd $$d && upd="$$(GOWORK=off go list -m -u -f '{{if .Update}}{{if .Indirect}}indirect{{else}}  {{.Path}} {{.Version}} -> {{.Update.Version}}{{end}}{{end}}' all)"; \
+	echo "$$upd" | grep -v '^indirect$$' | grep . || echo "  прямые зависимости актуальны"; \
+	n="$$(echo "$$upd" | grep -c '^indirect$$' || true)"; [ "$$n" = 0 ] || echo "  косвенных с обновлениями: $$n (GOWORK=off go list -m -u all)"; \
+	GOWORK=off $(GOVULNCHECK) ./...); done
+
+release: ## Проверки и тег <каталог>/VERSION с push в origin. Пример: make release MODULE=images VERSION=v0.1.0 DRY_RUN=1
+	@./scripts/release.sh "$(MODULE)" "$(VERSION)" "$(DRY_RUN)"
 
 spec-validate: ## Проверить спецификацию сайта. Пример: make spec-validate FILE=spec/examples/blog.yaml
 	@go run ./spec/cmd/spec-validate $(FILE)

@@ -24,12 +24,29 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.work
+      # Приватные модули keelkit берутся из git по SSH (GOPRIVATE и insteadOf — в Makefile).
+      # Ключ — deploy key этого репозитория только для чтения, секрет KEELKIT_DEPLOY_KEY.
+      # Ключ github.com уже есть в known_hosts раннера.
+      - name: SSH agent for private modules
+        env:
+          DEPLOY_KEY: ${{ secrets.KEELKIT_DEPLOY_KEY }}
+        run: |
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo "::warning::KEELKIT_DEPLOY_KEY не задан: зависимости от опубликованных модулей keelkit не скачаются"
+            exit 0
+          fi
+          eval "$(ssh-agent -s)"
+          echo "$DEPLOY_KEY" | ssh-add -
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
       - name: Lint
         run: make lint MODULE=${{ matrix.module }}
       - name: Test
         run: make test MODULE=${{ matrix.module }}
       - name: Test (GOWORK=off)
         run: make test-isolated MODULE=${{ matrix.module }}
+      - name: Dependencies (updates, govulncheck)
+        run: make deps-check MODULE=${{ matrix.module }}
       - name: Generate check
         if: matrix.module == 'reference'
         run: make generate-check
