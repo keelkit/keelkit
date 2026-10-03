@@ -24,17 +24,29 @@ templ ListPage(list []ListPagesRow, deleted bool) {
 						<tr>
 							<th>Заголовок</th>
 							<th>Адрес</th>
+							<th>Статус</th>
 							<th>Обновлена</th>
-							<th><span class="visually-hidden">Действия</span></th>
 						</tr>
 					</thead>
 					<tbody>
 						for _, p := range list {
 							<tr>
 								<td><a href={ templ.SafeURL(editPath(p.ID)) }>{ p.Title }</a></td>
-								<td><a href={ templ.SafeURL(publicPath(p.Slug)) }>{ publicPath(p.Slug) }</a></td>
+								<td>
+									if p.Draft {
+										<span class="muted">{ publicPath(p.Slug) }</span>
+									} else {
+										<a href={ templ.SafeURL(publicPath(p.Slug)) }>{ publicPath(p.Slug) }</a>
+									}
+								</td>
+								<td>
+									if p.Draft {
+										<span class="status status-draft">Черновик</span>
+									} else {
+										<span class="status">Опубликована</span>
+									}
+								</td>
 								<td>{ formatTime(p.UpdatedAt) }</td>
-								<td><a class="danger-link" href={ templ.SafeURL(editPath(p.ID) + "/delete") }>Удалить</a></td>
 							</tr>
 						}
 					</tbody>
@@ -50,7 +62,9 @@ templ FormPage(f pageForm) {
 		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Страницы</a></p>
 		<div class="admin-title">
 			<h1>{ formTitle(f) }</h1>
-			if f.ID != 0 && f.Errors == nil {
+			if f.ID != 0 && !f.Published {
+				<a href={ templ.SafeURL(viewPath(f.ID)) }>Предпросмотр</a>
+			} else if f.ID != 0 && f.Errors == nil {
 				<a href={ templ.SafeURL(publicPath(f.Slug)) }>Открыть на сайте</a>
 			}
 		</div>
@@ -135,12 +149,36 @@ templ Form(f pageForm) {
 				</div>
 			</section>
 		</div>
+		<label class="checkbox">
+			<input
+				type="checkbox"
+				name="draft"
+				value="1"
+				checked?={ f.Draft }
+				if f.Errors["draft"] != "" {
+					aria-invalid="true"
+					aria-describedby="draft-hint draft-error"
+				} else {
+					aria-describedby="draft-hint"
+				}
+			/>
+			Черновик
+		</label>
+		<span class="field-hint" id="draft-hint">Черновик не виден на сайте и в меню. Снимите флажок и сохраните, чтобы опубликовать.</span>
+		@fieldError(f, "draft")
 		<div class="form-actions">
 			<button type="submit">Сохранить</button>
-			if f.ID != 0 {
-				<a class="danger-link" href={ templ.SafeURL(editPath(f.ID) + "/delete") }>Удалить</a>
-			}
+			<a href={ templ.SafeURL(AdminPath) }>Отмена</a>
 		</div>
+		if f.ID != 0 {
+			<p class="danger-zone">
+				if !f.Published {
+					<a class="danger-link" href={ templ.SafeURL(editPath(f.ID) + "/delete") }>Удалить черновик</a>
+				} else {
+					<span class="field-hint">{ deleteHint(f.Slug) }</span>
+				}
+			</p>
+		}
 	</form>
 }
 
@@ -163,14 +201,32 @@ templ fieldError(f pageForm, field string) {
 templ DeletePage(p Page) {
 	@admin.Layout("Удаление страницы") {
 		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Страницы</a></p>
-		<h1>Удалить страницу «{ p.Title }»?</h1>
-		<p>Страница пропадёт с сайта, адрес <a href={ templ.SafeURL(publicPath(p.Slug)) }>{ publicPath(p.Slug) }</a> начнёт отдавать 404. Отменить удаление нельзя.</p>
+		<h1>Удалить черновик «{ p.Title }»?</h1>
+		<p>Черновик на сайте не виден, но его текст пропадёт и из админки. Отменить удаление нельзя.</p>
 		<form method="post" action={ templ.SafeURL(editPath(p.ID) + "/delete") } class="form-actions">
 			@admin.CSRFInput()
 			<button type="submit" class="danger">Удалить</button>
 			<a href={ templ.SafeURL(editPath(p.ID)) }>Отмена</a>
 		</form>
 	}
+}
+
+// DeleteBlockedPage — попытка удалить опубликованную страницу (409): что сделать сначала.
+templ DeleteBlockedPage(p Page) {
+	@admin.Layout("Удаление страницы") {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Страницы</a></p>
+		<h1>Страница «{ p.Title }» опубликована</h1>
+		<p>{ deleteHint(p.Slug) }</p>
+		<p><a href={ templ.SafeURL(editPath(p.ID)) }>Вернуться к редактированию</a></p>
+	}
+}
+
+// deleteHint — почему опубликованную страницу нельзя удалить сразу.
+func deleteHint(slug string) string {
+	if slug == HomeSlug {
+		return "Главная страница всегда опубликована, поэтому удалить её нельзя."
+	}
+	return "Удалить можно только черновик: отметьте «Черновик», сохраните — страница пропадёт с сайта, — и тогда удалите."
 }
 
 func formTitle(f pageForm) string {

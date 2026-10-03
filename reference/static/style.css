@@ -451,6 +451,49 @@ button.danger:hover {
   gap: 1rem 1.5rem;
 }
 
+/* Флажок: поле и подпись в одну строку (обычная метка формы — сетка «подпись над полем»). */
+.form label.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form label.checkbox + .field-hint {
+  margin-top: -0.7rem;
+}
+
+/* Удаление — отдельно от «Сохранить» и «Отмена», под чертой: его не нажать по ошибке рядом с ними. */
+.danger-zone {
+  margin: 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.status {
+  white-space: nowrap;
+}
+
+.status-draft {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+/* Предпросмотр черновика в админке: страница сайта с плашкой сверху. */
+.draft-banner {
+  padding: 0.6rem 0.9rem;
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
 /* Редактор: текст и превью рядом на широком экране, друг под другом на узком. */
 .editor {
   display: grid;

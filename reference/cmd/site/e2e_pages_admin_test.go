@@ -1,6 +1,7 @@
 package main
 
-// e2e раздела «Страницы» в админке: создание, редактирование, удаление, ошибки валидации, превью Markdown.
+// e2e раздела «Страницы» в админке: черновик и публикация, редактирование, удаление черновика, ошибки валидации,
+// превью Markdown.
 
 import (
 	"context"
@@ -31,11 +32,14 @@ func newPageAdmin(t *testing.T) *pageAdmin {
 }
 
 // save отправляет форму страницы (path — /admin/pages или /admin/pages/{id}).
-func (a *pageAdmin) save(path, title, slug, body string, header http.Header) (response, string) {
+// draft — отмеченный флажок «Черновик»: снятый браузер не отправляет вовсе.
+func (a *pageAdmin) save(path, title, slug, body string, draft bool, header http.Header) (response, string) {
 	a.t.Helper()
-	return post(a.t, a.client, a.srv.URL+path, url.Values{
-		"csrf_token": {a.token}, "title": {title}, "slug": {slug}, "body": {body},
-	}, header)
+	form := url.Values{"csrf_token": {a.token}, "title": {title}, "slug": {slug}, "body": {body}}
+	if draft {
+		form.Set("draft", "1")
+	}
+	return post(a.t, a.client, a.srv.URL+path, form, header)
 }
 
 func (a *pageAdmin) get(path string) (response, string) {
@@ -77,9 +81,19 @@ func TestE2EAdminPageCreate(t *testing.T) {
 	if got := text(doc.Find("#page-preview")); got != "Здесь появится превью текста." {
 		t.Errorf("empty preview = %q", got)
 	}
+	// Новая страница — черновик; удалять ещё нечего; «Отмена» ведёт к списку.
+	if _, checked := doc.Find(`input[name="draft"]`).Attr("checked"); !checked {
+		t.Error("new page: draft checkbox must be checked")
+	}
+	if doc.Find(".danger-zone").Length() != 0 {
+		t.Error("new page: no delete block expected")
+	}
+	if href, _ := doc.Find(`.form-actions a:contains("Отмена")`).Attr("href"); href != "/admin/pages" {
+		t.Errorf("cancel link = %q", href)
+	}
 
 	// Пустой slug составляется из заголовка; CRLF из textarea хранится как LF.
-	resp, _ = a.save("/admin/pages", "Тестовая", "", "Текст: **жирный**\r\n\r\nВторой абзац.", nil)
+	resp, _ = a.save("/admin/pages", "Тестовая", "", "Текст: **жирный**\r\n\r\nВторой абзац.", true, nil)
 	loc := resp.Header.Get("Location")
 	if resp.StatusCode != http.StatusSeeOther || !editURL.MatchString(loc) {
 		t.Fatalf("create: status %d, Location %q; want 303 to /admin/pages/{id}?saved=1", resp.StatusCode, loc)
@@ -102,14 +116,64 @@ func TestE2EAdminPageCreate(t *testing.T) {
 	if got := text(doc.Find("#page-preview strong")); got != "жирный" {
 		t.Errorf("preview strong = %q", got)
 	}
+	id := editURL.FindStringSubmatch(loc)[1]
+	edit := "/admin/pages/" + id
+
+	// Черновик: на сайте и в меню его нет, в админке — предпросмотр и удаление.
+	if doc.Find(`a:contains("Открыть на сайте")`).Length() != 0 {
+		t.Error("draft: no public link expected")
+	}
+	if href, _ := doc.Find(`a:contains("Предпросмотр")`).Attr("href"); href != edit+"/view" {
+		t.Errorf("preview link = %q", href)
+	}
+	if href, _ := doc.Find(`.danger-zone a`).Attr("href"); href != edit+"/delete" {
+		t.Errorf("delete link = %q", href)
+	}
+	page(t, a.srv, "/testovaya", http.StatusNotFound)
+	if n := page(t, a.srv, "/", http.StatusOK).Find(`.site-nav a[href="/testovaya"]`).Length(); n != 0 {
+		t.Error("draft must not be in the menu")
+	}
+	_, body = a.get("/admin/pages")
+	if got := text(parse(t, body).Find(`.admin-table tr:contains("Тестовая") .status`)); got != "Черновик" {
+		t.Errorf("list status = %q", got)
+	}
+
+	// Предпросмотр — страница сайта с плашкой черновика; только после входа.
+	resp, body = a.get(edit + "/view")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET view: status %d", resp.StatusCode)
+	}
+	doc = parse(t, body)
+	if got := text(doc.Find("main article strong")); got != "жирный" {
+		t.Errorf("view strong = %q", got)
+	}
+	if href, _ := doc.Find(".draft-banner a").Attr("href"); href != edit {
+		t.Errorf("banner link = %q", href)
+	}
+	if resp, _ := fetch(t, noRedirect, a.srv.URL+edit+"/view"); resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("view without session: status %d, want 303", resp.StatusCode)
+	}
+
+	// Публикация: снять флажок и сохранить.
+	if resp, _ := a.save(edit, "Тестовая", "testovaya", "Текст: **жирный**", false, nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("publish: status %d", resp.StatusCode)
+	}
+	_, body = a.get(edit)
+	doc = parse(t, body)
 	if href, _ := doc.Find(`a:contains("Открыть на сайте")`).Attr("href"); href != "/testovaya" {
 		t.Errorf("public link = %q", href)
 	}
+	if doc.Find(".danger-zone a").Length() != 0 {
+		t.Error("published: no delete link expected")
+	}
 
-	// Страница сразу видна на сайте и в меню.
+	// Теперь страница видна на сайте и в меню.
 	pub := page(t, a.srv, "/testovaya", http.StatusOK)
 	if got := text(pub.Find("main h1")); got != "Тестовая" {
 		t.Errorf("public h1 = %q", got)
+	}
+	if pub.Find(".draft-banner").Length() != 0 {
+		t.Error("public page: no draft banner expected")
 	}
 	if got := text(pub.Find("main article strong")); got != "жирный" {
 		t.Errorf("public strong = %q", got)
@@ -129,28 +193,30 @@ func TestE2EAdminPageValidation(t *testing.T) {
 
 	for _, tc := range []struct {
 		name, title, slug string
+		draft             bool
 		field, err        string
 	}{
-		{"duplicate slug", "Ещё о проекте", "about", "slug", "Страница с адресом «about» уже есть: выберите другой slug."},
-		{"duplicate generated slug", "О проекте", "", "slug", "Страница с адресом «o-proekte» уже есть: выберите другой slug."},
-		{"reserved slug", "Админ", "admin", "slug", "Адрес «/admin» занят разделом сайта: выберите другой slug."},
-		{"reserved after normalize", "Статика", " Static ", "slug", "Адрес «/static» занят разделом сайта: выберите другой slug."},
-		{"slug without letters", "Знаки", "!!!", "slug", "В slug нужны буквы или цифры."},
-		{"title without letters", "???", "", "slug", "Из заголовка не получился адрес: укажите slug латиницей."},
-		{"empty title", "  ", "x", "title", "Укажите заголовок."},
-		{"long title", strings.Repeat("я", 201), "x", "title", "Заголовок длиннее 200 символов."},
+		{"duplicate slug", "Ещё о проекте", "about", false, "slug", "Страница с адресом «about» уже есть: выберите другой slug."},
+		{"duplicate generated slug", "О проекте", "", false, "slug", "Страница с адресом «o-proekte» уже есть: выберите другой slug."},
+		{"reserved slug", "Админ", "admin", true, "slug", "Адрес «/admin» занят разделом сайта: выберите другой slug."},
+		{"reserved after normalize", "Статика", " Static ", true, "slug", "Адрес «/static» занят разделом сайта: выберите другой slug."},
+		{"slug without letters", "Знаки", "!!!", true, "slug", "В slug нужны буквы или цифры."},
+		{"title without letters", "???", "", true, "slug", "Из заголовка не получился адрес: укажите slug латиницей."},
+		{"empty title", "  ", "x", true, "title", "Укажите заголовок."},
+		{"long title", strings.Repeat("я", 201), "x", true, "title", "Заголовок длиннее 200 символов."},
+		{"draft home", "Главная", "home", true, "draft", "Главная страница всегда опубликована: снимите флажок «Черновик»."},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.name == "duplicate generated slug" {
 				// Сначала создаём страницу со slug o-proekte, затем ещё одну с тем же заголовком.
-				if resp, _ := a.save("/admin/pages", tc.title, "", "", nil); resp.StatusCode != http.StatusSeeOther {
+				if resp, _ := a.save("/admin/pages", tc.title, "", "", false, nil); resp.StatusCode != http.StatusSeeOther {
 					t.Fatalf("first create: status %d", resp.StatusCode)
 				}
 			}
 			body := "Текст **сохраняется**"
 
 			// Обычная форма: 422 и страница целиком, введённые данные на месте.
-			resp, html := a.save("/admin/pages", tc.title, tc.slug, body, nil)
+			resp, html := a.save("/admin/pages", tc.title, tc.slug, body, tc.draft, nil)
 			if resp.StatusCode != http.StatusUnprocessableEntity {
 				t.Fatalf("status %d, want 422", resp.StatusCode)
 			}
@@ -170,12 +236,15 @@ func TestE2EAdminPageValidation(t *testing.T) {
 			if v, _ := doc.Find(`input[name="title"]`).Attr("value"); v != strings.TrimSpace(tc.title) {
 				t.Errorf("title not kept: %q", v)
 			}
+			if _, checked := doc.Find(`input[name="draft"]`).Attr("checked"); checked != tc.draft {
+				t.Errorf("draft not kept: checked = %v", checked)
+			}
 			if got := text(doc.Find("#page-preview strong")); got != "сохраняется" {
 				t.Errorf("preview strong = %q", got)
 			}
 
 			// htmx: 422 и только фрагмент формы — его подставит hx-swap.
-			resp, html = a.save("/admin/pages", tc.title, tc.slug, body, htmx)
+			resp, html = a.save("/admin/pages", tc.title, tc.slug, body, tc.draft, htmx)
 			if resp.StatusCode != http.StatusUnprocessableEntity {
 				t.Fatalf("htmx: status %d, want 422", resp.StatusCode)
 			}
@@ -240,7 +309,7 @@ func TestE2EAdminPageEditDelete(t *testing.T) {
 	}
 
 	// Сохранение через htmx: 204 и HX-Redirect на форму.
-	resp, _ := a.save(edit, "О нас", "about-us", "Новый текст.", htmx)
+	resp, _ := a.save(edit, "О нас", "about-us", "Новый текст.", false, htmx)
 	if resp.StatusCode != http.StatusNoContent || resp.Header.Get("Hx-Redirect") != edit+"?saved=1" {
 		t.Fatalf("htmx update: status %d, HX-Redirect %q", resp.StatusCode, resp.Header.Get("Hx-Redirect"))
 	}
@@ -251,21 +320,50 @@ func TestE2EAdminPageEditDelete(t *testing.T) {
 	}
 
 	// Свой slug при сохранении не считается занятым.
-	if resp, _ := a.save(edit, "О нас", "about-us", "Ещё раз.", nil); resp.StatusCode != http.StatusSeeOther {
+	if resp, _ := a.save(edit, "О нас", "about-us", "Ещё раз.", false, nil); resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("update with same slug: status %d, want 303", resp.StatusCode)
 	}
 	// Чужой — занят.
-	if resp, _ := a.save(edit, "О нас", "contacts", "", nil); resp.StatusCode != http.StatusUnprocessableEntity {
+	_, html = a.get(edit)
+	if doc := parse(t, html); doc.Find(".danger-zone a").Length() != 0 || !strings.Contains(text(doc.Find(".danger-zone")), "только черновик") {
+		t.Errorf("published: want a hint instead of the delete link, got %q", text(doc.Find(".danger-zone")))
+	}
+	resp, _ = a.save(edit, "О нас", "contacts", "", false, nil)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Errorf("update with taken slug: status %d, want 422", resp.StatusCode)
 	}
 
-	// Удаление: подтверждение, затем POST.
+	// Опубликованную страницу удалить нельзя: ни через подтверждение, ни прямым POST.
+	resp, html = a.get(edit + "/delete")
+	if resp.StatusCode != http.StatusConflict {
+		t.Errorf("GET delete published: status %d, want 409", resp.StatusCode)
+	}
+	if got := text(parse(t, html).Find("main h1")); got != "Страница «О нас» опубликована" {
+		t.Errorf("blocked h1 = %q", got)
+	}
+	resp, _ = post(t, a.client, a.srv.URL+edit+"/delete", url.Values{"csrf_token": {a.token}}, nil)
+	if resp.StatusCode != http.StatusConflict {
+		t.Errorf("POST delete published: status %d, want 409", resp.StatusCode)
+	}
+	page(t, a.srv, "/about-us", http.StatusOK)
+
+	// Снять с публикации — страница пропадает с сайта, но остаётся в админке.
+	if resp, _ := a.save(edit, "О нас", "about-us", "Ещё раз.", true, nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("unpublish: status %d", resp.StatusCode)
+	}
+	page(t, a.srv, "/about-us", http.StatusNotFound)
+
+	// Удаление черновика: подтверждение, затем POST.
 	resp, html = a.get(edit + "/delete")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET delete: status %d", resp.StatusCode)
 	}
-	if got := text(parse(t, html).Find("main h1")); got != "Удалить страницу «О нас»?" {
+	doc = parse(t, html)
+	if got := text(doc.Find("main h1")); got != "Удалить черновик «О нас»?" {
 		t.Errorf("confirm h1 = %q", got)
+	}
+	if href, _ := doc.Find(`main form a:contains("Отмена")`).Attr("href"); href != edit {
+		t.Errorf("confirm cancel link = %q", href)
 	}
 	// Без CSRF-токена не удаляется.
 	if resp, _ := post(t, a.client, a.srv.URL+edit+"/delete", nil, nil); resp.StatusCode != http.StatusForbidden {
@@ -275,14 +373,13 @@ func TestE2EAdminPageEditDelete(t *testing.T) {
 	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/admin/pages?deleted=1" {
 		t.Fatalf("delete: status %d, Location %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
-	page(t, a.srv, "/about-us", http.StatusNotFound)
 	_, html = a.get("/admin/pages?deleted=1")
 	if got := text(parse(t, html).Find(".flash")); got != "Страница удалена." {
 		t.Errorf("flash = %q", got)
 	}
 
 	// Удалённой страницы больше нет ни для формы, ни для повторного удаления.
-	for _, path := range []string{edit, edit + "/delete", "/admin/pages/999999", "/admin/pages/abc", "/admin/pages/0"} {
+	for _, path := range []string{edit, edit + "/delete", edit + "/view", "/admin/pages/999999", "/admin/pages/abc", "/admin/pages/0"} {
 		if resp, _ := a.get(path); resp.StatusCode != http.StatusNotFound {
 			t.Errorf("GET %s: status %d, want 404", path, resp.StatusCode)
 		}
@@ -290,7 +387,7 @@ func TestE2EAdminPageEditDelete(t *testing.T) {
 	if resp, _ := post(t, a.client, a.srv.URL+edit+"/delete", url.Values{"csrf_token": {a.token}}, nil); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("second delete: status %d, want 404", resp.StatusCode)
 	}
-	if resp, _ := a.save(edit, "X", "x", "", nil); resp.StatusCode != http.StatusNotFound {
+	if resp, _ := a.save(edit, "X", "x", "", true, nil); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("update deleted: status %d, want 404", resp.StatusCode)
 	}
 }

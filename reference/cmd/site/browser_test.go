@@ -59,9 +59,11 @@ func TestBrowserPagePreviewAndSave(t *testing.T) {
 		t.Errorf("preview strong = %q", preview)
 	}
 
-	// Сохранение через htmx: HX-Redirect ведёт на форму с «Сохранено».
+	// Сохранение через htmx: HX-Redirect ведёт на форму с «Сохранено». Новая страница — черновик:
+	// снятый флажок публикует её (htmx, как и браузер, не отправляет неотмеченный checkbox).
 	var flash, slugValue string
 	run(t, ctx, "save",
+		chromedp.Click(`input[name="draft"]`, chromedp.ByQuery),
 		chromedp.Click(`#page-form button[type="submit"]`, chromedp.ByQuery),
 		chromedp.WaitVisible(`.flash`, chromedp.ByQuery),
 		chromedp.Text(`.flash`, &flash, chromedp.ByQuery),

@@ -22,9 +22,10 @@ func NewHandler(db DBTX) *Handler {
 	return &Handler{q: New(db)}
 }
 
-// Home — GET /: страница со slug home; пока её нет — заглушка с названием сайта.
+// Home — GET /: опубликованная страница со slug home; пока её нет — заглушка с названием сайта.
+// Черновиком главная не бывает (проверяет админка), но и черновик здесь не показался бы.
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
-	p, err := h.q.GetPageBySlug(r.Context(), HomeSlug)
+	p, err := h.q.GetPublishedPageBySlug(r.Context(), HomeSlug)
 	if errors.Is(err, sql.ErrNoRows) {
 		web.Render(w, r, http.StatusOK, HomeEmpty())
 		return
@@ -36,14 +37,15 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, p)
 }
 
-// Show — GET /{slug}. Главная доступна только по /: /home перенаправляется туда.
+// Show — GET /{slug}: только опубликованные страницы, черновик — 404.
+// Главная доступна только по /: /home перенаправляется туда.
 func (h *Handler) Show(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	if slug == HomeSlug {
 		http.Redirect(w, r, "/", http.StatusMovedPermanently)
 		return
 	}
-	p, err := h.q.GetPageBySlug(r.Context(), slug)
+	p, err := h.q.GetPublishedPageBySlug(r.Context(), slug)
 	if errors.Is(err, sql.ErrNoRows) {
 		web.NotFound(w, r)
 		return

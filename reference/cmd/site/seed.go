@@ -94,7 +94,7 @@ open http://localhost:8080/
 
 ` + "```go" + `
 func (h *Handler) Show(w http.ResponseWriter, r *http.Request) {
-	p, err := h.q.GetPageBySlug(r.Context(), r.PathValue("slug"))
+	p, err := h.q.GetPublishedPageBySlug(r.Context(), r.PathValue("slug"))
 	// ...
 }
 ` + "```" + `

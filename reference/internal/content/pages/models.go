@@ -11,4 +11,5 @@ type Page struct {
 	Body      string
 	CreatedAt string
 	UpdatedAt string
+	Draft     bool
 }

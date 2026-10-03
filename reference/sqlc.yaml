@@ -18,6 +18,9 @@ sql:
         package: pages
         out: internal/content/pages
         omit_unused_structs: true
+        overrides:
+          - column: pages.draft
+            go_type: bool
   - engine: sqlite
     schema: db/migrations
     queries: internal/admin/queries.sql

@@ -27,7 +27,8 @@ const (
 	maxFormSize = 2 << 20 // байт всего запроса
 )
 
-// Admin — раздел «Страницы» в админке: список, создание, редактирование, удаление, превью Markdown.
+// Admin — раздел «Страницы» в админке: список, создание, редактирование, удаление черновиков, превью Markdown
+// и предпросмотр страницы так, как её покажет сайт.
 // Маршруты оборачиваются в admin.RequireUser: сессия и CSRF-токен уже проверены.
 type Admin struct {
 	q        *Queries
@@ -46,13 +47,15 @@ func NewAdmin(db DBTX, reserved []string) *Admin {
 
 // pageForm — данные формы страницы. ID == 0 — новая страница.
 type pageForm struct {
-	ID      int64
-	Title   string
-	Slug    string
-	Body    string
-	Errors  map[string]string // поле → сообщение
-	Preview richtext.HTML
-	Saved   bool // показать «Сохранено» после редиректа
+	ID        int64
+	Title     string
+	Slug      string
+	Body      string
+	Draft     bool              // флажок «Черновик» в форме
+	Published bool              // сохранённое состояние: страница видна на сайте (от него зависят ссылки и удаление)
+	Errors    map[string]string // поле → сообщение
+	Preview   richtext.HTML
+	Saved     bool // показать «Сохранено» после редиректа
 }
 
 // List — GET /admin/pages.
@@ -65,9 +68,9 @@ func (a *Admin) List(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, http.StatusOK, ListPage(list, r.URL.Query().Has("deleted")))
 }
 
-// New — GET /admin/pages/new.
+// New — GET /admin/pages/new. Новая страница — черновик: на сайте она появится, когда флажок снимут.
 func (a *Admin) New(w http.ResponseWriter, r *http.Request) {
-	a.renderForm(w, r, http.StatusOK, pageForm{})
+	a.renderForm(w, r, http.StatusOK, pageForm{Draft: true})
 }
 
 // Edit — GET /admin/pages/{id}.
@@ -76,7 +79,10 @@ func (a *Admin) Edit(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	f := pageForm{ID: p.ID, Title: p.Title, Slug: p.Slug, Body: p.Body, Saved: r.URL.Query().Has("saved")}
+	f := pageForm{
+		ID: p.ID, Title: p.Title, Slug: p.Slug, Body: p.Body,
+		Draft: p.Draft, Published: !p.Draft, Saved: r.URL.Query().Has("saved"),
+	}
 	a.renderForm(w, r, http.StatusOK, f)
 }
 
@@ -87,7 +93,7 @@ func (a *Admin) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if a.validate(&f) {
-		id, err := a.q.CreatePage(r.Context(), CreatePageParams{Title: f.Title, Slug: f.Slug, Body: f.Body})
+		id, err := a.q.CreatePage(r.Context(), CreatePageParams{Title: f.Title, Slug: f.Slug, Body: f.Body, Draft: f.Draft})
 		if a.saved(w, r, &f, id, err) {
 			return
 		}
@@ -95,25 +101,24 @@ func (a *Admin) Create(w http.ResponseWriter, r *http.Request) {
 	a.renderForm(w, r, http.StatusUnprocessableEntity, f)
 }
 
-// Update — POST /admin/pages/{id}.
+// Update — POST /admin/pages/{id}. Страница загружается заранее: при ошибке форме нужно сохранённое состояние.
 func (a *Admin) Update(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(r)
+	p, ok := a.page(w, r)
 	if !ok {
-		admin.NotFound(w, r)
 		return
 	}
 	f, ok := a.parseForm(w, r)
 	if !ok {
 		return
 	}
-	f.ID = id
+	f.ID, f.Published = p.ID, !p.Draft
 	if a.validate(&f) {
-		n, err := a.q.UpdatePage(r.Context(), UpdatePageParams{Title: f.Title, Slug: f.Slug, Body: f.Body, ID: id})
+		n, err := a.q.UpdatePage(r.Context(), UpdatePageParams{Title: f.Title, Slug: f.Slug, Body: f.Body, Draft: f.Draft, ID: p.ID})
 		if err == nil && n == 0 {
 			admin.NotFound(w, r)
 			return
 		}
-		if a.saved(w, r, &f, id, err) {
+		if a.saved(w, r, &f, p.ID, err) {
 			return
 		}
 	}
@@ -136,31 +141,57 @@ func (a *Admin) saved(w http.ResponseWriter, r *http.Request, f *pageForm, id in
 }
 
 // ConfirmDelete — GET /admin/pages/{id}/delete: подтверждение удаления (без JavaScript).
+// Удалить можно только черновик: опубликованную страницу сначала снимают с публикации (409 с объяснением).
 func (a *Admin) ConfirmDelete(w http.ResponseWriter, r *http.Request) {
 	p, ok := a.page(w, r)
 	if !ok {
 		return
 	}
+	if !p.Draft {
+		web.Render(w, r, http.StatusConflict, DeleteBlockedPage(p))
+		return
+	}
 	web.Render(w, r, http.StatusOK, DeletePage(p))
 }
 
-// Delete — POST /admin/pages/{id}/delete.
+// Delete — POST /admin/pages/{id}/delete. Запрос удаляет только черновик (draft = 1 в WHERE),
+// поэтому страницу, опубликованную между проверкой и удалением, он не тронет.
 func (a *Admin) Delete(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(r)
+	p, ok := a.page(w, r)
 	if !ok {
-		admin.NotFound(w, r)
 		return
 	}
-	n, err := a.q.DeletePage(r.Context(), id)
+	if p.Draft {
+		n, err := a.q.DeleteDraftPage(r.Context(), p.ID)
+		if err != nil {
+			admin.ServerError(w, r, err)
+			return
+		}
+		if n > 0 {
+			redirect(w, r, AdminPath+"?deleted=1")
+			return
+		}
+		// Страницу успели опубликовать или удалить: показать актуальное состояние.
+		if p, ok = a.page(w, r); !ok {
+			return
+		}
+	}
+	web.Render(w, r, http.StatusConflict, DeleteBlockedPage(p))
+}
+
+// View — GET /admin/pages/{id}/view: страница так, как её покажет сайт, в том числе черновик.
+// У черновика сверху плашка со ссылкой обратно в редактор.
+func (a *Admin) View(w http.ResponseWriter, r *http.Request) {
+	p, ok := a.page(w, r)
+	if !ok {
+		return
+	}
+	body, err := richtext.Render(p.Body)
 	if err != nil {
 		admin.ServerError(w, r, err)
 		return
 	}
-	if n == 0 {
-		admin.NotFound(w, r)
-		return
-	}
-	redirect(w, r, AdminPath+"?deleted=1")
+	web.Render(w, r, http.StatusOK, View(p, body))
 }
 
 // Preview — POST /admin/pages/preview (htmx): фрагмент с отрисованным Markdown из поля body.
@@ -207,6 +238,7 @@ func (a *Admin) parseForm(w http.ResponseWriter, r *http.Request) (pageForm, boo
 		Title: r.PostFormValue("title"),
 		Slug:  r.PostFormValue("slug"),
 		Body:  r.PostFormValue("body"),
+		Draft: r.PostFormValue("draft") == "1",
 	}, true
 }
 
@@ -235,6 +267,11 @@ func (a *Admin) validate(f *pageForm) bool {
 	}
 	if a.reserved[f.Slug] {
 		errs["slug"] = fmt.Sprintf("Адрес «/%s» занят разделом сайта: выберите другой slug.", f.Slug)
+	}
+
+	// Главная не бывает черновиком: иначе сайт открывался бы заглушкой (и её нельзя было бы удалить по ошибке).
+	if f.Draft && f.Slug == HomeSlug {
+		errs["draft"] = "Главная страница всегда опубликована: снимите флажок «Черновик»."
 	}
 
 	if len(f.Body) > maxBodyLen {
@@ -287,6 +324,8 @@ func normalizeNewlines(s string) string {
 }
 
 func editPath(id int64) string { return AdminPath + "/" + strconv.FormatInt(id, 10) }
+
+func viewPath(id int64) string { return editPath(id) + "/view" }
 
 // publicPath — адрес страницы на сайте: главная — /.
 func publicPath(s string) string {

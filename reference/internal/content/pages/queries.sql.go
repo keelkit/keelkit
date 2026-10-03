@@ -21,7 +21,7 @@ func (q *Queries) CountPages(ctx context.Context) (int64, error) {
 }
 
 const createPage = `-- name: CreatePage :one
-INSERT INTO pages (title, slug, body) VALUES (?, ?, ?)
+INSERT INTO pages (title, slug, body, draft) VALUES (?, ?, ?, ?)
 RETURNING id
 `
 
@@ -29,21 +29,28 @@ type CreatePageParams struct {
 	Title string
 	Slug  string
 	Body  string
+	Draft bool
 }
 
 func (q *Queries) CreatePage(ctx context.Context, arg CreatePageParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, createPage, arg.Title, arg.Slug, arg.Body)
+	row := q.db.QueryRowContext(ctx, createPage,
+		arg.Title,
+		arg.Slug,
+		arg.Body,
+		arg.Draft,
+	)
 	var id int64
 	err := row.Scan(&id)
 	return id, err
 }
 
-const deletePage = `-- name: DeletePage :execrows
-DELETE FROM pages WHERE id = ?
+const deleteDraftPage = `-- name: DeleteDraftPage :execrows
+DELETE FROM pages WHERE id = ? AND draft = 1
 `
 
-func (q *Queries) DeletePage(ctx context.Context, id int64) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deletePage, id)
+// Only drafts can be deleted: a published page must be unpublished first.
+func (q *Queries) DeleteDraftPage(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteDraftPage, id)
 	if err != nil {
 		return 0, err
 	}
@@ -51,7 +58,7 @@ func (q *Queries) DeletePage(ctx context.Context, id int64) (int64, error) {
 }
 
 const getPage = `-- name: GetPage :one
-SELECT id, title, slug, body, created_at, updated_at FROM pages WHERE id = ?
+SELECT id, title, slug, body, created_at, updated_at, draft FROM pages WHERE id = ?
 `
 
 func (q *Queries) GetPage(ctx context.Context, id int64) (Page, error) {
@@ -64,16 +71,18 @@ func (q *Queries) GetPage(ctx context.Context, id int64) (Page, error) {
 		&i.Body,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Draft,
 	)
 	return i, err
 }
 
-const getPageBySlug = `-- name: GetPageBySlug :one
-SELECT id, title, slug, body, created_at, updated_at FROM pages WHERE slug = ?
+const getPublishedPageBySlug = `-- name: GetPublishedPageBySlug :one
+SELECT id, title, slug, body, created_at, updated_at, draft FROM pages WHERE slug = ? AND draft = 0
 `
 
-func (q *Queries) GetPageBySlug(ctx context.Context, slug string) (Page, error) {
-	row := q.db.QueryRowContext(ctx, getPageBySlug, slug)
+// Public site: drafts are never shown.
+func (q *Queries) GetPublishedPageBySlug(ctx context.Context, slug string) (Page, error) {
+	row := q.db.QueryRowContext(ctx, getPublishedPageBySlug, slug)
 	var i Page
 	err := row.Scan(
 		&i.ID,
@@ -82,6 +91,7 @@ func (q *Queries) GetPageBySlug(ctx context.Context, slug string) (Page, error) 
 		&i.Body,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Draft,
 	)
 	return i, err
 }
@@ -104,7 +114,7 @@ func (q *Queries) InsertPageIfMissing(ctx context.Context, arg InsertPageIfMissi
 }
 
 const listPageLinks = `-- name: ListPageLinks :many
-SELECT title, slug FROM pages WHERE slug <> ?1 ORDER BY id
+SELECT title, slug FROM pages WHERE slug <> ?1 AND draft = 0 ORDER BY id
 `
 
 type ListPageLinksRow struct {
@@ -112,7 +122,7 @@ type ListPageLinksRow struct {
 	Slug  string
 }
 
-// Pages for the header menu, in creation order; the home page is excluded by slug.
+// Published pages for the header menu, in creation order; the home page is excluded by slug.
 func (q *Queries) ListPageLinks(ctx context.Context, excludeSlug string) ([]ListPageLinksRow, error) {
 	rows, err := q.db.QueryContext(ctx, listPageLinks, excludeSlug)
 	if err != nil {
@@ -137,13 +147,14 @@ func (q *Queries) ListPageLinks(ctx context.Context, excludeSlug string) ([]List
 }
 
 const listPages = `-- name: ListPages :many
-SELECT id, title, slug, updated_at FROM pages ORDER BY id
+SELECT id, title, slug, draft, updated_at FROM pages ORDER BY id
 `
 
 type ListPagesRow struct {
 	ID        int64
 	Title     string
 	Slug      string
+	Draft     bool
 	UpdatedAt string
 }
 
@@ -161,6 +172,7 @@ func (q *Queries) ListPages(ctx context.Context) ([]ListPagesRow, error) {
 			&i.ID,
 			&i.Title,
 			&i.Slug,
+			&i.Draft,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
@@ -178,7 +190,7 @@ func (q *Queries) ListPages(ctx context.Context) ([]ListPagesRow, error) {
 
 const updatePage = `-- name: UpdatePage :execrows
 UPDATE pages
-SET title = ?, slug = ?, body = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+SET title = ?, slug = ?, body = ?, draft = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
 WHERE id = ?
 `
 
@@ -186,6 +198,7 @@ type UpdatePageParams struct {
 	Title string
 	Slug  string
 	Body  string
+	Draft bool
 	ID    int64
 }
 
@@ -194,6 +207,7 @@ func (q *Queries) UpdatePage(ctx context.Context, arg UpdatePageParams) (int64, 
 		arg.Title,
 		arg.Slug,
 		arg.Body,
+		arg.Draft,
 		arg.ID,
 	)
 	if err != nil {

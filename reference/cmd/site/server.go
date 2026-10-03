@@ -62,6 +62,7 @@ func newMux(db *sql.DB, cfg config) *http.ServeMux {
 	mux.Handle("POST /admin/pages/preview", signedIn(pagesAdmin.Preview))
 	mux.Handle("GET /admin/pages/{id}", signedIn(pagesAdmin.Edit))
 	mux.Handle("POST /admin/pages/{id}", signedIn(pagesAdmin.Update))
+	mux.Handle("GET /admin/pages/{id}/view", signedIn(pagesAdmin.View))
 	mux.Handle("GET /admin/pages/{id}/delete", signedIn(pagesAdmin.ConfirmDelete))
 	mux.Handle("POST /admin/pages/{id}/delete", signedIn(pagesAdmin.Delete))
 	// Остальное под /admin/ — 404 админки, но только после входа: без сессии — редирект на вход.

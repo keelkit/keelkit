@@ -6,8 +6,15 @@ import (
 )
 
 // View — публичная страница. На главной в <title> только название сайта.
+// Черновик сайт не показывает; его видит только админка (предпросмотр) — с плашкой и ссылкой в редактор.
 templ View(p Page, body richtext.HTML) {
 	@web.Layout(viewTitle(p)) {
+		if p.Draft {
+			<p class="draft-banner" role="status">
+				Черновик: страница не видна на сайте.
+				<a href={ templ.SafeURL(editPath(p.ID)) }>Вернуться к редактированию</a>
+			</p>
+		}
 		<article class="page">
 			<h1>{ p.Title }</h1>
 			@body

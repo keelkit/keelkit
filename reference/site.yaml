@@ -10,4 +10,4 @@ content:
       title: { type: string, required: true }
       slug:  { type: slug, required: true }
       body:  { type: richtext }
-    features: [sitemap]
+    features: [draft, sitemap]
