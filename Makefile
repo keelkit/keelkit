@@ -46,7 +46,7 @@ DIRS := modules/$(MODULE)
 endif
 endif
 
-.PHONY: help test test-isolated lint deps-check release spec-validate images-demo run dev migrate seed user-create reset generate generate-check e2e e2e-browser
+.PHONY: help check test test-isolated lint deps-check release spec-validate images-demo run dev migrate seed user-create reset generate generate-check e2e e2e-browser
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -67,6 +67,16 @@ deps-check: ## Доступные обновления зависимостей 
 	echo "$$upd" | grep -v '^indirect$$' | grep . || echo "  прямые зависимости актуальны"; \
 	n="$$(echo "$$upd" | grep -c '^indirect$$' || true)"; [ "$$n" = 0 ] || echo "  косвенных с обновлениями: $$n (GOWORK=off go list -m -u all)"; \
 	GOWORK=off $(GOVULNCHECK) ./...); done
+
+# Те же проверки, что в .github/workflows/ci.yml; пока CI на GitHub запускается вручную, это обязательная проверка
+# перед релизом (её вызывает make release). Для reference/ — ещё generate-check и e2e, для spec/ — проверка reference/site.yaml.
+check: lint test test-isolated deps-check ## Все проверки CI локально (по умолчанию все). Пример: make check MODULE=images
+ifneq ($(filter reference,$(DIRS)),)
+	@$(MAKE) --no-print-directory generate-check e2e
+endif
+ifneq ($(filter spec,$(DIRS)),)
+	@$(MAKE) --no-print-directory spec-validate FILE=reference/site.yaml
+endif
 
 release: ## Проверки и тег <каталог>/VERSION с push в origin. Пример: make release MODULE=images VERSION=v0.1.0 DRY_RUN=1
 	@./scripts/release.sh "$(MODULE)" "$(VERSION)" "$(DRY_RUN)"

@@ -283,10 +283,10 @@ make dev   # сайт по-прежнему работает (модуль ещ�
 - [x] `make deps-check` (`go list -m -u all` + govulncheck) — в корне и в `reference/`, шаг CI
 - [ ] Релиз `spec v0.1.0` (`make release MODULE=spec VERSION=v0.1.0`) — `spec/CHANGELOG.md` готов; ждёт репозитория
 - [x] В `reference/Makefile` — цель `spec-validate` через `go run github.com/voffkin/keelkit/spec/cmd/spec-validate@v0.1.0` (заработает после релиза `spec`)
-- [ ] Приватный репозиторий `https://github.com/voffkin/keelkit` (создаёт человек): `git remote add origin`, push `main` и тегов
+- [x] Приватный репозиторий `https://github.com/voffkin/keelkit` (создаёт человек): `git remote add origin`, push `main` и тегов
 - [x] `GOPRIVATE` и SSH-подмена адресов (`GIT_CONFIG_*`) экспортируются в обоих `Makefile` — глобальные настройки не нужны
-- [ ] CI: deploy key только для чтения в секрете `KEELKIT_DEPLOY_KEY` (создаёт человек); шаг `ssh-agent` в джобе уже есть
-  и без секрета только предупреждает. Открытое решение (`AGENTS.md`): для монорепо, возможно, хватит `GITHUB_TOKEN` — решить до этапа 8
+- [x] ~~CI: deploy key в секрете `KEELKIT_DEPLOY_KEY`~~ — перенесено в этап 11 (решение человека): до него CI на GitHub
+  запускается только вручную, а `make release` вместо зелёного CI запускает локально `make check MODULE=<name>`
 - [x] `make release` отказывается ставить уже существующий тег (приватные модули не защищены `sum.golang.org`)
 - [ ] Релиз `modules/images v0.1.0` — ждёт репозитория и зелёного CI
 
@@ -313,10 +313,10 @@ make images-demo IN=modules/images/testdata   # демо-страница раб
 - [ ] Админка `/admin/media`: загрузка (htmx), сетка превью, удаление; ошибки лимитов показываются пользователю
 - [ ] Цель `make reprocess-images BELOW=<N>`
 - [ ] Решить, собирать ли сайт с тегом `nodynamic` (`gen2brain/webp` не подгружает системную libwebp; результат одинаков на всех машинах)
-- [ ] Ограничить число одновременных обработок (большое фото — ~400 МБ памяти) — в сервисе модуля или в сайте
+- [x] Ограничить число одновременных обработок (большое фото — ~400 МБ памяти) — решено на этапе 7: `Config.MaxConcurrent` в сервисе модуля
 - [ ] Seed: 4 изображения из `testdata` модуля (или `reference/seed/`), одно — вставлено в страницу «О проекте»
 - [ ] Запуск `testkit` модуля в тестах сайта; e2e сценарий «загрузка изображения»
-- [ ] CI для `reference/` с `GOWORK=off`
+- [ ] `make check MODULE=reference` проходит (`test-isolated` — с `GOWORK=off`, модуль скачивается по SSH); CI на GitHub — этап 11
 
 ### Проверка
 ```sh
@@ -462,6 +462,9 @@ make e2e
 - [ ] `make backup` — снимок БД + архив загрузок; пример cron-строки в `reference/AGENTS.md`
 - [ ] `deploy/site.service` (systemd), опциональный `Dockerfile`; описание litestream как опции
 - [ ] CI: path-фильтры (`modules/<X>` и `spec/` → джобы модуля и `reference/`), `lint`, `test`, `test-isolated`, `generate-check`, `deps-check`, для `reference/` — ещё `e2e`, всё с `GOWORK=off`
+- [ ] Вернуть автозапуск CI (`push` в `main`, `pull_request`; до этапа 11 — только `workflow_dispatch`, проверки — локально `make check`)
+- [ ] Доступ CI к приватным модулям: deploy key `KEELKIT_DEPLOY_KEY` или `GITHUB_TOKEN` (открытое решение в `AGENTS.md`, решает человек)
+- [ ] `make release` снова требует зелёный CI для HEAD (через `gh`; токену нужен доступ к `voffkin/keelkit`: Actions — read) — в дополнение к `make check` или вместо неё
 - [ ] Тест миграции на копии реалистичных данных (seed + сгенерированные 1000 постов) — заготовка для будущих миграций данных
 
 ### Проверка

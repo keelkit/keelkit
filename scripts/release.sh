@@ -87,18 +87,13 @@ else
   ok "UPGRADE.md не требуется (в CHANGELOG нет Changed/Removed/Deprecated)"
 fi
 
-# 6. Зелёный CI для HEAD.
-if ! command -v gh >/dev/null 2>&1; then
-  bad "нет gh (GitHub CLI) — нечем проверить CI"
-elif [ "$HAS_ORIGIN" = 1 ]; then
-  REPO="$(git remote get-url origin | sed -E 's#^(git@github\.com:|ssh://git@github\.com/|https://github\.com/)##; s#\.git$##')"
-  CI="$(gh run list -R "$REPO" --commit "$HEAD_SHA" --workflow ci.yml --json status,conclusion \
-        --jq '.[0] | "\(.status) \(.conclusion)"' 2>&1)"
-  case "$CI" in
-    "completed success") ok "CI для $(git rev-parse --short HEAD) зелёный" ;;
-    "") bad "CI для HEAD не запускался" ;;
-    *) bad "CI для HEAD: $CI" ;;
-  esac
+# 6. Локальные проверки CI (make check). CI на GitHub пока запускается только вручную (решение человека,
+# см. «CI» в AGENTS.md), поэтому релиз проверяет HEAD сам. Запускаются, только если прошло всё остальное: это долго.
+if [ "$fail" = 0 ]; then
+  echo "  ...   make check MODULE=$MODULE"
+  if make --no-print-directory check MODULE="$MODULE"; then ok "make check MODULE=$MODULE"; else bad "make check MODULE=$MODULE"; fi
+else
+  echo "  skip  make check MODULE=$MODULE — сначала исправьте ошибки выше"
 fi
 
 if [ "$fail" != 0 ]; then
