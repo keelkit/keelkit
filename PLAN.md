@@ -252,7 +252,7 @@ make dev   # сайт по-прежнему работает (модуль ещ�
 
 ---
 
-## Этап 7. Модуль `images`: миграции, сервис, повторная обработка, testkit, релиз v0.1.0
+## Этап 7. Модуль `images`: миграции, сервис, повторная обработка, testkit, релиз v0.1.0 — ✅ готово
 
 Цель: модуль готов к подключению сайтом и опубликован с тегом.
 
@@ -281,14 +281,14 @@ make dev   # сайт по-прежнему работает (модуль ещ�
 - [x] `CHANGELOG.md`, `UPGRADE.md`
 - [x] Цель `make release MODULE=images VERSION=v0.1.0`: проверяет CHANGELOG, UPGRADE, чистое дерево, зелёный CI; ставит тег `modules/images/v0.1.0`
 - [x] `make deps-check` (`go list -m -u all` + govulncheck) — в корне и в `reference/`, шаг CI
-- [ ] Релиз `spec v0.1.0` (`make release MODULE=spec VERSION=v0.1.0`) — `spec/CHANGELOG.md` готов; ждёт репозитория
+- [x] Релиз `spec v0.1.0` (`make release MODULE=spec VERSION=v0.1.0`)
 - [x] В `reference/Makefile` — цель `spec-validate` через `go run github.com/voffkin/keelkit/spec/cmd/spec-validate@v0.1.0` (заработает после релиза `spec`)
 - [x] Приватный репозиторий `https://github.com/voffkin/keelkit` (создаёт человек): `git remote add origin`, push `main` и тегов
 - [x] `GOPRIVATE` и SSH-подмена адресов (`GIT_CONFIG_*`) экспортируются в обоих `Makefile` — глобальные настройки не нужны
 - [x] ~~CI: deploy key в секрете `KEELKIT_DEPLOY_KEY`~~ — перенесено в этап 11 (решение человека): до него CI на GitHub
   запускается только вручную, а `make release` вместо зелёного CI запускает локально `make check MODULE=<name>`
 - [x] `make release` отказывается ставить уже существующий тег (приватные модули не защищены `sum.golang.org`)
-- [ ] Релиз `modules/images v0.1.0` — ждёт репозитория и зелёного CI
+- [x] Релиз `modules/images v0.1.0` (проверки — локально `make check`, CI на GitHub отложен до этапа 11)
 
 ### Проверка
 ```sh
