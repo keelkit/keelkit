@@ -35,7 +35,7 @@ DRY_RUN ?=
 
 # Версии инструментов закреплены здесь, а не берутся из окружения.
 # Тулчейн для запуска инструментов через go run: должен совпадать с toolchain в go.work.
-GO_TOOLCHAIN ?= go1.27.1
+GO_TOOLCHAIN ?= go1.27.2
 GOLANGCI_LINT_VERSION ?= v2.14.0
 GOLANGCI_LINT = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 GOVULNCHECK_VERSION ?= v1.8.0

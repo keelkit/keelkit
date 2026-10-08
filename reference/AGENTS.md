@@ -5,7 +5,7 @@
 
 ## Версии
 
-- Go: `go 1.26.0` в `go.mod` (актуальный релиз минус один минор), тулчейн `go1.27.1`.
+- Go: `go 1.26.0` в `go.mod` (актуальный релиз минус один минор), тулчейн `go1.27.2`.
 - Модули Keelkit: `github.com/voffkin/keelkit/modules/images` v0.1.0 (в `site.yaml` — `modules: { images: v0 }`).
   Его зависимости приходят транзитивно: `golang.org/x/image`, `github.com/gen2brain/webp` (+ `ebitengine/purego`).
 - Тег сборки `nodynamic` (`BUILD_TAGS` в `Makefile`, экспортируется через `GOFLAGS`): кодек WebP не подгружает
