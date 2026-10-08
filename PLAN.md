@@ -226,7 +226,7 @@ make e2e && make e2e-browser
 - `gen2brain/webp` с v0.6 — не wazero, а libwebp, транслированная в чистый Go (wasm2go); без CGO по-прежнему.
   Если в системе есть libwebp, библиотека подгружает её через purego; входные WebP поэтому декодирует
   `x/image/webp` (чистый Go), а системная libwebp видит только наши пиксели при кодировании.
-  Тег `nodynamic` отключает подгрузку — решить на этапе 8, собирать ли сайт с ним;
+  Тег `nodynamic` отключает подгрузку — на этапе 8 решено собирать с ним (`GOFLAGS` в `Makefile`);
 - testdata генерирует `TestGenerateTestdata` (`go test -run TestGenerateTestdata -gen`), ориентации — по таблице из
   определения тега, а не через код модуля; `magick -auto-orient` независимо подтверждает все 8; `photo.heic` — через `sips`.
 
@@ -279,7 +279,7 @@ make dev   # сайт по-прежнему работает (модуль ещ�
 - [ ] ~~S3-совместимое хранилище~~ — отложено (решение человека): появится за тем же интерфейсом `Storage`, когда понадобится сайту
 - [x] `testkit/`: контрактные тесты для сайта (загрузка → варианты доступны через handler → повторная обработка ничего не ломает)
 - [x] `CHANGELOG.md`, `UPGRADE.md`
-- [x] Цель `make release MODULE=images VERSION=v0.1.0`: проверяет CHANGELOG, UPGRADE, чистое дерево, зелёный CI; ставит тег `modules/images/v0.1.0`
+- [x] Цель `make release MODULE=images VERSION=v0.1.0`: проверяет CHANGELOG, UPGRADE, чистое дерево, зелёный CI (до этапа 11 — локальный `make check`); ставит тег `modules/images/v0.1.0`
 - [x] `make deps-check` (`go list -m -u all` + govulncheck) — в корне и в `reference/`, шаг CI
 - [x] Релиз `spec v0.1.0` (`make release MODULE=spec VERSION=v0.1.0`)
 - [x] В `reference/Makefile` — цель `spec-validate` через `go run github.com/voffkin/keelkit/spec/cmd/spec-validate@v0.1.0` (заработает после релиза `spec`)
