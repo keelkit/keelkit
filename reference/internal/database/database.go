@@ -41,6 +41,13 @@ func IsUniqueViolation(err error) bool {
 	return errors.As(err, &se) && se.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE
 }
 
+// IsForeignKeyViolation сообщает, что запрос нарушил внешний ключ: например, удаляется изображение,
+// на которое ссылается контент (ссылка без ON DELETE).
+func IsForeignKeyViolation(err error) bool {
+	var se *sqlite.Error
+	return errors.As(err, &se) && se.Code() == sqlite3.SQLITE_CONSTRAINT_FOREIGNKEY
+}
+
 // Source — набор миграций одного владельца: модуля или сайта.
 type Source struct {
 	Name  string // имя в /healthz и логах: "images", "site"

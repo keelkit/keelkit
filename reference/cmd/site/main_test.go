@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/voffkin/keelkit/modules/images"
+
 	"github.com/voffkin/keelkit/reference/internal/admin"
 )
 
@@ -25,31 +27,47 @@ func testConfig(t *testing.T) config {
 	}
 }
 
-// migratedDB — БД после site migrate (и site seed, если withSeed).
-func migratedDB(t *testing.T, withSeed bool) *sql.DB {
+// testSite — сайт после site migrate: БД и сервис изображений над каталогом загрузок теста.
+type testSite struct {
+	cfg   config
+	db    *sql.DB
+	media *images.Service
+}
+
+// migratedSite — сайт после site migrate; withSeed — ещё и dev-данные без изображений (seedContent):
+// обработка изображений заметно дольше остального. Изображения из seed — seedImages(ctx, s.media).
+func migratedSite(t *testing.T, withSeed bool) testSite {
 	t.Helper()
 	ctx := context.Background()
 	cfg := testConfig(t)
 	if err := migrate(ctx, cfg); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	if withSeed {
-		if err := seed(ctx, cfg); err != nil {
-			t.Fatalf("seed: %v", err)
-		}
-	}
 	db, err := openDB(ctx, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return db
+	if withSeed {
+		if err := seedContent(ctx, db); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+	media, closeMedia, err := openMedia(db, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(closeMedia)
+	return testSite{cfg: cfg, db: db, media: media}
 }
 
-func get(t *testing.T, db *sql.DB, path string) *httptest.ResponseRecorder {
+// handler — все маршруты сайта (newMux) с настройками cfg.
+func (s testSite) handler(cfg config) http.Handler { return newMux(s.db, s.media, cfg) }
+
+func get(t *testing.T, s testSite, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	newMux(db, config{}).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+	s.handler(config{}).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
 	return rec
 }
 
@@ -105,10 +123,28 @@ func TestSeedIdempotent(t *testing.T) {
 	if err := db.QueryRow(`SELECT count(*) FROM users`).Scan(&n); err != nil || n != 1 {
 		t.Errorf("users rows = %d, %v; want 1", n, err)
 	}
+	media, closeMedia, err := openMedia(db, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeMedia()
+	imgs, err := media.List(ctx, 100, 0)
+	if want := countSeedImages(t); err != nil || len(imgs) != want {
+		t.Errorf("images = %d, %v; want %d", len(imgs), err, want)
+	}
+}
+
+func countSeedImages(t *testing.T) int {
+	t.Helper()
+	entries, err := seedImageFiles.ReadDir("seeddata")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return len(entries)
 }
 
 func TestHealthz(t *testing.T) {
-	rec := get(t, migratedDB(t, false), "/healthz")
+	rec := get(t, migratedSite(t, false), "/healthz")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
@@ -121,6 +157,9 @@ func TestHealthz(t *testing.T) {
 	}
 	if s := got.Schema["site"]; s.Version != 4 || s.Pending != 0 {
 		t.Errorf("schema site = %+v, want version 4, pending 0", s)
+	}
+	if s := got.Schema["images"]; s.Version != 1 || s.Pending != 0 {
+		t.Errorf("schema images = %+v, want version 1, pending 0", s)
 	}
 }
 

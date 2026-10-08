@@ -1,0 +1,31 @@
+package web
+
+import (
+	"strconv"
+
+	"github.com/voffkin/keelkit/modules/images"
+)
+
+// Picture — адаптивное изображение: WebP для браузеров, которые его понимают, JPEG — остальным.
+// sizes — ширина картинки в вёрстке (атрибут sizes), например "(min-width: 48rem) 48rem, 100vw":
+// по нему браузер выбирает вариант из srcset. width и height — пропорции, чтобы вёрстка не прыгала при загрузке.
+// Изображение без вариантов не выводится.
+templ Picture(img *images.Image, alt, sizes string) {
+	if p, ok := newPicture(img); ok {
+		<picture>
+			if p.webp != "" {
+				<source type="image/webp" srcset={ p.webp } sizes={ sizes }/>
+			}
+			<img
+				src={ MediaURL(p.src) }
+				srcset={ p.jpeg }
+				sizes={ sizes }
+				width={ strconv.Itoa(p.src.Width) }
+				height={ strconv.Itoa(p.src.Height) }
+				alt={ alt }
+				loading="lazy"
+				decoding="async"
+			/>
+		</picture>
+	}
+}

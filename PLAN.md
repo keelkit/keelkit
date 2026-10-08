@@ -302,32 +302,41 @@ make images-demo IN=modules/images/testdata   # демо-страница раб
 
 ---
 
-## Этап 8. Подключение `images` к эталонному сайту
+## Этап 8. Подключение `images` к эталонному сайту — ✅ готово
 
 Цель: загрузка изображений через админку, отдача адаптивных картинок на сайте.
 
-- [ ] `reference/go.mod` — `modules/images v0.1.0` без `replace`; `site.yaml`: `modules: { images: v0 }`
-- [ ] `site migrate` применяет миграции модуля, затем сайта; `/healthz` показывает обе версии схемы
-- [ ] Маршрут `/media/...` → handler модуля
-- [ ] templ-компонент `<picture>` с `srcset` (WebP + JPEG-фолбэк) в `internal/web/`
-- [ ] Админка `/admin/media`: загрузка (htmx), сетка превью, удаление; ошибки лимитов показываются пользователю
-- [ ] Цель `make reprocess-images BELOW=<N>`
-- [ ] Решить, собирать ли сайт с тегом `nodynamic` (`gen2brain/webp` не подгружает системную libwebp; результат одинаков на всех машинах)
+Решения по ходу:
+- картинка в странице «О проекте» перенесена в этап 8.5: по решению 8.5 картинки в контенте — только блоками
+  (синтаксиса картинок в Markdown нет), а seed 8.5 уже вставляет изображение из seed этапа 8. На этапе 8 `<picture>`
+  виден в медиатеке и проверен unit-тестом;
+- `nodynamic` — да (`AGENTS.md`, «Принятые решения»): одинаковый результат на всех машинах, без системной libwebp;
+- медиатека — пакет `internal/media/` (не тип контента: данные в модуле); `redirect`/`isHTMX` из `pages` вынесены
+  в `admin.Redirect`/`admin.IsHTMX`; `database.IsForeignKeyViolation` — для отказа удалить используемое изображение (409);
+- в тестах `migratedSite(t, withSeed)` заливает seed без изображений (обработка `photo.jpg` ~0,8 с на тест);
+  картинки из seed — только в тестах, которым они нужны.
+
+- [x] `reference/go.mod` — `modules/images v0.1.0` без `replace`; `site.yaml`: `modules: { images: v0 }`
+- [x] `site migrate` применяет миграции модуля, затем сайта; `/healthz` показывает обе версии схемы
+- [x] Маршрут `/media/...` → handler модуля
+- [x] templ-компонент `<picture>` с `srcset` (WebP + JPEG-фолбэк) в `internal/web/`
+- [x] Админка `/admin/media`: загрузка (htmx), сетка превью, удаление; ошибки лимитов показываются пользователю
+- [x] Цель `make reprocess-images BELOW=<N>`
+- [x] Решить, собирать ли сайт с тегом `nodynamic` — да, `GOFLAGS` в `Makefile` монорепо и сайта
 - [x] Ограничить число одновременных обработок (большое фото — ~400 МБ памяти) — решено на этапе 7: `Config.MaxConcurrent` в сервисе модуля
-- [ ] Seed: 4 изображения из `testdata` модуля (или `reference/seed/`), одно — вставлено в страницу «О проекте»
-- [ ] Запуск `testkit` модуля в тестах сайта; e2e сценарий «загрузка изображения»
-- [ ] `make check MODULE=reference` проходит (`test-isolated` — с `GOWORK=off`, модуль скачивается по SSH); CI на GitHub — этап 11
+- [x] Seed: 4 изображения из `testdata` модуля (`cmd/site/seeddata/`, embed); вставка в «О проекте» — этап 8.5
+- [x] Запуск `testkit` модуля в тестах сайта; e2e сценарий «загрузка изображения» (и браузерный тест загрузки через htmx)
+- [x] `make check MODULE=reference` проходит (`test-isolated` — с `GOWORK=off`, модуль скачивается по SSH); CI на GitHub — этап 11
 
 ### Проверка
 ```sh
 make reset && make dev
-curl -s localhost:8080/healthz
+curl -s 127.0.0.1:8080/healthz
 # {"schema":{"images":{"version":1,"pending":0},"site":{"version":4,"pending":0}}}
-open http://localhost:8080/admin/media      # 4 изображения из seed
+open http://localhost:8080/admin/media      # 4 изображения из seed; карточка — <picture>, 8 вариантов у photo.jpg
 # загрузить свой JPEG → появился в сетке; загрузить файл 25 МБ → понятная ошибка
-open http://localhost:8080/about            # картинка; в DevTools → Network грузится .webp нужной ширины
-make reprocess-images BELOW=2 && make reprocess-images BELOW=2   # второй запуск: «обработано 0»
-cd reference && GOWORK=off make test e2e    # на опубликованной версии модуля
+make reprocess-images BELOW=2 && make reprocess-images BELOW=2   # processed=0 (все уже на профиле 1)
+make check MODULE=reference                 # test-isolated — на опубликованной версии модуля
 ```
 
 ---
@@ -384,6 +393,7 @@ Markdown-текста; вёрстку не сломать, картинки — 
   (`#block-<id>-<поле>-error`), введённые данные не теряются (422, как сейчас)
 - [ ] Предпросмотр черновика — публичный шаблон с плашкой (`/{id}/view`, как сейчас)
 - [ ] Медиатека (этап 8): удаление используемой картинки запрещено с объяснением и списком страниц
+- [ ] Проверка, перенесённая с этапа 8: `/about` — картинка; в DevTools → Network грузится `.webp` нужной ширины
 - [ ] `site.yaml`: `pages.body` → `{ type: blocks, allow: [text, image, image_text, quote] }`; seed: «О проекте» — текст,
   изображение из seed этапа 8, изображение + текст, цитата
 - [ ] e2e: блок каждого типа, порядок, скрытый блок (нет на сайте, есть в админке), ошибка в поле блока (422, остальные

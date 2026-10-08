@@ -16,7 +16,7 @@ import (
 // e2eServer — сайт на случайном порту; withSeed — с dev-данными.
 func e2eServer(t *testing.T, withSeed bool) *httptest.Server {
 	t.Helper()
-	srv := httptest.NewServer(newMux(migratedDB(t, withSeed), config{}))
+	srv := httptest.NewServer(migratedSite(t, withSeed).handler(config{}))
 	t.Cleanup(srv.Close)
 	return srv
 }

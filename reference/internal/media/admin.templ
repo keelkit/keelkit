@@ -1,0 +1,169 @@
+package media
+
+import (
+	"strconv"
+
+	"github.com/voffkin/keelkit/modules/images"
+
+	"github.com/voffkin/keelkit/reference/internal/admin"
+	"github.com/voffkin/keelkit/reference/internal/web"
+)
+
+// ListPage — медиатека: форма загрузки и сетка превью.
+templ ListPage(v listView) {
+	@admin.Layout("Медиатека") {
+		<h1>Медиатека</h1>
+		if v.Uploaded {
+			<p class="flash" role="status">Изображение загружено.</p>
+		}
+		if v.Deleted {
+			<p class="flash" role="status">Изображение удалено.</p>
+		}
+		@UploadForm(v.Form)
+		if len(v.Images) == 0 {
+			if v.Page == 1 {
+				<p>Изображений пока нет.</p>
+			} else {
+				<p>На этой странице изображений нет. <a href={ templ.SafeURL(AdminPath) }>К началу</a></p>
+			}
+		} else {
+			<ul class="media-grid">
+				for _, img := range v.Images {
+					<li class="media-card">
+						<a href={ templ.SafeURL(showPath(img.ID)) }>
+							@web.Picture(img, "", "12rem")
+							<span class="media-name">{ displayName(img) }</span>
+						</a>
+						<span class="muted">{ dimensions(img.Width, img.Height) } · { formatBytes(img.Bytes) }</span>
+					</li>
+				}
+			</ul>
+		}
+		if v.Page > 1 || v.HasNext {
+			<nav class="pagination" aria-label="Страницы медиатеки">
+				if v.Page > 1 {
+					<a href={ templ.SafeURL(pagePath(v.Page - 1)) } rel="prev">← Новее</a>
+				}
+				<span>Страница { strconv.Itoa(v.Page) }</span>
+				if v.HasNext {
+					<a href={ templ.SafeURL(pagePath(v.Page + 1)) } rel="next">Старше →</a>
+				}
+			</nav>
+		}
+	}
+}
+
+// UploadForm — загрузка одного файла. Через htmx ошибка (422) заменяет только эту форму; без JavaScript
+// та же форма уходит обычным POST. Пока файл загружается и обрабатывается, кнопка недоступна.
+templ UploadForm(f uploadForm) {
+	<form
+		id="upload-form"
+		class="form upload-form"
+		method="post"
+		action={ templ.SafeURL(AdminPath) }
+		enctype="multipart/form-data"
+		hx-post={ AdminPath }
+		hx-encoding="multipart/form-data"
+		hx-target="this"
+		hx-swap="outerHTML"
+		hx-disabled-elt="find button"
+	>
+		@admin.CSRFInput()
+		<label>
+			Файл
+			<input
+				type="file"
+				name={ fileField }
+				accept="image/jpeg,image/png,image/webp"
+				required
+				if f.Error != "" {
+					aria-invalid="true"
+					aria-describedby="file-hint file-error"
+				} else {
+					aria-describedby="file-hint"
+				}
+			/>
+			<span class="field-hint" id="file-hint">
+				JPEG, PNG или WebP до { strconv.Itoa(images.MaxBytes >> 20) } МБ и { strconv.Itoa(images.MaxPixels / 1_000_000) } мегапикселей.
+				Сайт сам сделает уменьшенные копии; данные EXIF (в том числе геолокация) на сайт не попадут.
+			</span>
+			if f.Error != "" {
+				<span class="field-error" id="file-error">{ f.Error }</span>
+			}
+		</label>
+		<div class="form-actions">
+			<button type="submit">Загрузить</button>
+			<span class="htmx-indicator muted">Загрузка и обработка…</span>
+		</div>
+	</form>
+}
+
+// ShowPage — карточка изображения: превью, данные оригинала и варианты.
+templ ShowPage(img *images.Image) {
+	@admin.Layout(displayName(img)) {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Медиатека</a></p>
+		<h1>{ displayName(img) }</h1>
+		<div class="media-preview">
+			@web.Picture(img, "", "(min-width: 48rem) 48rem, 100vw")
+		</div>
+		<dl class="media-meta">
+			<dt>Оригинал</dt>
+			<dd>{ string(img.Format) }, { dimensions(img.Width, img.Height) }, { formatBytes(img.Bytes) }</dd>
+			<dt>Загружено</dt>
+			<dd>{ formatTime(img.CreatedAt) }</dd>
+			<dt>Версия профиля обработки</dt>
+			<dd>{ strconv.Itoa(img.ProfileVersion) }</dd>
+			<dt>ID</dt>
+			<dd><code>{ img.ID }</code></dd>
+		</dl>
+		<h2>Варианты</h2>
+		<p class="field-hint">Оригинал хранится, но на сайте не отдаётся: в нём могут быть данные EXIF и геолокация.</p>
+		<div class="table-wrap">
+			<table class="admin-table">
+				<thead>
+					<tr>
+						<th>Формат</th>
+						<th>Размер</th>
+						<th>Файл</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, v := range img.Variants {
+						<tr>
+							<td>{ string(v.Format) }</td>
+							<td>{ dimensions(v.Width, v.Height) }</td>
+							<td><a href={ templ.SafeURL(web.MediaURL(v)) }>{ formatBytes(v.Bytes) }</a></td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		<p class="danger-zone">
+			<a class="danger-link" href={ templ.SafeURL(showPath(img.ID) + "/delete") }>Удалить изображение</a>
+		</p>
+	}
+}
+
+// DeletePage — подтверждение удаления.
+templ DeletePage(img *images.Image) {
+	@admin.Layout("Удаление изображения") {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Медиатека</a></p>
+		<h1>Удалить «{ displayName(img) }»?</h1>
+		<p>Оригинал и все уменьшенные копии удалятся. Отменить удаление нельзя.</p>
+		<form method="post" action={ templ.SafeURL(showPath(img.ID) + "/delete") } class="form-actions">
+			@admin.CSRFInput()
+			<button type="submit" class="danger">Удалить</button>
+			<a href={ templ.SafeURL(showPath(img.ID)) }>Отмена</a>
+		</form>
+	}
+}
+
+// DeleteBlockedPage — изображение используется контентом сайта (409).
+templ DeleteBlockedPage(img *images.Image) {
+	@admin.Layout("Удаление изображения") {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Медиатека</a></p>
+		<h1>«{ displayName(img) }» используется на сайте</h1>
+		<p>Изображение нельзя удалить, пока на него ссылаются страницы или записи. Сначала уберите его оттуда.</p>
+		<p><a href={ templ.SafeURL(showPath(img.ID)) }>Вернуться к изображению</a></p>
+	}
+}

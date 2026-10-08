@@ -10,11 +10,18 @@ export GIT_CONFIG_COUNT = 1
 export GIT_CONFIG_KEY_0 = url.git@github.com:voffkin/.insteadOf
 export GIT_CONFIG_VALUE_0 = https://github.com/voffkin/
 
+# Тег nodynamic: кодек WebP (gen2brain/webp) не подгружает системную libwebp — модули и reference/ тестируются
+# на том же коде, что работает в бинарнике сайта (см. BUILD_TAGS в reference/Makefile).
+export GOFLAGS = -tags=nodynamic
+
 # Модуль в modules/<MODULE>; MODULE=spec или MODULE=reference — каталог в корне; пусто — все.
 MODULE ?=
 
 # Email пользователя админки для user-create.
 EMAIL ?=
+
+# Версия профиля для reprocess-images.
+BELOW ?=
 
 # Файл или папка с изображениями для images-demo.
 IN ?= modules/images/testdata
@@ -46,7 +53,7 @@ DIRS := modules/$(MODULE)
 endif
 endif
 
-.PHONY: help check test test-isolated lint deps-check release spec-validate images-demo run dev migrate seed user-create reset generate generate-check e2e e2e-browser
+.PHONY: help check test test-isolated lint deps-check release spec-validate images-demo run dev migrate seed user-create reprocess-images reset generate generate-check e2e e2e-browser
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -101,6 +108,9 @@ seed: ## Заполнить эталонный сайт dev-данными (ид
 
 user-create: ## Создать пользователя админки эталонного сайта. Пример: make user-create EMAIL=me@example.com
 	@$(MAKE) -C reference user-create EMAIL="$(EMAIL)"
+
+reprocess-images: ## Повторная обработка изображений эталонного сайта. Пример: make reprocess-images BELOW=2
+	@$(MAKE) -C reference reprocess-images BELOW="$(BELOW)"
 
 reset: ## Удалить локальную БД и загрузки эталонного сайта (reference/data/)
 	@$(MAKE) -C reference reset

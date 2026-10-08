@@ -526,6 +526,74 @@ button.danger:hover {
   color: var(--muted);
 }
 
+/* Медиатека: сетка превью, карточка изображения. */
+.form input[type="file"] {
+  max-width: 100%;
+}
+
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 1.25rem;
+  margin: 1.5rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.media-card {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  font-size: 0.875rem;
+}
+
+.media-card a {
+  display: grid;
+  gap: 0.4rem;
+}
+
+/* Превью одной высоты: картинка вписывается в квадрат на фоне шахматки, чтобы была видна прозрачность. */
+.media-card img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: repeating-conic-gradient(var(--surface) 0% 25%, var(--bg) 0% 50%) 50% / 1rem 1rem;
+}
+
+.media-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-preview img {
+  max-height: 32rem;
+  width: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: repeating-conic-gradient(var(--surface) 0% 25%, var(--bg) 0% 50%) 50% / 1rem 1rem;
+}
+
+.media-meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1.25rem;
+}
+
+.media-meta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  align-items: center;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

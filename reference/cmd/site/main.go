@@ -6,12 +6,14 @@
 //	site migrate  снимок БД и применение миграций (модули, затем сайт)
 //	site seed     dev-данные, идемпотентно
 //	site user create EMAIL  пользователь админки; пароль спрашивается интерактивно
+//	site reprocess-images -below N  повторная обработка изображений с версией профиля ниже N
 package main
 
 import (
 	"context"
 	"database/sql"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -22,6 +24,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/voffkin/keelkit/modules/images"
+	imagesmigrations "github.com/voffkin/keelkit/modules/images/migrations"
+
 	"github.com/voffkin/keelkit/reference/db/migrations"
 	"github.com/voffkin/keelkit/reference/internal/database"
 )
@@ -31,6 +36,7 @@ var version = "dev"
 
 // migrationSources — миграции в порядке применения: модули в порядке из site.yaml, затем сайт.
 var migrationSources = []database.Source{
+	{Name: "images", FS: imagesmigrations.FS, Table: imagesmigrations.Table},
 	{Name: "site", FS: migrations.FS, Table: "goose_site_version"},
 }
 
@@ -59,6 +65,9 @@ func loadConfig() (config, error) {
 
 func (c config) dbPath() string { return filepath.Join(c.DataDir, "site.db") }
 
+// uploadsDir — загрузки модуля images: оригиналы и варианты. Входит в бэкап вместе с БД.
+func (c config) uploadsDir() string { return filepath.Join(c.DataDir, "uploads") }
+
 func envOr(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
@@ -66,7 +75,7 @@ func envOr(key, def string) string {
 	return def
 }
 
-const usage = "usage: site <serve|migrate|seed> | site user create EMAIL"
+const usage = "usage: site <serve|migrate|seed> | site user create EMAIL | site reprocess-images -below N"
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
@@ -95,6 +104,8 @@ func main() {
 		err = seed(ctx, cfg)
 	case cmd == "user" && len(args) == 3 && args[1] == "create":
 		err = userCreate(ctx, cfg, args[2], readPasswordTerminal)
+	case cmd == "reprocess-images":
+		err = reprocessImages(ctx, cfg, args[1:])
 	default:
 		fmt.Fprintln(os.Stderr, usage)
 		os.Exit(2)
@@ -111,6 +122,15 @@ func openDB(ctx context.Context, cfg config) (*sql.DB, error) {
 		return nil, fmt.Errorf("create data dir: %w", err)
 	}
 	return database.Open(ctx, cfg.dbPath())
+}
+
+// openMedia открывает хранилище загрузок и сервис изображений над БД сайта. close закрывает хранилище.
+func openMedia(db *sql.DB, cfg config) (svc *images.Service, closeFn func(), err error) {
+	st, err := images.NewDiskStorage(cfg.uploadsDir())
+	if err != nil {
+		return nil, nil, fmt.Errorf("uploads: %w", err)
+	}
+	return images.NewService(db, st, images.Config{}), func() { _ = st.Close() }, nil
 }
 
 // errPendingMigrations — отказ старта: схема БД отстаёт от кода.
@@ -131,9 +151,15 @@ func serve(ctx context.Context, cfg config) error {
 		return fmt.Errorf("%w (%d), выполните make migrate", errPendingMigrations, n)
 	}
 
+	media, closeMedia, err := openMedia(db, cfg)
+	if err != nil {
+		return err
+	}
+	defer closeMedia()
+
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           newMux(db, cfg),
+		Handler:           newMux(db, media, cfg),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -182,4 +208,40 @@ func migrate(ctx context.Context, cfg config) error {
 	}
 	slog.Info("snapshot saved", "path", snapshot)
 	return nil
+}
+
+// reprocessImages — site reprocess-images -below N: варианты изображений с версией профиля ниже N строятся заново
+// текущим профилем. Идемпотентна и безопасна для прерывания: повторный запуск доделывает оставшееся.
+// Сервер при этом может работать: старые адреса вариантов отдаются, пока строки в БД не переключены.
+func reprocessImages(ctx context.Context, cfg config, args []string) error {
+	fs := flag.NewFlagSet("reprocess-images", flag.ContinueOnError)
+	below := fs.Int("below", 0, "обработать изображения с версией профиля ниже N (текущая — "+strconv.Itoa(images.ProfileVersion)+")")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *below <= 0 || fs.NArg() > 0 {
+		return errors.New("укажите -below N (N > 0), например site reprocess-images -below " + strconv.Itoa(images.ProfileVersion+1))
+	}
+
+	db, err := openDB(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	schemas, err := database.Status(ctx, db, migrationSources)
+	if err != nil {
+		return err
+	}
+	if n := database.Pending(schemas); n > 0 {
+		return fmt.Errorf("%w (%d), выполните make migrate", errPendingMigrations, n)
+	}
+	media, closeMedia, err := openMedia(db, cfg)
+	if err != nil {
+		return err
+	}
+	defer closeMedia()
+
+	st, err := media.Reprocess(ctx, *below)
+	slog.Info("reprocess images", "below", *below, "profile", images.ProfileVersion, "processed", st.Processed, "failed", st.Failed)
+	return err
 }

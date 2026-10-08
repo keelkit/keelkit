@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -159,5 +160,37 @@ func TestIsUniqueViolation(t *testing.T) {
 	}
 	if IsUniqueViolation(nil) {
 		t.Error("IsUniqueViolation(nil) = true")
+	}
+}
+
+func TestIsForeignKeyViolation(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "site.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+
+	for _, q := range []string{
+		`CREATE TABLE parent (id TEXT PRIMARY KEY)`,
+		`CREATE TABLE child (parent_id TEXT NOT NULL REFERENCES parent (id))`,
+		`INSERT INTO parent (id) VALUES ('p')`,
+		`INSERT INTO child (parent_id) VALUES ('p')`,
+	} {
+		if _, err := db.ExecContext(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Open включает foreign_keys: удалить родителя, на которого ссылаются, нельзя.
+	_, err = db.ExecContext(ctx, `DELETE FROM parent WHERE id = 'p'`)
+	if !IsForeignKeyViolation(fmt.Errorf("wrapped: %w", err)) {
+		t.Errorf("delete referenced: IsForeignKeyViolation(%v) = false", err)
+	}
+	_, err = db.ExecContext(ctx, `INSERT INTO parent (id) VALUES ('p')`)
+	if err == nil || IsForeignKeyViolation(err) {
+		t.Errorf("unique: IsForeignKeyViolation(%v) = true", err)
+	}
+	if IsForeignKeyViolation(nil) {
+		t.Error("IsForeignKeyViolation(nil) = true")
 	}
 }

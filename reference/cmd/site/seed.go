@@ -1,16 +1,21 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
+	"embed"
 	"fmt"
 	"log/slog"
+
+	"github.com/voffkin/keelkit/modules/images"
 
 	"github.com/voffkin/keelkit/reference/internal/admin"
 	"github.com/voffkin/keelkit/reference/internal/content/pages"
 	"github.com/voffkin/keelkit/reference/internal/settings"
 )
 
-// seed заполняет БД данными для разработки. Идемпотентен: существующие записи не трогает.
+// seed заполняет БД и загрузки данными для разработки. Идемпотентен: существующие записи не трогает.
 func seed(ctx context.Context, cfg config) error {
 	db, err := openDB(ctx, cfg)
 	if err != nil {
@@ -18,7 +23,27 @@ func seed(ctx context.Context, cfg config) error {
 	}
 	defer func() { _ = db.Close() }()
 
-	err = settings.New(db).InsertSiteSettingsIfMissing(ctx, settings.InsertSiteSettingsIfMissingParams{
+	if err := seedContent(ctx, db); err != nil {
+		return err
+	}
+	media, closeMedia, err := openMedia(db, cfg)
+	if err != nil {
+		return err
+	}
+	defer closeMedia()
+	if err := seedImages(ctx, media); err != nil {
+		return err
+	}
+	// Только для разработки: seed в проде не запускается, поэтому пароль можно напечатать.
+	slog.Warn("dev admin (только для разработки)", "url", "/admin", "email", seedAdminEmail, "password", seedAdminPassword)
+	slog.Info("seed done")
+	return nil
+}
+
+// seedContent — настройки сайта, страницы и пользователь админки. Отдельно от seedImages: обработка изображений
+// занимает около секунды, поэтому тестам, которым картинки не нужны, хватает seedContent.
+func seedContent(ctx context.Context, db *sql.DB) error {
+	err := settings.New(db).InsertSiteSettingsIfMissing(ctx, settings.InsertSiteSettingsIfMissingParams{
 		Name:        "Keelkit — эталонный сайт",
 		Description: "Образец устройства сайтов Keelkit",
 	})
@@ -41,9 +66,41 @@ func seed(ctx context.Context, cfg config) error {
 	if err != nil {
 		return fmt.Errorf("seed user: %w", err)
 	}
-	// Только для разработки: seed в проде не запускается, поэтому пароль можно напечатать.
-	slog.Warn("dev admin (только для разработки)", "url", "/admin", "email", seedAdminEmail, "password", seedAdminPassword)
-	slog.Info("seed done")
+	return nil
+}
+
+// seedImageFiles — изображения для медиатеки (копии из testdata модуля images, см. его README):
+// фото на все ширины профиля, прозрачный PNG, маленький JPEG (вариантов шире оригинала нет) и WebP с поворотом из EXIF.
+//
+//go:embed seeddata
+var seedImageFiles embed.FS
+
+// seedImages загружает seedImageFiles через модуль images. Изображение с тем же именем файла уже есть — пропускается.
+func seedImages(ctx context.Context, media *images.Service) error {
+	existing, err := media.List(ctx, 1000, 0)
+	if err != nil {
+		return err
+	}
+	have := make(map[string]bool, len(existing))
+	for _, img := range existing {
+		have[img.Name] = true
+	}
+	entries, err := seedImageFiles.ReadDir("seeddata")
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if have[e.Name()] {
+			continue
+		}
+		data, err := seedImageFiles.ReadFile("seeddata/" + e.Name())
+		if err != nil {
+			return err
+		}
+		if _, err := media.Upload(ctx, bytes.NewReader(data), e.Name()); err != nil {
+			return fmt.Errorf("seed image %s: %w", e.Name(), err)
+		}
+	}
 	return nil
 }
 

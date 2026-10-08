@@ -136,7 +136,7 @@ func (a *Admin) saved(w http.ResponseWriter, r *http.Request, f *pageForm, id in
 		admin.ServerError(w, r, err)
 		return true
 	}
-	redirect(w, r, editPath(id)+"?saved=1")
+	admin.Redirect(w, r, editPath(id)+"?saved=1")
 	return true
 }
 
@@ -168,7 +168,7 @@ func (a *Admin) Delete(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if n > 0 {
-			redirect(w, r, AdminPath+"?deleted=1")
+			admin.Redirect(w, r, AdminPath+"?deleted=1")
 			return
 		}
 		// Страницу успели опубликовать или удалить: показать актуальное состояние.
@@ -294,24 +294,11 @@ func (a *Admin) renderForm(w http.ResponseWriter, r *http.Request, status int, f
 	}
 	f.Preview = preview
 	c := FormPage(f)
-	if isHTMX(r) {
+	if admin.IsHTMX(r) {
 		c = Form(f)
 	}
 	web.Render(w, r, status, c)
 }
-
-// redirect — после успешного POST: обычной форме 303, htmx — заголовок HX-Redirect (полный переход на адрес).
-// target — всегда путь внутри раздела, собранный из констант и id.
-func redirect(w http.ResponseWriter, r *http.Request, target string) {
-	if isHTMX(r) {
-		w.Header().Set("HX-Redirect", target)
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-	http.Redirect(w, r, target, http.StatusSeeOther) //nolint:gosec // target не берётся из запроса
-}
-
-func isHTMX(r *http.Request) bool { return r.Header.Get("HX-Request") == "true" }
 
 func pathID(r *http.Request) (int64, bool) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)

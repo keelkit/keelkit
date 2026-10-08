@@ -395,8 +395,9 @@ func TestE2EAdminPageEditDelete(t *testing.T) {
 // Маршруты из reservedSlugs перекрывают страницу с тем же slug: даже если она попала в БД в обход админки,
 // по её адресу открывается раздел сайта, а не страница.
 func TestE2EReservedSlugsShadowPages(t *testing.T) {
-	db := migratedDB(t, false)
-	srv := httptest.NewServer(newMux(db, config{}))
+	site := migratedSite(t, false)
+	db := site.db
+	srv := httptest.NewServer(site.handler(config{}))
 	t.Cleanup(srv.Close)
 
 	for _, s := range reservedSlugs {

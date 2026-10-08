@@ -194,6 +194,20 @@ func NotFound(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, http.StatusNotFound, NotFoundPage())
 }
 
+// Redirect — после успешного POST в разделе админки: обычной форме 303, htmx — 204 и заголовок HX-Redirect
+// (полный переход на адрес). target — путь внутри админки, собранный из констант и id, не из запроса.
+func Redirect(w http.ResponseWriter, r *http.Request, target string) {
+	if IsHTMX(r) {
+		w.Header().Set("HX-Redirect", target)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther) //nolint:gosec // target не берётся из запроса
+}
+
+// IsHTMX — запрос отправил htmx: в ответ на него отдают фрагмент, а не страницу целиком.
+func IsHTMX(r *http.Request) bool { return r.Header.Get("HX-Request") == "true" }
+
 // ServerError логирует ошибку и отдаёт страницу 500 админки без подробностей.
 func ServerError(w http.ResponseWriter, r *http.Request, err error) {
 	slog.Error("admin request failed", "method", r.Method, "path", r.URL.Path, "err", err)

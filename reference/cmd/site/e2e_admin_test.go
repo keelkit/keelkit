@@ -342,7 +342,7 @@ func TestE2EAdminCSRF(t *testing.T) {
 
 // Вне локальной разработки cookie получают флаг Secure.
 func TestE2EAdminSecureCookies(t *testing.T) {
-	srv := httptest.NewServer(newMux(migratedDB(t, true), config{CookieSecure: true}))
+	srv := httptest.NewServer(migratedSite(t, true).handler(config{CookieSecure: true}))
 	t.Cleanup(srv.Close)
 
 	resp, _ := fetch(t, adminClient(t), srv.URL+"/admin/login")

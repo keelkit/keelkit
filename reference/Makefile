@@ -10,6 +10,12 @@ export GIT_CONFIG_COUNT = 1
 export GIT_CONFIG_KEY_0 = url.git@github.com:voffkin/.insteadOf
 export GIT_CONFIG_VALUE_0 = https://github.com/voffkin/
 
+# Тег nodynamic: кодек WebP (gen2brain/webp) не подгружает системную libwebp, а всегда работает на коде,
+# транслированном в Go. Результат обработки изображений одинаков на любой машине, бинарник не зависит от
+# библиотек хоста. Действует на все go-команды make (run, test, build); e2e-browser добавляет его к тегу browser.
+BUILD_TAGS = nodynamic
+export GOFLAGS = -tags=$(BUILD_TAGS)
+
 # Адрес HTTP-сервера, каталог данных (БД, загрузки) и каталог снимков БД.
 ADDR ?= :8080
 DATA_DIR ?= data
@@ -19,6 +25,8 @@ BACKUP_DIR ?= backups
 COOKIE_SECURE ?= false
 # Email пользователя админки для user-create.
 EMAIL ?=
+# Версия профиля для reprocess-images: обработать изображения с версией ниже BELOW.
+BELOW ?=
 
 # Версии инструментов закреплены здесь, а не берутся из окружения.
 # Тулчейн для запуска инструментов через go run: должен совпадать с toolchain в go.mod.
@@ -39,7 +47,7 @@ SPEC_VALIDATE = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/voffkin/keelkit/sp
 
 SITE = ADDR=$(ADDR) DATA_DIR=$(DATA_DIR) BACKUP_DIR=$(BACKUP_DIR) COOKIE_SECURE=$(COOKIE_SECURE) go run ./cmd/site
 
-.PHONY: help run dev migrate seed user-create reset generate generate-check test test-isolated e2e e2e-browser lint deps-check spec-validate
+.PHONY: help run dev migrate seed user-create reprocess-images reset generate generate-check test test-isolated e2e e2e-browser lint deps-check spec-validate
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -59,6 +67,10 @@ seed: ## Заполнить dev-данными (идемпотентно, тол
 user-create: ## Создать пользователя админки (пароль спрашивается). Пример: make user-create EMAIL=me@example.com
 	@if [ -z "$(EMAIL)" ]; then echo "user-create: укажите EMAIL, например make user-create EMAIL=me@example.com"; exit 1; fi
 	$(SITE) user create "$(EMAIL)"
+
+reprocess-images: ## Повторная обработка изображений с версией профиля ниже BELOW (идемпотентна). Пример: make reprocess-images BELOW=2
+	@if [ -z "$(BELOW)" ]; then echo "reprocess-images: укажите BELOW, например make reprocess-images BELOW=2"; exit 1; fi
+	$(SITE) reprocess-images -below "$(BELOW)"
 
 reset: ## Удалить локальную БД и загрузки (DATA_DIR), чтобы начать с нуля
 	rm -rf $(DATA_DIR)
@@ -85,7 +97,7 @@ e2e: ## e2e-тесты ключевых сценариев (httptest + goquery; 
 	go test -count=1 -run '^TestE2E' ./cmd/site
 
 e2e-browser: ## Браузерные тесты htmx-взаимодействий (chromedp, нужен Chrome; тег сборки browser)
-	go test -count=1 -tags browser -run '^TestBrowser' ./cmd/site
+	go test -count=1 -tags browser,$(BUILD_TAGS) -run '^TestBrowser' ./cmd/site
 
 lint: ## Линтер golangci-lint
 	$(GOLANGCI_LINT) run ./...

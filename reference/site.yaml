@@ -1,9 +1,12 @@
 # Спецификация эталонного сайта. Проверка: make spec-validate FILE=reference/site.yaml
-# Дополняется по этапам PLAN.md: модуль images (этап 8), posts и categories (этап 9).
+# Дополняется по этапам PLAN.md: posts и categories (этап 9).
 spec_version: 1
 site:
   name: keelkit-reference
   languages: [ru]
+# Модули в порядке применения миграций (migrationSources в cmd/site/main.go): images, затем сайт.
+modules:
+  images: v0
 content:
   pages:
     fields:

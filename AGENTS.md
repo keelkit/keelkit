@@ -267,6 +267,7 @@ cmd/site/                  # main.go (конфиг, подкоманды, пор
 internal/database/         # открытие SQLite, статус схем, снимок, применение миграций
 internal/content/<type>/   # модель, sqlc-запросы, хендлеры, templ одного типа контента (миграции — в db/migrations/)
 internal/admin/            # оболочка админки и авторизация (пока здесь)
+internal/media/            # медиатека в админке поверх модуля images
 internal/web/              # layout, общие компоненты templ
 internal/richtext/         # richtext (Markdown) → очищенный HTML: goldmark + bluemonday
 internal/slug/             # slug из заголовка (транслитерация кириллицы) и проверка формата
@@ -296,7 +297,7 @@ site.yaml, sqlc.yaml, Makefile, AGENTS.md, CLAUDE.md
 - У каждой цели есть комментарий `## ...` с описанием и, если она принимает параметры, примером вызова.
 - Параметры передаются переменными с безопасными значениями по умолчанию (`VAR ?= ...`).
 - В корне монорепо `test`, `test-isolated`, `lint` без `MODULE` проходят по `modules/*`, `spec/` и `reference/`;
-  `MODULE=<name>` — `modules/<name>`, `MODULE=spec` и `MODULE=reference` — одноимённые каталоги. `run`, `dev`, `migrate`, `seed`, `user-create`, `reset`, `generate`, `generate-check`, `e2e`, `e2e-browser` делегируются в `reference/Makefile`;
+  `MODULE=<name>` — `modules/<name>`, `MODULE=spec` и `MODULE=reference` — одноимённые каталоги. `run`, `dev`, `migrate`, `seed`, `user-create`, `reprocess-images`, `reset`, `generate`, `generate-check`, `e2e`, `e2e-browser` делегируются в `reference/Makefile`;
   `images-demo` — своя цель корня (демо-отчёт модуля `images`);
   `deps-check` — по тем же каталогам, что `test`; `check` — все проверки CI по тем же каталогам
   (`lint`, `test`, `test-isolated`, `deps-check`; для `reference/` ещё `generate-check` и `e2e`, для `spec/` — `spec-validate` `reference/site.yaml`); `release` — `scripts/release.sh` (`DRY_RUN=1` — только проверки).
@@ -391,6 +392,8 @@ test-isolated: ## Тесты модуля только на опубликова
 | Миграции | goose, таблица версий на модуль | свой мигратор привёл бы к дублированию или core-модулю |
 | Шаблоны и фронт | templ + htmx + чистый CSS | ошибки шаблонов ловит компилятор; без Node |
 | Изображения | x/image + `gen2brain/webp` (v0.6+: libwebp, транслированная в Go; раньше — WASM через wazero) | без CGO; профиль версионируется, можно сменить |
+| Сборка с тегом `nodynamic` | сайты и монорепо собираются и тестируются с `-tags nodynamic` (`GOFLAGS` в `Makefile`): `gen2brain/webp` не подгружает системную libwebp | результат обработки одинаков на всех машинах и совпадает с тестами; бинарник не зависит от библиотек хоста. Цена — системная libwebp была бы быстрее |
+| Картинки в контенте | только блоками (этап 8.5) с id изображения; синтаксиса картинок в Markdown нет, адреса вариантов в контенте не хранятся | адреса меняются при повторной обработке; внешний ключ на `images_files` защищает используемое изображение |
 | Ориентация EXIF | свой минимальный парсер в `modules/images/internal/exif`: тег Orientation из JPEG (APP1), PNG (eXIf), WebP (EXIF) | ~150 строк без зависимостей; `rwcarlsen/goexif` без тегов semver, `dsoprea/go-exif` тяжёл ради одного тега |
 | Авторизация | в коде эталона, одна таблица пользователей | вынос в модуль — после второго сайта (принцип 6) |
 | Версии модулей | `v0.x` до второго сайта, затем `v1` | API подтверждается двумя сайтами |
