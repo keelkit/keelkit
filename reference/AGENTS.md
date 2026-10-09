@@ -32,7 +32,7 @@
 
 | Цель | Что делает |
 |---|---|
-| `make run` | запустить сайт (`ADDR`, `DATA_DIR`); при непримененных миграциях отказывается стартовать |
+| `make run` | запустить сайт (`ADDR`, `DATA_DIR`, `BASE_URL`); при непримененных миграциях отказывается стартовать |
 | `make dev` | для разработки: `migrate`, `seed`, запуск |
 | `make migrate` | снимок БД в `BACKUP_DIR` (`VACUUM INTO`), затем миграции: модули в порядке `site.yaml`, потом сайт |
 | `make seed` | dev-данные; идемпотентно, в проде не запускается; печатает dev-пользователя админки |
@@ -56,14 +56,17 @@
 | `BACKUP_DIR` | `backups` | каталог снимков БД перед миграциями |
 | `COOKIE_SECURE` | `true` | флаг `Secure` у cookie админки; `false` — только для разработки по http (`make run`/`make dev` передают `false`) |
 | `TZ` | часовой пояс системы | в нём показываются и вводятся даты публикации постов (в БД — UTC) |
+| `BASE_URL` | — (в `make run`/`dev` — `http://localhost:<порт из ADDR>`) | адрес сайта (`https://example.com`, без пути) для canonical, Open Graph, sitemap, RSS и robots.txt. **Обязателен для `serve`**: без него сайт не стартует (адрес из заголовка `Host` подделывается). Слеш в конце отбрасывается |
 
 ## Маршруты
 
 - `GET /` — страница со slug `home`; пока её нет — заглушка с названием и описанием сайта.
 - `GET /{slug}` — опубликованная копия страницы из `pages` (`page_contents`, `kind = 'published'`); `/home` → 301 на `/`.
+  Прежний slug страницы (`page_redirects`) — 301 на её текущий адрес; у постов так же (`post_redirects`), если пост виден.
 - Блог: `GET /blog` (лента, `?page=N`, по 10 постов), `GET /blog/{slug}` (пост), `GET /blog/category/{slug}` (лента
   категории, `?page=N`). Только опубликованные копии с наступившей датой публикации; несуществующая или пустая
   страница ленты (кроме первой), неверный `?page` — 404. В меню сайта блог — последним пунктом после страниц.
+- `GET /sitemap.xml`, `GET /rss.xml`, `GET /robots.txt` — пакет `internal/seo` (см. «SEO»); без данных шапки.
 - `GET /static/…` — файлы из `static/` (embed); ссылки с `?v=<хеш>` кэшируются на год, список каталога не отдаётся.
 - `GET /media/…` — варианты изображений, обработчик модуля `images` (`web.MediaPrefix`); кэш `immutable`, оригиналы
   не отдаются никогда. `GET /media` — 404.
@@ -83,7 +86,7 @@
   страницу, админка такие slug не принимает. Маршрут-поддерево (`/static/`) занимает и путь без слеша (`GET /static` → 404),
   иначе его забрал бы `GET /{slug}`; e2e `TestE2EReservedSlugsShadowPages` проверяет каждый slug из списка.
 - Всё остальное — оформленная 404 (`web.NotFound`).
-- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"site":{"version":6,"pending":0}}}`.
+- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"site":{"version":7,"pending":0}}}`.
 
 ## Бинарник
 
@@ -109,7 +112,7 @@
 - Миграция, меняющая живые данные (образец — `00005_page_contents.sql`): старая таблица переименовывается
   в `<type>_legacy` и удаляется только следующей миграцией (двухэтапно); тест на копии реалистичных данных —
   `cmd/site/migrations_test.go` (`migrateTo` доводит БД до версии перед миграцией, затем штатный `migrate`).
-  `pages_legacy` ещё не удалена (`00006` её не трогает): удалит отдельная миграция `DROP TABLE pages_legacy`.
+  `pages_legacy` ещё не удалена (`00006`, `00007` её не трогают): удалит отдельная миграция `DROP TABLE pages_legacy`.
 - **`queries.sql` — только ASCII**, включая комментарии: sqlc v1.31.1 для SQLite вырезает текст запроса по смещениям
   в байтах, и кириллица в файле обрезает запросы. Русские тексты передаются параметрами. В миграциях кириллица допустима.
 
@@ -145,9 +148,10 @@
 ## Шаблоны и HTML
 
 - Шаблоны — templ (`*.templ` рядом с кодом, `*_templ.go` генерируются и коммитятся).
-- `internal/web`: `Layout(title)` — оболочка страницы, `LayoutMeta(title, description)` — с описанием страницы (пусто — описание сайта); `NotFoundPage`, `ErrorPage`; `Render` (рендер в буфер, затем ответ),
+- `internal/web`: `LayoutMeta(web.Meta)` — оболочка публичной страницы с данными для поисковиков (см. «SEO»), `Layout(title)` —
+  то же без адреса (ошибки, заглушки); `NotFoundPage`, `ErrorPage`; `Render` (рендер в буфер, затем ответ),
   `NotFound`, `ServerError` (логирует, клиенту — страница 500 без подробностей).
-- Данные шапки (`web.Site`: название, описание, меню) собирает `siteLoader` в `cmd/site/server.go`; middleware `web.WithSite`
+- Данные шапки (`web.Site`: название, описание, меню, `BaseURL`, путь ленты) собирает `siteLoader` в `cmd/site/server.go`; middleware `web.WithSite`
   кладёт их в контекст, layout читает через `web.SiteFrom(ctx)`. HTML-маршруты оборачиваются в него, `/healthz` и `/static/` — нет.
   `internal/web` не импортирует типы контента: связывает их только `cmd/site`.
 - `richtext` (Markdown): `richtext.Render` → goldmark (GFM, сырой HTML не пропускается) → bluemonday (UGC; `class="language-*"`
@@ -194,7 +198,7 @@
 `admin.go` (`Admin`, `NewAdmin(db, media, mediaURL, reserved)`, `AdminPath`, `EditPath`, хендлеры раздела админки,
 `SeedPublished` для seed), `admin.templ`. Поле `blocks` — через `internal/blocks/` (см. «Блоки»).
 Миграция — в `db/migrations/`, маршруты — в `newMux`, dev-данные — в `cmd/site/seed.go`, запись sqlc — в `sqlc.yaml`,
-счётчик дашборда — в `adminCounters`, пункт меню — в `admin.Options.Sections`.
+счётчик дашборда — в `adminCounters`, пункт меню — в `admin.Options.Sections`, feature `sitemap`/`rss` — см. «SEO».
 Seed блога (`seedBlog`): 3 категории, 13 опубликованных постов (`post-01`…`post-13`, даты — дни назад от запуска,
 обложки у каждого третьего), черновик `draft-post` и `future-post` с датой через 30 дней.
 
@@ -238,7 +242,12 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 - «Сохранить» (`action=save`, и Enter в поле — первая кнопка формы скрытая «Сохранить») пишет черновик и его ссылки на
   изображения одной транзакцией; «Опубликовать» (`publish`) — то же и копирует черновик в опубликованную (`INSERT … SELECT …
   ON CONFLICT DO UPDATE`) вместе со ссылками; «Снять с публикации» — `DELETE` опубликованной копии (ссылки — каскадом).
-- Публичные запросы (страница, меню, позже sitemap и RSS) берут только `kind = 'published'`; админка — черновик.
+- Публичные запросы (страница, меню, sitemap и RSS) берут только `kind = 'published'`; админка — черновик.
+- Редиректы со старых адресов — `<type>_redirects(slug PRIMARY KEY, <type>_id … ON DELETE CASCADE)` (миграция `00007`):
+  перед «Опубликовать» и «Снять с публикации» прежний опубликованный slug записывается туда (`RememberPublishedSlug`,
+  в той же транзакции), после публикации запись с новым slug удаляется (`DropRedirectToPublished`). Публичный `Show`
+  при промахе ищет slug в редиректах (`RedirectTarget`) и отвечает 301 на текущий адрес, иначе 404. Опубликованная
+  копия всегда важнее редиректа: slug, занятый другой записью, открывает её.
 - Статус в списке и в форме: «Черновик» (нет опубликованной), «Опубликована», «Есть неопубликованные изменения»
   (черновик отличается от опубликованной: сравниваются колонки, блоки — строкой JSON, `blocks.Marshal` детерминирован).
 - Предпросмотр `/{id}/view` — черновик в публичном шаблоне с плашкой `.draft-banner`; «Открыть на сайте» — по
@@ -265,7 +274,7 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 - Проверка — `blocks.Validate` (все блоки, и скрытые); ошибки — у поля блока (`#block-<id>-<поле>-error`), 422 как у
   обычных полей. Изображения загружает `blocks.Resolve` (интерфейс `blocks.Images` — `Get` модуля).
 - `blocks.ImageIDs` — для `<type>_images` (скрытые блоки тоже держат изображение), `blocks.PlainText` и `blocks.Summary` —
-  текст для описания страницы (`web.LayoutMeta`), позже RSS и поиска.
+  текст для описания страницы (`web.Meta`), RSS, позже поиска; `blocks.FirstImage` — картинка страницы для `og:image`.
 - Список блоков поля — в коде типа (`pages.BodyBlocks`, `posts.BodyBlocks`); `TestSpecBlocksMatchCode` сверяет каждое
   поле `blocks` из `site.yaml` со списком своего типа (новое поле `blocks` — запись в карте `code` теста).
 
@@ -273,6 +282,27 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 (`readForm`, `check` — нормализация и ошибки, `view`, `form`, `imageIDs`, `plainText`); templ-вывод в `view.templ`
 (корень — элемент с классом `block block-<тип>` и `id="block-<id>"`) и фрагмент формы в `form.templ`; стили; тест в
 `blocks_test.go`; имя — в `allow` нужного поля `site.yaml` и в списке блоков типа контента.
+
+## SEO (`internal/seo/`, `web.Meta`)
+
+Пишется в коде эталона; вынос в модуль — после второго сайта. Пакет `seo` не знает о типах контента.
+- `<head>` — `web.LayoutMeta(web.Meta{…})`: `Title`, `Description` (пусто — описание сайта; у типов — `blocks.Summary`),
+  `Path` — адрес страницы для `canonical` и `og:url` (у ленты — с `?page=N`; лишние параметры запроса не попадают),
+  `Article` и `Published` (пост: `og:type article`, `article:published_time`), `Image` (`og:image` — JPEG не шире
+  1600 px, `web.ShareImage`; у поста — обложка, иначе первое изображение блоков), `NoIndex`. Без `Path` — нет canonical
+  и Open Graph (404, 500). Предпросмотр черновика — без `Path` и с `NoIndex`. Абсолютные адреса — `web.Site.BaseURL` +
+  путь; на каждой странице — `<link rel="alternate">` на RSS.
+- `/sitemap.xml` — `seo.Sitemap(baseURL, sources…)`: адреса от типов с feature `sitemap` в `site.yaml` —
+  `sitemapSources` в `cmd/site/server.go` (метод `SitemapURLs` пакета типа: только видимое на сайте). Страницы — без
+  `lastmod` (у копии нет времени публикации), лента `/blog` и посты — `lastmod` по дате публикации. Один файл: лимит
+  протокола — 50 000 адресов.
+- `/rss.xml` — `seo.Feed(baseURL, feedSource)`: RSS 2.0, последние 20 видимых постов (`posts.FeedItems`), анонс —
+  `blocks.Summary` (500 символов, без разметки), категория, обложка — `<enclosure>` JPEG; `guid` — `post-<id>`
+  (`isPermaLink="false"`), не меняется со сменой slug. Типы с feature `rss` — `feedTypes`.
+- `/robots.txt` — `seo.Robots(baseURL, "/admin/")` и ссылка на sitemap.
+- Новый тип с feature `sitemap` или `rss`: метод `SitemapURLs` / `FeedItems` в пакете типа, запись в `sitemapSources`
+  или `feedTypes` (несколько типов в ленте — слить записи по дате в `feedSource`); `TestSpecFeaturesMatchCode` сверяет
+  списки с `site.yaml`. Публичные шаблоны типа передают `web.Meta` с `Path`.
 
 ## Тесты
 
@@ -294,7 +324,11 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
   заголовки `htmx`; каждая ошибка валидации проверяется и без `HX-Request` (страница), и с ним (фрагмент).
 - e2e блога — `cmd/site/e2e_blog_test.go` (лента, страницы, категория, пост, скрытые черновик и будущий пост) и
   `cmd/site/e2e_posts_admin_test.go` (посты и категории в админке; хелперы `createPost`, `postForm`, `newPostForm`).
-- `TestSpecBlocksMatchCode` (`cmd/site/spec_test.go`) — блоки из `allow` в `site.yaml` есть в коде и совпадают со списком типа.
+- `TestSpecBlocksMatchCode` (`cmd/site/spec_test.go`) — блоки из `allow` в `site.yaml` есть в коде и совпадают со списком типа;
+  `TestSpecFeaturesMatchCode` — типы с feature `sitemap` и `rss` совпадают с `sitemapSources` и `feedTypes`.
+- e2e SEO — `cmd/site/e2e_seo_test.go`: sitemap и RSS разбираются `encoding/xml` (без черновиков, будущих постов и
+  неопубликованных страниц, адреса от `BASE_URL`), robots.txt, canonical и Open Graph, `noindex` предпросмотра,
+  редиректы со старых slug. В тестах `BASE_URL` — `testBaseURL` (`https://example.test`; `handler(config{})` подставляет его сам).
 - Браузерные тесты — `cmd/site/browser_test.go` (`//go:build browser`, `TestBrowser*`, chromedp, headless Chrome):
   только критичные htmx-взаимодействия — превью при наборе, сохранение через `HX-Redirect`, подмена формы с ошибкой
   без перезагрузки, «Добавить блок», «↑», «Скрыть» и выбор изображения у блока, выбор обложки поста, загрузка файла (`hx-encoding="multipart/form-data"`).
@@ -320,8 +354,9 @@ cmd/site/e2e_pages_admin_test.go  # e2e раздела «Страницы»
 cmd/site/e2e_media_admin_test.go  # e2e медиатеки
 cmd/site/e2e_blog_test.go         # e2e блога на сайте
 cmd/site/e2e_posts_admin_test.go  # e2e разделов «Посты» и «Категории»
+cmd/site/e2e_seo_test.go          # e2e sitemap, RSS, robots.txt, <head>, редиректов
 cmd/site/migrations_test.go # миграции, меняющие данные, на копии реалистичных данных
-cmd/site/spec_test.go       # site.yaml ↔ код (блоки)
+cmd/site/spec_test.go       # site.yaml ↔ код (блоки, features sitemap и rss)
 cmd/site/images_test.go     # контрактные тесты модуля images (testkit)
 cmd/site/browser_test.go    # браузерные тесты (тег browser, make e2e-browser)
 db/migrations/              # миграции сайта (goose) + embed.go
@@ -333,9 +368,10 @@ internal/content/categories/ # категории: queries.sql, sqlc, admin.go, 
 internal/database/          # открытие SQLite, статус схем, снимок, применение миграций
 internal/media/             # медиатека в админке (модуль images)
 internal/richtext/          # Markdown → очищенный HTML
+internal/seo/               # sitemap.xml, rss.xml, robots.txt
 internal/slug/              # slug: Make (транслитерация), Valid
 internal/settings/          # site_settings: queries.sql и код sqlc
-internal/web/               # layout (Layout, LayoutMeta), страницы ошибок, рендер, Picture
+internal/web/               # layout (Layout, LayoutMeta, Meta), страницы ошибок, рендер, Picture
 static/                     # CSS, htmx, иконка + static.go (embed, Path, Handler)
 site.yaml, sqlc.yaml        # спецификация сайта, конфиг sqlc
 ```

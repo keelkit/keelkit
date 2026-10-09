@@ -100,6 +100,17 @@ func (q *Queries) DraftPostIDBySlug(ctx context.Context, slug string) (int64, er
 	return post_id, err
 }
 
+const dropRedirectToPublished = `-- name: DropRedirectToPublished :exec
+DELETE FROM post_redirects
+WHERE slug = (SELECT c.slug FROM post_contents AS c WHERE c.post_id = ? AND c.kind = 'published')
+`
+
+// A slug that is published again is no longer a redirect: the published copy always wins.
+func (q *Queries) DropRedirectToPublished(ctx context.Context, postID int64) error {
+	_, err := q.db.ExecContext(ctx, dropRedirectToPublished, postID)
+	return err
+}
+
 const getCategoryBySlug = `-- name: GetCategoryBySlug :one
 SELECT id, name, slug FROM categories WHERE slug = ?
 `
@@ -281,6 +292,41 @@ func (q *Queries) ListPosts(ctx context.Context) ([]ListPostsRow, error) {
 			&i.PublishedDate,
 			&i.Changed,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPublishedPostDates = `-- name: ListPublishedPostDates :many
+SELECT slug, publish_date FROM post_contents
+WHERE kind = 'published' AND publish_date <= ?1
+ORDER BY publish_date DESC, post_id DESC
+`
+
+type ListPublishedPostDatesRow struct {
+	Slug        string
+	PublishDate string
+}
+
+// Sitemap: posts visible on the site (publish_date <= now), newest first.
+func (q *Queries) ListPublishedPostDates(ctx context.Context, now string) ([]ListPublishedPostDatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPublishedPostDates, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPublishedPostDatesRow
+	for rows.Next() {
+		var i ListPublishedPostDatesRow
+		if err := rows.Scan(&i.Slug, &i.PublishDate); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -480,6 +526,37 @@ SELECT src.post_id, 'published', src.image_id FROM post_images AS src WHERE src.
 
 func (q *Queries) PublishDraftImages(ctx context.Context, postID int64) error {
 	_, err := q.db.ExecContext(ctx, publishDraftImages, postID)
+	return err
+}
+
+const redirectTarget = `-- name: RedirectTarget :one
+SELECT c.slug FROM post_redirects r
+JOIN post_contents c ON c.post_id = r.post_id AND c.kind = 'published'
+WHERE r.slug = ?1 AND c.publish_date <= ?2
+`
+
+type RedirectTargetParams struct {
+	OldSlug string
+	Now     string
+}
+
+// Current slug of the post an old slug belonged to, if the post is visible on the site.
+func (q *Queries) RedirectTarget(ctx context.Context, arg RedirectTargetParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, redirectTarget, arg.OldSlug, arg.Now)
+	var slug string
+	err := row.Scan(&slug)
+	return slug, err
+}
+
+const rememberPublishedSlug = `-- name: RememberPublishedSlug :exec
+INSERT INTO post_redirects (slug, post_id)
+SELECT src.slug, src.post_id FROM post_contents AS src WHERE src.post_id = ? AND src.kind = 'published'
+ON CONFLICT (slug) DO UPDATE SET post_id = excluded.post_id
+`
+
+// Before the published copy changes or goes away, its slug becomes a redirect to the post.
+func (q *Queries) RememberPublishedSlug(ctx context.Context, postID int64) error {
+	_, err := q.db.ExecContext(ctx, rememberPublishedSlug, postID)
 	return err
 }
 

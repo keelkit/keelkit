@@ -1,26 +1,29 @@
 package web
 
 import (
+	"cmp"
 	"strconv"
 	"time"
 
 	"github.com/voffkin/keelkit/reference/static"
 )
 
-// Layout — оболочка любой публичной страницы. title пуст — в <title> только название сайта.
-// Язык страницы — из site.yaml (languages: [ru]).
+// Layout — оболочка публичной страницы без адреса для поисковиков (ошибки, заглушки). title пуст — в <title>
+// только название сайта. Страница с адресом — LayoutMeta.
 templ Layout(title string) {
-	@LayoutMeta(title, "") {
+	@LayoutMeta(Meta{Title: title}) {
 		{ children... }
 	}
 }
 
-// LayoutMeta — Layout с описанием страницы (meta description); пустое — описание сайта.
-templ LayoutMeta(title, description string) {
+// LayoutMeta — оболочка любой публичной страницы с данными для поисковиков и соцсетей: описание (пустое —
+// описание сайта), canonical и Open Graph (если задан m.Path), og:image, ссылка на RSS-ленту.
+// Язык страницы — из site.yaml (languages: [ru]).
+templ LayoutMeta(m Meta) {
 	{{ site := SiteFrom(ctx) }}
 	{{
-	if description == "" {
-		description = site.Description
+	if m.Description == "" {
+		m.Description = site.Description
 	}
 	}}
 	<!DOCTYPE html>
@@ -28,9 +31,18 @@ templ LayoutMeta(title, description string) {
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<title>{ pageTitle(title, site.Name) }</title>
-			if description != "" {
-				<meta name="description" content={ description }/>
+			<title>{ pageTitle(m.Title, site.Name) }</title>
+			if m.Description != "" {
+				<meta name="description" content={ m.Description }/>
+			}
+			if m.NoIndex {
+				<meta name="robots" content="noindex"/>
+			}
+			if m.Path != "" {
+				@openGraph(site, m)
+			}
+			if site.Feed != "" {
+				<link rel="alternate" type="application/rss+xml" title={ site.Name } href={ site.Feed }/>
 			}
 			<link rel="icon" type="image/svg+xml" href={ static.Path("favicon.svg") }/>
 			<link rel="stylesheet" href={ static.Path("style.css") }/>
@@ -44,6 +56,36 @@ templ LayoutMeta(title, description string) {
 			@footer(site)
 		</body>
 	</html>
+}
+
+// openGraph — canonical и Open Graph страницы с адресом: абсолютные адреса от site.BaseURL.
+// og:title — заголовок без названия сайта (оно в og:site_name); у главной — название сайта.
+templ openGraph(site Site, m Meta) {
+	<link rel="canonical" href={ site.BaseURL + m.Path }/>
+	<meta property="og:site_name" content={ site.Name }/>
+	<meta property="og:locale" content="ru_RU"/>
+	<meta property="og:title" content={ cmp.Or(m.Title, site.Name) }/>
+	if m.Description != "" {
+		<meta property="og:description" content={ m.Description }/>
+	}
+	<meta property="og:url" content={ site.BaseURL + m.Path }/>
+	if m.Article {
+		<meta property="og:type" content="article"/>
+		if m.Published != "" {
+			<meta property="article:published_time" content={ m.Published }/>
+		}
+	} else {
+		<meta property="og:type" content="website"/>
+	}
+	if v, ok := ShareImage(m.Image); ok {
+		<meta property="og:image" content={ site.BaseURL + MediaURL(v) }/>
+		<meta property="og:image:type" content="image/jpeg"/>
+		<meta property="og:image:width" content={ strconv.Itoa(v.Width) }/>
+		<meta property="og:image:height" content={ strconv.Itoa(v.Height) }/>
+		<meta name="twitter:card" content="summary_large_image"/>
+	} else {
+		<meta name="twitter:card" content="summary"/>
+	}
 }
 
 templ header(site Site) {

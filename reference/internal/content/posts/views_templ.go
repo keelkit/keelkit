@@ -271,7 +271,7 @@ func ListPage(v listView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = web.Layout(listTitle(v)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = web.LayoutMeta(web.Meta{Title: listTitle(v), Path: pagePath(v.Path, v.Page)}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -377,8 +377,9 @@ func meta(e entry) templ.Component {
 	})
 }
 
-// View — страница поста. Обложка декоративная (alt пуст): рядом заголовок поста. Описание — начало текста блоков.
-// Предпросмотр черновика видит только админка — с плашкой и ссылкой в редактор.
+// View — страница поста. Обложка декоративная (alt пуст): рядом заголовок поста. Описание — начало текста блоков,
+// картинка для соцсетей — обложка, без неё — первое изображение блоков. Предпросмотр черновика видит только
+// админка — с плашкой и ссылкой в редактор, без canonical и с noindex.
 func View(p viewData) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -420,7 +421,7 @@ func View(p viewData) templ.Component {
 				var templ_7745c5c3_Var19 templ.SafeURL
 				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(EditPath(p.PostID)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/posts/views.templ`, Line: 80, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/posts/views.templ`, Line: 81, Col: 47}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 				if templ_7745c5c3_Err != nil {
@@ -438,7 +439,7 @@ func View(p viewData) templ.Component {
 			var templ_7745c5c3_Var20 templ.SafeURL
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(BlogPath))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/posts/views.templ`, Line: 84, Col: 59}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/posts/views.templ`, Line: 85, Col: 59}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -451,7 +452,7 @@ func View(p viewData) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(p.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/posts/views.templ`, Line: 85, Col: 16}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/posts/views.templ`, Line: 86, Col: 16}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -489,7 +490,7 @@ func View(p viewData) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = web.LayoutMeta(p.Title, blocks.Summary(p.List, descriptionLen)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var18), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = web.LayoutMeta(viewMeta(p)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var18), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -502,6 +503,24 @@ func listTitle(v listView) string {
 		return v.Title + " — страница " + strconv.Itoa(v.Page)
 	}
 	return v.Title
+}
+
+func viewMeta(p viewData) web.Meta {
+	m := web.Meta{
+		Title:       p.Title,
+		Description: blocks.Summary(p.List, descriptionLen),
+		Path:        PublicPath(p.Slug),
+		Article:     true,
+		Published:   p.PublishDate,
+		Image:       p.Cover,
+	}
+	if m.Image == nil {
+		m.Image = blocks.FirstImage(p.List, p.Resolved)
+	}
+	if p.Preview {
+		m.Path, m.NoIndex = "", true
+	}
+	return m
 }
 
 var _ = templruntime.GeneratedTemplate

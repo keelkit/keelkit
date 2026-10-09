@@ -71,6 +71,17 @@ func (q *Queries) DraftPageIDBySlug(ctx context.Context, slug string) (int64, er
 	return page_id, err
 }
 
+const dropRedirectToPublished = `-- name: DropRedirectToPublished :exec
+DELETE FROM page_redirects
+WHERE slug = (SELECT c.slug FROM page_contents AS c WHERE c.page_id = ? AND c.kind = 'published')
+`
+
+// A slug that is published again is no longer a redirect: the published copy always wins.
+func (q *Queries) DropRedirectToPublished(ctx context.Context, pageID int64) error {
+	_, err := q.db.ExecContext(ctx, dropRedirectToPublished, pageID)
+	return err
+}
+
 const getPageContent = `-- name: GetPageContent :one
 SELECT page_id, kind, title, slug, blocks FROM page_contents WHERE page_id = ? AND kind = ?
 `
@@ -218,6 +229,34 @@ func (q *Queries) ListPages(ctx context.Context) ([]ListPagesRow, error) {
 	return items, nil
 }
 
+const listPublishedPageSlugs = `-- name: ListPublishedPageSlugs :many
+SELECT slug FROM page_contents WHERE kind = 'published' ORDER BY page_id
+`
+
+// Sitemap: every published page, in creation order.
+func (q *Queries) ListPublishedPageSlugs(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listPublishedPageSlugs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var slug string
+		if err := rows.Scan(&slug); err != nil {
+			return nil, err
+		}
+		items = append(items, slug)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const pagesUsingImage = `-- name: PagesUsingImage :many
 SELECT DISTINCT p.id, d.title
 FROM page_images i
@@ -276,6 +315,32 @@ SELECT src.page_id, 'published', src.image_id FROM page_images AS src WHERE src.
 
 func (q *Queries) PublishDraftImages(ctx context.Context, pageID int64) error {
 	_, err := q.db.ExecContext(ctx, publishDraftImages, pageID)
+	return err
+}
+
+const redirectTarget = `-- name: RedirectTarget :one
+SELECT c.slug FROM page_redirects r
+JOIN page_contents c ON c.page_id = r.page_id AND c.kind = 'published'
+WHERE r.slug = ?1
+`
+
+// Current published slug of the page an old slug belonged to.
+func (q *Queries) RedirectTarget(ctx context.Context, oldSlug string) (string, error) {
+	row := q.db.QueryRowContext(ctx, redirectTarget, oldSlug)
+	var slug string
+	err := row.Scan(&slug)
+	return slug, err
+}
+
+const rememberPublishedSlug = `-- name: RememberPublishedSlug :exec
+INSERT INTO page_redirects (slug, page_id)
+SELECT src.slug, src.page_id FROM page_contents AS src WHERE src.page_id = ? AND src.kind = 'published'
+ON CONFLICT (slug) DO UPDATE SET page_id = excluded.page_id
+`
+
+// Before the published copy changes or goes away, its slug becomes a redirect to the page.
+func (q *Queries) RememberPublishedSlug(ctx context.Context, pageID int64) error {
+	_, err := q.db.ExecContext(ctx, rememberPublishedSlug, pageID)
 	return err
 }
 

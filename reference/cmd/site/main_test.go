@@ -24,8 +24,12 @@ func testConfig(t *testing.T) config {
 		Addr:      "127.0.0.1:0",
 		DataDir:   filepath.Join(dir, "data"),
 		BackupDir: filepath.Join(dir, "backups"),
+		BaseURL:   testBaseURL,
 	}
 }
+
+// testBaseURL — адрес сайта в тестах (BASE_URL): абсолютные ссылки canonical, sitemap и RSS начинаются с него.
+const testBaseURL = "https://example.test"
 
 // testSite — сайт после site migrate: БД и сервис изображений над каталогом загрузок теста.
 type testSite struct {
@@ -77,8 +81,13 @@ func migratedSiteWithImages(t *testing.T) (testSite, map[string]string) {
 	return s, imgs
 }
 
-// handler — все маршруты сайта (newMux) с настройками cfg.
-func (s testSite) handler(cfg config) http.Handler { return newMux(s.db, s.media, cfg) }
+// handler — все маршруты сайта (newMux) с настройками cfg; без BaseURL — testBaseURL.
+func (s testSite) handler(cfg config) http.Handler {
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = testBaseURL
+	}
+	return newMux(s.db, s.media, cfg)
+}
 
 func get(t *testing.T, s testSite, path string) *httptest.ResponseRecorder {
 	t.Helper()
@@ -91,6 +100,35 @@ func TestServeRefusesWithPendingMigrations(t *testing.T) {
 	err := serve(context.Background(), testConfig(t))
 	if !errors.Is(err, errPendingMigrations) {
 		t.Fatalf("serve error = %v, want errPendingMigrations", err)
+	}
+}
+
+func TestServeRefusesWithoutBaseURL(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.BaseURL = ""
+	if err := serve(context.Background(), cfg); !errors.Is(err, errNoBaseURL) {
+		t.Fatalf("serve error = %v, want errNoBaseURL", err)
+	}
+}
+
+func TestParseBaseURL(t *testing.T) {
+	for in, want := range map[string]string{
+		"https://example.com":       "https://example.com",
+		"https://example.com/":      "https://example.com",
+		"http://localhost:9090":     "http://localhost:9090",
+		"https://Example.com:8443/": "https://Example.com:8443",
+	} {
+		if got, err := parseBaseURL(in); err != nil || got != want {
+			t.Errorf("parseBaseURL(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
+	for _, in := range []string{
+		"example.com", "//example.com", "ftp://example.com", "https://", "https://example.com/blog",
+		"https://example.com/?a=1", "https://example.com/#x", "https://user:pass@example.com", "https://exa mple.com",
+	} {
+		if got, err := parseBaseURL(in); err == nil {
+			t.Errorf("parseBaseURL(%q) = %q, want an error", in, got)
+		}
 	}
 }
 
@@ -171,8 +209,8 @@ func TestHealthz(t *testing.T) {
 	if got.Status != "ok" || got.Version != version {
 		t.Errorf("got %+v, want status ok and version %q", got, version)
 	}
-	if s := got.Schema["site"]; s.Version != 6 || s.Pending != 0 {
-		t.Errorf("schema site = %+v, want version 6, pending 0", s)
+	if s := got.Schema["site"]; s.Version != 7 || s.Pending != 0 {
+		t.Errorf("schema site = %+v, want version 7, pending 0", s)
 	}
 	if s := got.Schema["images"]; s.Version != 1 || s.Pending != 0 {
 		t.Errorf("schema images = %+v, want version 1, pending 0", s)

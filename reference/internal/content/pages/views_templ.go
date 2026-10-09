@@ -23,8 +23,9 @@ type viewData struct {
 	Preview  bool // предпросмотр черновика: плашка со ссылкой в редактор
 }
 
-// View — публичная страница. На главной в <title> только название сайта; описание — начало текста блоков.
-// Предпросмотр черновика видит только админка — с плашкой и ссылкой в редактор.
+// View — публичная страница. На главной в <title> только название сайта; описание — начало текста блоков,
+// картинка для соцсетей — первое изображение блоков. Предпросмотр черновика видит только админка — с плашкой
+// и ссылкой в редактор, без canonical и с noindex.
 func View(p viewData) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -66,7 +67,7 @@ func View(p viewData) templ.Component {
 				var templ_7745c5c3_Var3 templ.SafeURL
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(EditPath(p.ID)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 25, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 26, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -84,7 +85,7 @@ func View(p viewData) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(p.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 29, Col: 16}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 30, Col: 16}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -104,7 +105,7 @@ func View(p viewData) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = web.LayoutMeta(viewTitle(p), blocks.Summary(p.Blocks, descriptionLen)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = web.LayoutMeta(viewMeta(p)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -154,7 +155,7 @@ func HomeEmpty() templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(site.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 39, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 40, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -172,7 +173,7 @@ func HomeEmpty() templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(site.Description)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 41, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 42, Col: 37}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -190,7 +191,7 @@ func HomeEmpty() templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(HomeSlug)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 43, Col: 157}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 44, Col: 157}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -202,7 +203,7 @@ func HomeEmpty() templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = web.Layout("").Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = web.LayoutMeta(web.Meta{Path: "/"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -210,11 +211,20 @@ func HomeEmpty() templ.Component {
 	})
 }
 
-func viewTitle(p viewData) string {
-	if p.Slug == HomeSlug {
-		return ""
+func viewMeta(p viewData) web.Meta {
+	m := web.Meta{
+		Title:       p.Title,
+		Description: blocks.Summary(p.Blocks, descriptionLen),
+		Path:        PublicPath(p.Slug),
+		Image:       blocks.FirstImage(p.Blocks, p.Resolved),
 	}
-	return p.Title
+	if p.Slug == HomeSlug {
+		m.Title = ""
+	}
+	if p.Preview {
+		m.Path, m.NoIndex = "", true
+	}
+	return m
 }
 
 var _ = templruntime.GeneratedTemplate

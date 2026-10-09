@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 
 	"github.com/voffkin/keelkit/modules/images"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/voffkin/keelkit/reference/internal/content/posts"
 	"github.com/voffkin/keelkit/reference/internal/database"
 	"github.com/voffkin/keelkit/reference/internal/media"
+	"github.com/voffkin/keelkit/reference/internal/seo"
 	"github.com/voffkin/keelkit/reference/internal/settings"
 	"github.com/voffkin/keelkit/reference/internal/web"
 	"github.com/voffkin/keelkit/reference/static"
@@ -36,7 +36,7 @@ var reservedSlugs = []string{"admin", "static", "media", "healthz", "blog"}
 // а всё, кроме входа, — в adminH.RequireUser (сессия и CSRF-токен).
 // Изображения (images.Service) отдаются под web.MediaPrefix обработчиком модуля.
 func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
-	html := web.WithSite(siteLoader(db))
+	html := web.WithSite(siteLoader(db, cfg.BaseURL))
 	pagesH := pages.NewHandler(db, imgs)
 	pagesAdmin := pages.NewAdmin(db, imgs, media.AdminPath, reservedSlugs)
 	postsH := posts.NewHandler(db, imgs)
@@ -63,6 +63,14 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 	mux.Handle("GET /static", html(http.HandlerFunc(web.NotFound)))
 	mux.Handle("GET "+web.MediaPrefix, http.StripPrefix(web.MediaPrefix, imgs.Handler()))
 	mux.Handle("GET /media", html(http.HandlerFunc(web.NotFound)))
+
+	var sitemap []seo.Source
+	for _, s := range sitemapSources(pagesH, postsH) {
+		sitemap = append(sitemap, s.URLs)
+	}
+	mux.Handle("GET "+seo.SitemapPath, seo.Sitemap(cfg.BaseURL, sitemap...))
+	mux.Handle("GET "+seo.FeedPath, seo.Feed(cfg.BaseURL, feedSource(db, postsH)))
+	mux.Handle("GET "+seo.RobotsPath, seo.Robots(cfg.BaseURL, "/admin/"))
 
 	mux.Handle("GET /{$}", html(http.HandlerFunc(pagesH.Home)))
 	mux.Handle("GET /{slug}", html(http.HandlerFunc(pagesH.Show)))
@@ -128,29 +136,75 @@ func maxBody(n int64, next http.Handler) http.Handler {
 	})
 }
 
-// siteLoader собирает данные для layout: название и описание сайта, меню из страниц (кроме главной) и блог.
-func siteLoader(db *sql.DB) func(context.Context) (web.Site, error) {
+// siteLoader собирает данные для layout: название и описание сайта, меню из страниц (кроме главной) и блог,
+// адрес сайта и ленты.
+func siteLoader(db *sql.DB, baseURL string) func(context.Context) (web.Site, error) {
 	sq := settings.New(db)
 	pq := pages.New(db)
 	return func(ctx context.Context) (web.Site, error) {
-		site := web.Site{Name: defaultSiteName}
-		s, err := sq.GetSiteSettings(ctx)
-		switch {
-		case err == nil:
-			site.Name, site.Description = s.Name, s.Description
-		case !errors.Is(err, sql.ErrNoRows):
-			return web.Site{}, fmt.Errorf("site settings: %w", err)
+		name, description, err := siteInfo(ctx, sq)
+		if err != nil {
+			return web.Site{}, err
 		}
+		site := web.Site{Name: name, Description: description, BaseURL: baseURL, Feed: seo.FeedPath}
 
 		links, err := pq.ListPageLinks(ctx, pages.HomeSlug)
 		if err != nil {
 			return web.Site{}, fmt.Errorf("page links: %w", err)
 		}
 		for _, l := range links {
-			site.Nav = append(site.Nav, web.Link{Title: l.Title, URL: "/" + url.PathEscape(l.Slug)})
+			site.Nav = append(site.Nav, web.Link{Title: l.Title, URL: pages.PublicPath(l.Slug)})
 		}
 		site.Nav = append(site.Nav, web.Link{Title: "Блог", URL: posts.BlogPath})
 		return site, nil
+	}
+}
+
+// siteInfo — название и описание сайта из site_settings; строки ещё нет — defaultSiteName.
+func siteInfo(ctx context.Context, sq *settings.Queries) (name, description string, err error) {
+	s, err := sq.GetSiteSettings(ctx)
+	switch {
+	case err == nil:
+		return s.Name, s.Description, nil
+	case errors.Is(err, sql.ErrNoRows):
+		return defaultSiteName, "", nil
+	default:
+		return "", "", fmt.Errorf("site settings: %w", err)
+	}
+}
+
+// sitemapSource — адреса для sitemap одного типа контента.
+type sitemapSource struct {
+	Type string // имя типа в site.yaml
+	URLs seo.Source
+}
+
+// sitemapSources — типы контента с feature sitemap в site.yaml, по порядку (страницы, затем блог).
+// Новый тип с этой feature добавляет сюда свой SitemapURLs; TestSpecFeaturesMatchCode сверяет список со спецификацией.
+func sitemapSources(pagesH *pages.Handler, postsH *posts.Handler) []sitemapSource {
+	return []sitemapSource{
+		{Type: "pages", URLs: pagesH.SitemapURLs},
+		{Type: "posts", URLs: postsH.SitemapURLs},
+	}
+}
+
+// feedTypes — типы контента с feature rss в site.yaml: лента собирается из их записей (пока один тип — посты).
+// TestSpecFeaturesMatchCode сверяет список со спецификацией.
+var feedTypes = []string{"posts"}
+
+// feedSource — RSS-лента: название и описание сайта, последние посты.
+func feedSource(db *sql.DB, postsH *posts.Handler) seo.FeedSource {
+	sq := settings.New(db)
+	return func(ctx context.Context) (seo.Channel, []seo.Item, error) {
+		name, description, err := siteInfo(ctx, sq)
+		if err != nil {
+			return seo.Channel{}, nil, err
+		}
+		items, err := postsH.FeedItems(ctx)
+		if err != nil {
+			return seo.Channel{}, nil, fmt.Errorf("feed items: %w", err)
+		}
+		return seo.Channel{Title: name, Description: description, Language: "ru"}, items, nil
 	}
 }
 

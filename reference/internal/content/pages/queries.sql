@@ -73,3 +73,24 @@ JOIN pages p ON p.id = i.page_id
 JOIN page_contents d ON d.page_id = p.id AND d.kind = 'draft'
 WHERE i.image_id = ?
 ORDER BY p.id;
+
+-- name: ListPublishedPageSlugs :many
+-- Sitemap: every published page, in creation order.
+SELECT slug FROM page_contents WHERE kind = 'published' ORDER BY page_id;
+
+-- name: RememberPublishedSlug :exec
+-- Before the published copy changes or goes away, its slug becomes a redirect to the page.
+INSERT INTO page_redirects (slug, page_id)
+SELECT src.slug, src.page_id FROM page_contents AS src WHERE src.page_id = ? AND src.kind = 'published'
+ON CONFLICT (slug) DO UPDATE SET page_id = excluded.page_id;
+
+-- name: DropRedirectToPublished :exec
+-- A slug that is published again is no longer a redirect: the published copy always wins.
+DELETE FROM page_redirects
+WHERE slug = (SELECT c.slug FROM page_contents AS c WHERE c.page_id = ? AND c.kind = 'published');
+
+-- name: RedirectTarget :one
+-- Current published slug of the page an old slug belonged to.
+SELECT c.slug FROM page_redirects r
+JOIN page_contents c ON c.page_id = r.page_id AND c.kind = 'published'
+WHERE r.slug = sqlc.arg(old_slug);

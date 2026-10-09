@@ -16,6 +16,7 @@ import (
 	"github.com/voffkin/keelkit/modules/images"
 
 	"github.com/voffkin/keelkit/reference/internal/blocks"
+	"github.com/voffkin/keelkit/reference/internal/seo"
 	"github.com/voffkin/keelkit/reference/internal/web"
 )
 
@@ -27,6 +28,8 @@ const (
 	perPage        = 10  // постов на странице ленты
 	descriptionLen = 160 // символов описания поста (meta description) из текста блоков
 	summaryLen     = 240 // символов анонса в ленте
+	feedLen        = 20  // последних постов в RSS
+	feedSummaryLen = 500 // символов анонса в RSS
 )
 
 // Handler — публичные страницы блога: лента, пост, лента категории.
@@ -139,11 +142,13 @@ func (h *Handler) card(ctx context.Context, e entry) (card, error) {
 	return card{entry: e, Cover: cover, Summary: blocks.Summary(list, summaryLen)}, nil
 }
 
-// Show — GET /blog/{slug}: опубликованный пост, дата публикации которого наступила; иначе 404.
+// Show — GET /blog/{slug}: опубликованный пост, дата публикации которого наступила. Иначе — 301 на текущий адрес
+// поста, если slug был у него раньше (post_redirects) и пост на сайте, или 404.
 func (h *Handler) Show(w http.ResponseWriter, r *http.Request) {
-	p, err := h.q.GetPublishedPostBySlug(r.Context(), GetPublishedPostBySlugParams{Slug: r.PathValue("slug"), Now: nowDB()})
+	slug := r.PathValue("slug")
+	p, err := h.q.GetPublishedPostBySlug(r.Context(), GetPublishedPostBySlugParams{Slug: slug, Now: nowDB()})
 	if errors.Is(err, sql.ErrNoRows) {
-		web.NotFound(w, r)
+		h.redirectOld(w, r, slug)
 		return
 	}
 	if err != nil {
@@ -156,6 +161,73 @@ func (h *Handler) Show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Render(w, r, http.StatusOK, View(v))
+}
+
+// redirectOld — 301 со старого slug на текущий адрес поста, видимого на сайте; такого нет — 404.
+func (h *Handler) redirectOld(w http.ResponseWriter, r *http.Request, slug string) {
+	target, err := h.q.RedirectTarget(r.Context(), RedirectTargetParams{OldSlug: slug, Now: nowDB()})
+	if errors.Is(err, sql.ErrNoRows) {
+		web.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		web.ServerError(w, r, err)
+		return
+	}
+	http.Redirect(w, r, PublicPath(target), http.StatusMovedPermanently)
+}
+
+// SitemapURLs — лента блога и посты, видимые на сайте, для sitemap (site.yaml: feature sitemap).
+// lastmod поста — дата публикации, ленты — дата самого нового поста.
+func (h *Handler) SitemapURLs(ctx context.Context) ([]seo.URL, error) {
+	rows, err := h.q.ListPublishedPostDates(ctx, nowDB())
+	if err != nil {
+		return nil, err
+	}
+	urls := make([]seo.URL, 0, len(rows)+1)
+	urls = append(urls, seo.URL{Path: BlogPath})
+	for _, row := range rows {
+		t, _ := parseDB(row.PublishDate)
+		urls = append(urls, seo.URL{Path: PublicPath(row.Slug), LastMod: t})
+	}
+	if len(rows) > 0 {
+		urls[0].LastMod = urls[1].LastMod
+	}
+	return urls, nil
+}
+
+// FeedItems — последние feedLen постов, видимых на сайте, для RSS (site.yaml: feature rss): анонс из текста
+// блоков, обложка — вложением. guid — по id поста: не меняется вместе со slug.
+func (h *Handler) FeedItems(ctx context.Context) ([]seo.Item, error) {
+	rows, err := h.q.ListPublishedPosts(ctx, ListPublishedPostsParams{Now: nowDB(), Lim: feedLen, Off: 0})
+	if err != nil {
+		return nil, err
+	}
+	items := make([]seo.Item, 0, len(rows))
+	for _, row := range rows {
+		list, err := blocks.Unmarshal(row.Blocks)
+		if err != nil {
+			return nil, err
+		}
+		published, _ := parseDB(row.PublishDate)
+		it := seo.Item{
+			Title:       row.Title,
+			Path:        PublicPath(row.Slug),
+			GUID:        "post-" + strconv.FormatInt(row.PostID, 10),
+			Description: blocks.Summary(list, feedSummaryLen),
+			Category:    row.CategoryName,
+			Published:   published,
+		}
+		cover, err := resolveCover(ctx, h.images, row.Cover.String)
+		if err != nil {
+			return nil, err
+		}
+		if v, ok := web.ShareImage(cover); ok {
+			it.Enclosure = &seo.Enclosure{Path: web.MediaURL(v), Length: v.Bytes, Type: "image/jpeg"}
+		}
+		items = append(items, it)
+	}
+	return items, nil
 }
 
 // viewData — пост для публичного шаблона: опубликованная копия или (Preview) черновик в админке.

@@ -114,3 +114,26 @@ JOIN posts p ON p.id = i.post_id
 JOIN post_contents d ON d.post_id = p.id AND d.kind = 'draft'
 WHERE i.image_id = ?
 ORDER BY p.id;
+
+-- name: ListPublishedPostDates :many
+-- Sitemap: posts visible on the site (publish_date <= now), newest first.
+SELECT slug, publish_date FROM post_contents
+WHERE kind = 'published' AND publish_date <= sqlc.arg(now)
+ORDER BY publish_date DESC, post_id DESC;
+
+-- name: RememberPublishedSlug :exec
+-- Before the published copy changes or goes away, its slug becomes a redirect to the post.
+INSERT INTO post_redirects (slug, post_id)
+SELECT src.slug, src.post_id FROM post_contents AS src WHERE src.post_id = ? AND src.kind = 'published'
+ON CONFLICT (slug) DO UPDATE SET post_id = excluded.post_id;
+
+-- name: DropRedirectToPublished :exec
+-- A slug that is published again is no longer a redirect: the published copy always wins.
+DELETE FROM post_redirects
+WHERE slug = (SELECT c.slug FROM post_contents AS c WHERE c.post_id = ? AND c.kind = 'published');
+
+-- name: RedirectTarget :one
+-- Current slug of the post an old slug belonged to, if the post is visible on the site.
+SELECT c.slug FROM post_redirects r
+JOIN post_contents c ON c.post_id = r.post_id AND c.kind = 'published'
+WHERE r.slug = sqlc.arg(old_slug) AND c.publish_date <= sqlc.arg(now);

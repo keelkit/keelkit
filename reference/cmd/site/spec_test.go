@@ -19,34 +19,47 @@ import (
 var (
 	contentTypeRe = regexp.MustCompile(`^  (\w+):\s*$`)
 	allowRe       = regexp.MustCompile(`^\s+(\w+):\s*\{\s*type:\s*blocks,\s*allow:\s*\[([^\]]*)\]`)
+	featuresRe    = regexp.MustCompile(`^\s+features:\s*\[([^\]]*)\]`)
 )
 
-// Каждый блок из allow в site.yaml есть в internal/blocks, и раздел админки типа предлагает ровно эти блоки.
-func TestSpecBlocksMatchCode(t *testing.T) {
-	code := map[string][]string{"pages.body": pages.BodyBlocks, "posts.body": posts.BodyBlocks}
-
+// specLines — строки site.yaml с типом контента, в котором они стоят (пусто — вне content).
+func specLines(t *testing.T) (types, lines []string) {
+	t.Helper()
 	f, err := os.Open("../../site.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = f.Close() }()
-	spec := map[string][]string{}
 	typ := ""
 	for sc := bufio.NewScanner(f); sc.Scan(); {
 		line := sc.Text()
 		if m := contentTypeRe.FindStringSubmatch(line); m != nil {
 			typ = m[1]
-			continue
 		}
-		m := allowRe.FindStringSubmatch(line)
-		if m == nil {
-			continue
+		types, lines = append(types, typ), append(lines, line)
+	}
+	return types, lines
+}
+
+// splitList — элементы списка YAML в одну строку: «a, b» → [a b].
+func splitList(s string) []string {
+	var out []string
+	for _, name := range strings.Split(s, ",") {
+		out = append(out, strings.TrimSpace(name))
+	}
+	return out
+}
+
+// Каждый блок из allow в site.yaml есть в internal/blocks, и раздел админки типа предлагает ровно эти блоки.
+func TestSpecBlocksMatchCode(t *testing.T) {
+	code := map[string][]string{"pages.body": pages.BodyBlocks, "posts.body": posts.BodyBlocks}
+
+	types, lines := specLines(t)
+	spec := map[string][]string{}
+	for i, line := range lines {
+		if m := allowRe.FindStringSubmatch(line); m != nil {
+			spec[types[i]+"."+m[1]] = splitList(m[2])
 		}
-		var allow []string
-		for _, name := range strings.Split(m[2], ",") {
-			allow = append(allow, strings.TrimSpace(name))
-		}
-		spec[typ+"."+m[1]] = allow
 	}
 
 	for field, allow := range spec {
@@ -68,5 +81,30 @@ func TestSpecBlocksMatchCode(t *testing.T) {
 		if _, ok := spec[field]; !ok {
 			t.Errorf("site.yaml: no blocks field %s", field)
 		}
+	}
+}
+
+// Типы с feature sitemap в site.yaml — ровно те, чьи адреса собирает sitemapSources (в том же порядке),
+// с feature rss — feedTypes.
+func TestSpecFeaturesMatchCode(t *testing.T) {
+	types, lines := specLines(t)
+	spec := map[string][]string{}
+	for i, line := range lines {
+		if m := featuresRe.FindStringSubmatch(line); m != nil {
+			for _, f := range splitList(m[1]) {
+				spec[f] = append(spec[f], types[i])
+			}
+		}
+	}
+
+	var sitemap []string
+	for _, s := range sitemapSources(nil, nil) {
+		sitemap = append(sitemap, s.Type)
+	}
+	if !slices.Equal(spec["sitemap"], sitemap) {
+		t.Errorf("site.yaml types with feature sitemap = %v, sitemapSources = %v", spec["sitemap"], sitemap)
+	}
+	if !slices.Equal(spec["rss"], feedTypes) {
+		t.Errorf("site.yaml types with feature rss = %v, feedTypes = %v", spec["rss"], feedTypes)
 	}
 }

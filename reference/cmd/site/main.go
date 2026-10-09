@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -48,6 +49,9 @@ type config struct {
 	// COOKIE_SECURE: флаг Secure у cookie админки. По умолчанию true; false — только для локальной
 	// разработки по http (make run и make dev выставляют его сами).
 	CookieSecure bool
+	// BASE_URL: адрес сайта (схема и хост, без слеша в конце) для canonical, Open Graph, sitemap, RSS и robots.txt.
+	// Обязателен для serve: адрес из заголовка Host подделывается и попал бы в кэши поисковиков.
+	BaseURL string
 }
 
 func loadConfig() (config, error) {
@@ -55,12 +59,33 @@ func loadConfig() (config, error) {
 	if err != nil {
 		return config{}, fmt.Errorf("COOKIE_SECURE: %w", err)
 	}
+	baseURL := os.Getenv("BASE_URL")
+	if baseURL != "" {
+		if baseURL, err = parseBaseURL(baseURL); err != nil {
+			return config{}, fmt.Errorf("BASE_URL: %w", err)
+		}
+	}
 	return config{
 		Addr:         envOr("ADDR", ":8080"),
 		DataDir:      envOr("DATA_DIR", "data"),
 		BackupDir:    envOr("BACKUP_DIR", "backups"),
 		CookieSecure: cookieSecure,
+		BaseURL:      baseURL,
 	}, nil
+}
+
+// parseBaseURL проверяет BASE_URL: http или https, хост, без пути (кроме «/»), запроса и фрагмента.
+// Возвращает адрес без слеша в конце: к нему приписываются пути сайта.
+func parseBaseURL(s string) (string, error) {
+	u, err := url.Parse(s)
+	if err != nil {
+		return "", err
+	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil ||
+		(u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
+		return "", fmt.Errorf("%q: нужен адрес сайта вида https://example.com, без пути", s)
+	}
+	return u.Scheme + "://" + u.Host, nil
 }
 
 func (c config) dbPath() string { return filepath.Join(c.DataDir, "site.db") }
@@ -136,7 +161,13 @@ func openMedia(db *sql.DB, cfg config) (svc *images.Service, closeFn func(), err
 // errPendingMigrations — отказ старта: схема БД отстаёт от кода.
 var errPendingMigrations = errors.New("есть непримененные миграции")
 
+// errNoBaseURL — отказ старта: без адреса сайта не построить canonical, sitemap и RSS.
+var errNoBaseURL = errors.New("BASE_URL не задан: укажите адрес сайта, например BASE_URL=https://example.com")
+
 func serve(ctx context.Context, cfg config) error {
+	if cfg.BaseURL == "" {
+		return errNoBaseURL
+	}
 	db, err := openDB(ctx, cfg)
 	if err != nil {
 		return err
@@ -165,7 +196,7 @@ func serve(ctx context.Context, cfg config) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		slog.Info("site started", "addr", cfg.Addr, "data_dir", cfg.DataDir, "version", version)
+		slog.Info("site started", "addr", cfg.Addr, "base_url", cfg.BaseURL, "data_dir", cfg.DataDir, "version", version)
 		errCh <- srv.ListenAndServe()
 	}()
 

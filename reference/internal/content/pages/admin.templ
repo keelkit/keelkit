@@ -34,9 +34,9 @@ templ ListPage(list []ListPagesRow, deleted bool) {
 								<td><a href={ templ.SafeURL(EditPath(p.ID)) }>{ p.Title }</a></td>
 								<td>
 									if p.PublishedSlug == "" {
-										<span class="muted">{ publicPath(p.Slug) }</span>
+										<span class="muted">{ PublicPath(p.Slug) }</span>
 									} else {
-										<a href={ templ.SafeURL(publicPath(p.PublishedSlug)) }>{ publicPath(p.PublishedSlug) }</a>
+										<a href={ templ.SafeURL(PublicPath(p.PublishedSlug)) }>{ PublicPath(p.PublishedSlug) }</a>
 									}
 								</td>
 								<td>
@@ -74,7 +74,7 @@ templ FormPage(f pageForm) {
 				@status(f.Published, f.Changed)
 				<a href={ templ.SafeURL(viewPath(f.ID)) }>Предпросмотр черновика</a>
 				if f.Published {
-					<a href={ templ.SafeURL(publicPath(f.PublishedSlug)) }>Открыть на сайте</a>
+					<a href={ templ.SafeURL(PublicPath(f.PublishedSlug)) }>Открыть на сайте</a>
 				}
 			}
 		</div>

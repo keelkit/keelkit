@@ -284,6 +284,21 @@ func ImageIDs(list []Block) []string {
 	return ids
 }
 
+// FirstImage — первое изображение видимых блоков (картинка страницы для og:image); нет — nil.
+func FirstImage(list []Block, res Resolved) *images.Image {
+	for _, b := range list {
+		if b.Hidden {
+			continue
+		}
+		for _, id := range b.Content.imageIDs() {
+			if img := res[id]; img != nil {
+				return img
+			}
+		}
+	}
+	return nil
+}
+
 // PlainText — текст видимых блоков без разметки: для описания страницы, RSS и поиска.
 func PlainText(list []Block) string {
 	var parts []string

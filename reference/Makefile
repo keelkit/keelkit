@@ -23,6 +23,9 @@ BACKUP_DIR ?= backups
 # Флаг Secure у cookie админки. make run/dev — локальная разработка по http, поэтому false;
 # в проде (бинарник под systemd) переменная не задаётся, и сайт ставит Secure.
 COOKIE_SECURE ?= false
+# Адрес сайта для canonical, Open Graph, sitemap, RSS и robots.txt (serve без него не стартует).
+# Для разработки — localhost с портом из ADDR; в проде — настоящий адрес, например https://example.com.
+BASE_URL ?= http://localhost:$(lastword $(subst :, ,$(ADDR)))
 # Email пользователя админки для user-create.
 EMAIL ?=
 # Версия профиля для reprocess-images: обработать изображения с версией ниже BELOW.
@@ -45,14 +48,14 @@ GOVULNCHECK = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run golang.org/x/vuln/cmd/govulnche
 SPEC_VERSION ?= v0.2.0
 SPEC_VALIDATE = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/voffkin/keelkit/spec/cmd/spec-validate@$(SPEC_VERSION)
 
-SITE = ADDR=$(ADDR) DATA_DIR=$(DATA_DIR) BACKUP_DIR=$(BACKUP_DIR) COOKIE_SECURE=$(COOKIE_SECURE) go run ./cmd/site
+SITE = ADDR=$(ADDR) BASE_URL=$(BASE_URL) DATA_DIR=$(DATA_DIR) BACKUP_DIR=$(BACKUP_DIR) COOKIE_SECURE=$(COOKIE_SECURE) go run ./cmd/site
 
 .PHONY: help run dev migrate seed user-create reprocess-images reset generate generate-check test test-isolated e2e e2e-browser lint deps-check spec-validate
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
-run: ## Запустить сайт (откажется при непримененных миграциях). Пример: make run ADDR=:9091 DATA_DIR=/tmp/site
+run: ## Запустить сайт (откажется при непримененных миграциях). Пример: make run ADDR=:9091 DATA_DIR=/tmp/site BASE_URL=https://example.com
 	$(SITE) serve
 
 dev: migrate seed ## Для разработки: миграции, seed и запуск

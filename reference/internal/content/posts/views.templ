@@ -15,7 +15,7 @@ const (
 
 // ListPage — лента блога или категории.
 templ ListPage(v listView) {
-	@web.Layout(listTitle(v)) {
+	@web.LayoutMeta(web.Meta{Title: listTitle(v), Path: pagePath(v.Path, v.Page)}) {
 		<section class="blog">
 			if v.Category != "" {
 				<p class="breadcrumbs"><a href={ templ.SafeURL(BlogPath) }>Блог</a></p>
@@ -70,10 +70,11 @@ templ meta(e entry) {
 	</p>
 }
 
-// View — страница поста. Обложка декоративная (alt пуст): рядом заголовок поста. Описание — начало текста блоков.
-// Предпросмотр черновика видит только админка — с плашкой и ссылкой в редактор.
+// View — страница поста. Обложка декоративная (alt пуст): рядом заголовок поста. Описание — начало текста блоков,
+// картинка для соцсетей — обложка, без неё — первое изображение блоков. Предпросмотр черновика видит только
+// админка — с плашкой и ссылкой в редактор, без canonical и с noindex.
 templ View(p viewData) {
-	@web.LayoutMeta(p.Title, blocks.Summary(p.List, descriptionLen)) {
+	@web.LayoutMeta(viewMeta(p)) {
 		if p.Preview {
 			<p class="draft-banner" role="status">
 				Предпросмотр черновика: так пост будет выглядеть после публикации.
@@ -99,4 +100,22 @@ func listTitle(v listView) string {
 		return v.Title + " — страница " + strconv.Itoa(v.Page)
 	}
 	return v.Title
+}
+
+func viewMeta(p viewData) web.Meta {
+	m := web.Meta{
+		Title:       p.Title,
+		Description: blocks.Summary(p.List, descriptionLen),
+		Path:        PublicPath(p.Slug),
+		Article:     true,
+		Published:   p.PublishDate,
+		Image:       p.Cover,
+	}
+	if m.Image == nil {
+		m.Image = blocks.FirstImage(p.List, p.Resolved)
+	}
+	if p.Preview {
+		m.Path, m.NoIndex = "", true
+	}
+	return m
 }

@@ -121,7 +121,7 @@ func ListPage(list []ListPagesRow, deleted bool) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var6 string
-						templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(publicPath(p.Slug))
+						templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(PublicPath(p.Slug))
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/admin.templ`, Line: 37, Col: 50}
 						}
@@ -139,7 +139,7 @@ func ListPage(list []ListPagesRow, deleted bool) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var7 templ.SafeURL
-						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(publicPath(p.PublishedSlug)))
+						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(PublicPath(p.PublishedSlug)))
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/admin.templ`, Line: 39, Col: 62}
 						}
@@ -152,7 +152,7 @@ func ListPage(list []ListPagesRow, deleted bool) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var8 string
-						templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(publicPath(p.PublishedSlug))
+						templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(PublicPath(p.PublishedSlug))
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/admin.templ`, Line: 39, Col: 94}
 						}
@@ -341,7 +341,7 @@ func FormPage(f pageForm) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var16 templ.SafeURL
-					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(publicPath(f.PublishedSlug)))
+					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(PublicPath(f.PublishedSlug)))
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/admin.templ`, Line: 77, Col: 57}
 					}

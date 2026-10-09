@@ -5,11 +5,14 @@
 package pages
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
+	"net/url"
 
 	"github.com/voffkin/keelkit/reference/internal/blocks"
+	"github.com/voffkin/keelkit/reference/internal/seo"
 	"github.com/voffkin/keelkit/reference/internal/web"
 )
 
@@ -43,7 +46,8 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, p)
 }
 
-// Show — GET /{slug}: только опубликованные страницы; нет опубликованной копии с таким slug — 404.
+// Show — GET /{slug}: только опубликованные страницы. Нет опубликованной копии с таким slug — 301 на текущий
+// адрес страницы, если slug был у неё раньше (page_redirects), иначе 404.
 // Главная доступна только по /: /home перенаправляется туда.
 func (h *Handler) Show(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
@@ -53,7 +57,7 @@ func (h *Handler) Show(w http.ResponseWriter, r *http.Request) {
 	}
 	p, err := h.q.GetPublishedPageBySlug(r.Context(), slug)
 	if errors.Is(err, sql.ErrNoRows) {
-		web.NotFound(w, r)
+		h.redirectOld(w, r, slug)
 		return
 	}
 	if err != nil {
@@ -61,6 +65,42 @@ func (h *Handler) Show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.render(w, r, p)
+}
+
+// redirectOld — 301 со старого slug на текущий адрес опубликованной страницы; такой записи нет — 404.
+func (h *Handler) redirectOld(w http.ResponseWriter, r *http.Request, slug string) {
+	target, err := h.q.RedirectTarget(r.Context(), slug)
+	if errors.Is(err, sql.ErrNoRows) {
+		web.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		web.ServerError(w, r, err)
+		return
+	}
+	http.Redirect(w, r, PublicPath(target), http.StatusMovedPermanently)
+}
+
+// PublicPath — адрес страницы на сайте; главная — /.
+func PublicPath(slug string) string {
+	if slug == HomeSlug {
+		return "/"
+	}
+	return "/" + url.PathEscape(slug)
+}
+
+// SitemapURLs — опубликованные страницы для sitemap (site.yaml: feature sitemap), главная — /.
+// Без lastmod: у опубликованной копии нет времени публикации.
+func (h *Handler) SitemapURLs(ctx context.Context) ([]seo.URL, error) {
+	slugs, err := h.q.ListPublishedPageSlugs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	urls := make([]seo.URL, len(slugs))
+	for i, s := range slugs {
+		urls[i] = seo.URL{Path: PublicPath(s)}
+	}
+	return urls, nil
 }
 
 func (h *Handler) render(w http.ResponseWriter, r *http.Request, p GetPublishedPageBySlugRow) {

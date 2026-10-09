@@ -199,10 +199,15 @@ func TestE2EStaticNotFound(t *testing.T) {
 }
 
 func TestE2EHomeSlugRedirects(t *testing.T) {
-	srv := e2eServer(t, true)
-	resp, _ := fetch(t, noRedirect, srv.URL+"/home")
-	if resp.StatusCode != http.StatusMovedPermanently || resp.Header.Get("Location") != "/" {
-		t.Errorf("GET /home: status %d, Location %q; want 301 to /", resp.StatusCode, resp.Header.Get("Location"))
+	assertRedirect(t, e2eServer(t, true), "/home", "/")
+}
+
+// assertRedirect проверяет, что GET path отвечает 301 на want.
+func assertRedirect(t *testing.T, srv *httptest.Server, path, want string) {
+	t.Helper()
+	resp, _ := fetch(t, noRedirect, srv.URL+path)
+	if resp.StatusCode != http.StatusMovedPermanently || resp.Header.Get("Location") != want {
+		t.Errorf("GET %s: status %d, Location %q; want 301 to %s", path, resp.StatusCode, resp.Header.Get("Location"), want)
 	}
 }
 

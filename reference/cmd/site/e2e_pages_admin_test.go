@@ -373,7 +373,7 @@ func TestE2EAdminPageDraftCopy(t *testing.T) {
 		t.Errorf("list status after publish = %q", got)
 	}
 
-	// Новый slug: сохранён — сайт открывает старый адрес; опубликован — старый 404, новый 200.
+	// Новый slug: сохранён — сайт открывает старый адрес; опубликован — новый 200, старый — 301 на новый.
 	form = a.form(edit)
 	form.Set("slug", "about-us")
 	if resp, _ := a.submit(edit, form, "save", nil); resp.StatusCode != http.StatusSeeOther {
@@ -388,8 +388,8 @@ func TestE2EAdminPageDraftCopy(t *testing.T) {
 	if resp, _ := a.submit(edit, a.form(edit), "publish", nil); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("publish slug: status %d", resp.StatusCode)
 	}
-	page(t, a.srv, "/about", http.StatusNotFound)
 	page(t, a.srv, "/about-us", http.StatusOK)
+	assertRedirect(t, a.srv, "/about", "/about-us")
 }
 
 // Кнопки блоков без JavaScript: форма возвращается изменённой, ничего не сохраняется; с htmx — фрагмент формы.

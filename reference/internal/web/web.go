@@ -11,6 +11,8 @@ import (
 	"net/http"
 
 	"github.com/a-h/templ"
+
+	"github.com/voffkin/keelkit/modules/images"
 )
 
 // Site — данные сайта для layout.
@@ -18,6 +20,21 @@ type Site struct {
 	Name        string
 	Description string
 	Nav         []Link // пункты меню в шапке
+	BaseURL     string // схема и хост сайта без слеша в конце (BASE_URL): из него строятся абсолютные адреса
+	Feed        string // путь RSS-ленты для <link rel="alternate">; пусто — без ленты
+}
+
+// Meta — заголовок страницы и данные для поисковиков и соцсетей (<head>).
+type Meta struct {
+	Title       string // пусто — в <title> только название сайта
+	Description string // пусто — описание сайта
+	// Path — адрес страницы на сайте для canonical и og:url (страницы ленты — с ?page=N). Пусто — без них:
+	// страницы ошибок, предпросмотр черновика.
+	Path      string
+	Article   bool          // og:type article (пост), иначе website
+	Published string        // время публикации статьи, RFC 3339 (article:published_time)
+	Image     *images.Image // картинка для og:image; nil — без неё
+	NoIndex   bool          // robots noindex: предпросмотр черновика
 }
 
 // Link — пункт меню.
@@ -90,4 +107,24 @@ func pageTitle(title, siteName string) string {
 		return title
 	}
 	return title + " — " + siteName
+}
+
+// shareWidth — ширина варианта для соцсетей и RSS: превью показывают до ~1200 px.
+const shareWidth = 1600
+
+// ShareImage — JPEG-вариант изображения для og:image и обложки в RSS: самый широкий не шире shareWidth, а если
+// все шире — самый узкий. JPEG, а не WebP: его понимают все соцсети, мессенджеры и читалки. ok == false — нет
+// JPEG-вариантов (или img == nil).
+func ShareImage(img *images.Image) (images.StoredVariant, bool) {
+	var best images.StoredVariant
+	found := false
+	if img == nil {
+		return best, false
+	}
+	for _, v := range img.Variants { // по возрастанию ширины
+		if v.Format == images.JPEG && (!found || v.Width <= shareWidth) {
+			best, found = v, true
+		}
+	}
+	return best, found
 }

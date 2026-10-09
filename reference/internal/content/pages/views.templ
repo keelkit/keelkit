@@ -15,10 +15,11 @@ type viewData struct {
 	Preview  bool // предпросмотр черновика: плашка со ссылкой в редактор
 }
 
-// View — публичная страница. На главной в <title> только название сайта; описание — начало текста блоков.
-// Предпросмотр черновика видит только админка — с плашкой и ссылкой в редактор.
+// View — публичная страница. На главной в <title> только название сайта; описание — начало текста блоков,
+// картинка для соцсетей — первое изображение блоков. Предпросмотр черновика видит только админка — с плашкой
+// и ссылкой в редактор, без canonical и с noindex.
 templ View(p viewData) {
-	@web.LayoutMeta(viewTitle(p), blocks.Summary(p.Blocks, descriptionLen)) {
+	@web.LayoutMeta(viewMeta(p)) {
 		if p.Preview {
 			<p class="draft-banner" role="status">
 				Предпросмотр черновика: так страница будет выглядеть после публикации.
@@ -35,7 +36,7 @@ templ View(p viewData) {
 // HomeEmpty — главная, пока страница со slug home не опубликована.
 templ HomeEmpty() {
 	{{ site := web.SiteFrom(ctx) }}
-	@web.Layout("") {
+	@web.LayoutMeta(web.Meta{Path: "/"}) {
 		<h1>{ site.Name }</h1>
 		if site.Description != "" {
 			<p class="lead">{ site.Description }</p>
@@ -44,9 +45,18 @@ templ HomeEmpty() {
 	}
 }
 
-func viewTitle(p viewData) string {
-	if p.Slug == HomeSlug {
-		return ""
+func viewMeta(p viewData) web.Meta {
+	m := web.Meta{
+		Title:       p.Title,
+		Description: blocks.Summary(p.Blocks, descriptionLen),
+		Path:        PublicPath(p.Slug),
+		Image:       blocks.FirstImage(p.Blocks, p.Resolved),
 	}
-	return p.Title
+	if p.Slug == HomeSlug {
+		m.Title = ""
+	}
+	if p.Preview {
+		m.Path, m.NoIndex = "", true
+	}
+	return m
 }

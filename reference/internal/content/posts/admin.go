@@ -266,14 +266,39 @@ func replaceImages(ctx context.Context, q *Queries, id int64, kind string, ids [
 }
 
 // publishCopy копирует черновик и его ссылки на изображения в опубликованную копию (внутри транзакции q).
+// Прежний опубликованный slug становится редиректом на новый адрес, а опубликованный — перестаёт им быть.
 func publishCopy(ctx context.Context, q *Queries, id int64) error {
+	if err := q.RememberPublishedSlug(ctx, id); err != nil {
+		return err
+	}
 	if err := q.DeleteContentImages(ctx, DeleteContentImagesParams{PostID: id, Kind: kindPublished}); err != nil {
 		return err
 	}
 	if err := q.PublishDraft(ctx, id); err != nil {
 		return err
 	}
+	if err := q.DropRedirectToPublished(ctx, id); err != nil {
+		return err
+	}
 	return q.PublishDraftImages(ctx, id)
+}
+
+// unpublish удаляет опубликованную копию одной транзакцией с записью её slug в редиректы: если запись
+// опубликуют снова под другим slug, старый адрес будет вести на новый.
+func (a *Admin) unpublish(ctx context.Context, id int64) error {
+	tx, err := a.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	q := a.q.WithTx(tx)
+	if err := q.RememberPublishedSlug(ctx, id); err != nil {
+		return err
+	}
+	if _, err := q.Unpublish(ctx, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // Unpublish — POST /admin/posts/{id}/unpublish: удалить опубликованную копию, черновик остаётся.
@@ -282,7 +307,7 @@ func (a *Admin) Unpublish(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, err := a.q.Unpublish(r.Context(), f.ID); err != nil {
+	if err := a.unpublish(r.Context(), f.ID); err != nil {
 		admin.ServerError(w, r, err)
 		return
 	}
