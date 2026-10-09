@@ -7,7 +7,7 @@
 Этап не считается завершённым, пока не пройден его раздел «Проверка».
 
 **Общие соглашения для проверок** (появляются на этапе 0–2 и дальше не меняются):
-- `make dev` — применить миграции, залить seed, запустить сайт на `http://localhost:8080`.
+- `make dev` — применить миграции, залить seed, запустить сайт на `http://localhost:9090`.
 - `make reset` — удалить локальную dev-БД и загрузки (`reference/data/`), чтобы начать с нуля (сервер перед этим остановлен).
 - `GET /healthz` — JSON о состоянии: версия сборки, версии схем БД (сайт и каждый модуль), число непримененных миграций.
 - Seed идемпотентен: повторный `make seed` не создаёт дублей. Seed-данные только для dev, в проде не запускаются.
@@ -33,8 +33,8 @@
 make                      # выводит список целей с описаниями
 make lint test            # зелёные
 make run                  # сайт стартует
-curl -s localhost:8080/healthz   # {"status":"ok","version":"dev"}
-open http://localhost:8080/      # страница «Keelkit reference»
+curl -s localhost:9090/healthz   # {"status":"ok","version":"dev"}
+open http://localhost:9090/      # страница «Keelkit reference»
 ```
 Проверить совместимость: `/usr/bin/make help` (системный make 3.81 на macOS) работает без ошибок.
 
@@ -63,7 +63,7 @@ make spec-validate FILE=spec/examples/blog.yaml          # OK
 make spec-validate FILE=spec/examples/invalid/two-languages.yaml   # понятная ошибка с путём к полю
 make spec-validate FILE=reference/site.yaml              # OK
 make test                                                # тесты валидатора зелёные
-make run && curl -s localhost:8080/healthz               # сайт по-прежнему работает
+make run && curl -s localhost:9090/healthz               # сайт по-прежнему работает
 ```
 
 ---
@@ -96,9 +96,9 @@ make run          # отказ: «есть непримененные мигра
 make migrate      # в reference/backups/ появился снимок, миграции применены
 make seed && make seed   # второй запуск не создаёт дублей
 make dev
-curl -s localhost:8080/healthz
+curl -s localhost:9090/healthz
 # {"status":"ok","schema":{"site":{"version":1,"pending":0}}}
-open http://localhost:8080/   # в шапке — название сайта из seed
+open http://localhost:9090/   # в шапке — название сайта из seed
 make generate-check           # генерация ничего не меняет
 ```
 
@@ -127,11 +127,11 @@ e2e — `TestE2E*` в `cmd/site` (входят в `make test`; `make e2e` зап
 ### Проверка
 ```sh
 make reset && make dev
-open http://localhost:8080/          # главная из seed, стили применены
-open http://localhost:8080/about     # Markdown отрисован: таблица, код, ссылки
-open http://localhost:8080/nope      # оформленная страница 404, статус 404
-curl -s localhost:8080/contacts | grep -c '<script>alert'   # 0
-curl -sI localhost:8080/static/htmx-2.0.11.min.js          # 200, из embed
+open http://localhost:9090/          # главная из seed, стили применены
+open http://localhost:9090/about     # Markdown отрисован: таблица, код, ссылки
+open http://localhost:9090/nope      # оформленная страница 404, статус 404
+curl -s localhost:9090/contacts | grep -c '<script>alert'   # 0
+curl -sI localhost:9090/static/htmx-2.0.11.min.js          # 200, из embed
 make e2e
 ```
 
@@ -163,11 +163,11 @@ make e2e
 ### Проверка
 ```sh
 make reset && make dev
-open http://localhost:8080/admin      # редирект на /admin/login
+open http://localhost:9090/admin      # редирект на /admin/login
 # войти admin@example.com / admin → дашборд «Страниц: 3»
 # неверный пароль → сообщение об ошибке, после N попыток — временная блокировка
 # «Выйти» → снова /admin/login
-curl -s -X POST localhost:8080/admin/pages -d 'title=x'    # 403 или редирект на вход
+curl -s -X POST localhost:9090/admin/pages -d 'title=x'    # 403 или редирект на вход
 make e2e
 ```
 
@@ -200,7 +200,7 @@ make e2e
 make reset && make dev
 # /admin/pages → «Создать»: заголовок «Тестовая», текст **жирный**
 #   → превью обновляется при наборе
-#   → «Сохранить» → открыть http://localhost:8080/testovaya — страница видна
+#   → «Сохранить» → открыть http://localhost:9090/testovaya — страница видна
 # создать вторую страницу со slug testovaya → ошибка у поля, введённые данные не потеряны
 # удалить страницу → /testovaya отдаёт 404
 make e2e && make e2e-browser
@@ -331,9 +331,9 @@ make images-demo IN=modules/images/testdata   # демо-страница раб
 ### Проверка
 ```sh
 make reset && make dev
-curl -s 127.0.0.1:8080/healthz
+curl -s 127.0.0.1:9090/healthz
 # {"schema":{"images":{"version":1,"pending":0},"site":{"version":4,"pending":0}}}
-open http://localhost:8080/admin/media      # 4 изображения из seed; карточка — <picture>, 8 вариантов у photo.jpg
+open http://localhost:9090/admin/media      # 4 изображения из seed; карточка — <picture>, 8 вариантов у photo.jpg
 # загрузить свой JPEG → появился в сетке; загрузить файл 25 МБ → понятная ошибка
 make reprocess-images BELOW=2 && make reprocess-images BELOW=2   # processed=0 (все уже на профиле 1)
 make check MODULE=reference                 # test-isolated — на опубликованной версии модуля
@@ -381,8 +381,8 @@ Markdown-текста; вёрстку не сломать, картинки — 
 - [x] Модуль `spec`: тип `blocks` и `allow` в `schema.json`, правила в `spec.Validate`, примеры в `spec/examples/invalid/`
   (`# expect: …`), `CHANGELOG.md`
 - [ ] Релиз `spec v0.2.0` и `SPEC_VERSION` в `reference/Makefile` (до него `make spec-validate` в `reference/` — на v0.1.0 — отвергает `blocks`)
-- [ ] Подтверждение человека: миграция `00005_page_contents.sql` меняет живые данные (вариант с `pages_legacy`, тест —
-  `cmd/site/migrations_test.go`); реализована и проверена, но явного подтверждения ещё не было
+- [x] Подтверждение человека: миграция `00005_page_contents.sql` меняет живые данные (вариант с `pages_legacy`, тест —
+  `cmd/site/migrations_test.go`); подтверждена 2026-10-09 (сайт нигде не опубликован, локально применена `make migrate`)
 - [x] `internal/blocks/`: у каждого типа — Go-структура полей, проверка, templ-вывод на сайте, templ-фрагмент формы в админке.
   Общие поля блока: `id` (стабильный, для якорей и тестов), `type`, `hidden` (остаётся в данных, не выводится). Первые типы:
   - `text` — Markdown (textarea + превью, как сейчас);
@@ -418,7 +418,7 @@ Markdown-текста; вёрстку не сломать, картинки — 
 ### Проверка
 ```sh
 make reset && make dev
-open http://localhost:8080/about            # текст, адаптивная картинка, картинка с текстом, цитата
+open http://localhost:9090/about            # текст, адаптивная картинка, картинка с текстом, цитата
 # /admin/pages → «О проекте»: «Добавить блок» → «Цитата» → «Сохранить» → на сайте цитаты нет, статус
 #   «Есть неопубликованные изменения»; «Предпросмотр» — цитата есть; «Опубликовать» → цитата на сайте
 # «↑» — поменялся порядок; «Скрыть» — блок пропал с сайта, остался в админке
@@ -446,9 +446,9 @@ make spec-validate FILE=reference/site.yaml && make e2e && make e2e-browser
 ### Проверка
 ```sh
 make reset && make dev
-open http://localhost:8080/blog              # 13 постов на 2 страницах, обложки адаптивные
-open http://localhost:8080/blog/category/go  # только посты категории
-curl -s -o /dev/null -w '%{http_code}' localhost:8080/blog/draft-post    # 404
+open http://localhost:9090/blog              # 13 постов на 2 страницах, обложки адаптивные
+open http://localhost:9090/blog/category/go  # только посты категории
+curl -s -o /dev/null -w '%{http_code}' localhost:9090/blog/draft-post    # 404
 # /admin → посты: черновик помечен, «Предпросмотр» показывает его
 # «Опубликовать» → пост появился в /blog
 make spec-validate FILE=reference/site.yaml && make e2e
@@ -468,11 +468,11 @@ make spec-validate FILE=reference/site.yaml && make e2e
 ### Проверка
 ```sh
 make dev
-curl -s localhost:8080/sitemap.xml | xmllint --noout -   # валидный XML
-curl -s localhost:8080/rss.xml | xmllint --noout -
-curl -s localhost:8080/sitemap.xml | grep -c draft-post  # 0
-curl -s localhost:8080/robots.txt
-curl -s localhost:8080/blog/<slug> | grep -E 'og:|canonical'
+curl -s localhost:9090/sitemap.xml | xmllint --noout -   # валидный XML
+curl -s localhost:9090/rss.xml | xmllint --noout -
+curl -s localhost:9090/sitemap.xml | grep -c draft-post  # 0
+curl -s localhost:9090/robots.txt
+curl -s localhost:9090/blog/<slug> | grep -E 'og:|canonical'
 make e2e
 ```
 
@@ -495,7 +495,7 @@ make e2e
 ```sh
 make build && file reference/bin/site        # статический бинарник
 DATA_DIR=/tmp/kk ./reference/bin/site migrate && DATA_DIR=/tmp/kk ./reference/bin/site serve
-curl -s localhost:8080/healthz               # version = git-хеш/тег, не "dev"
+curl -s localhost:9090/healthz               # version = git-хеш/тег, не "dev"
 make backup && ls reference/backups/         # .db и .tar.gz
 docker build -t keelkit-reference reference/ && docker run -p 8080:8080 keelkit-reference   # опционально
 # PR с правкой только в reference/ → в Actions не запускаются джобы modules/images
@@ -520,7 +520,7 @@ docker build -t keelkit-reference reference/ && docker run -p 8080:8080 keelkit-
 /plugin marketplace add ./
 /plugin install keelkit
 # запустить create-site со spec/examples/landing.yaml в пустой папке /tmp/kk-landing
-cd /tmp/kk-landing && make dev    # сайт открывается на :8080, seed заполнен
+cd /tmp/kk-landing && make dev    # сайт открывается на :9090, seed заполнен
 make evals SKILL=create-site      # отчёт: собралось / тесты / конвенции — по каждому примеру
 make evals SKILL=upgrade-site     # копия reference на v0.1.0 → обновлена до v0.2.0, тесты зелёные
 ```
