@@ -42,7 +42,7 @@ TEMPL = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/a-h/templ/cmd/templ@$(TEMP
 GOVULNCHECK_VERSION ?= v1.8.0
 GOVULNCHECK = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 # Валидатор спецификации — опубликованная версия модуля spec (тег spec/vX.Y.Z), в код сайта не копируется.
-SPEC_VERSION ?= v0.1.0
+SPEC_VERSION ?= v0.2.0
 SPEC_VALIDATE = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/voffkin/keelkit/spec/cmd/spec-validate@$(SPEC_VERSION)
 
 SITE = ADDR=$(ADDR) DATA_DIR=$(DATA_DIR) BACKUP_DIR=$(BACKUP_DIR) COOKIE_SECURE=$(COOKIE_SECURE) go run ./cmd/site

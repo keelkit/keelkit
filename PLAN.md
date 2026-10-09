@@ -341,7 +341,7 @@ make check MODULE=reference                 # test-isolated — на опубл�
 
 ---
 
-## Этап 8.5. Страницы из блоков и черновик-копия — ✅ готово (кроме релиза spec)
+## Этап 8.5. Страницы из блоков и черновик-копия — ✅ готово
 
 Цель: редактор собирает страницу из готовых блоков (текст, изображение, изображение + текст, цитата) вместо одного
 Markdown-текста; вёрстку не сломать, картинки — из медиатеки с адаптивными размерами. Правки опубликованной страницы
@@ -380,7 +380,7 @@ Markdown-текста; вёрстку не сломать, картинки — 
 Работа:
 - [x] Модуль `spec`: тип `blocks` и `allow` в `schema.json`, правила в `spec.Validate`, примеры в `spec/examples/invalid/`
   (`# expect: …`), `CHANGELOG.md`
-- [ ] Релиз `spec v0.2.0` и `SPEC_VERSION` в `reference/Makefile` (до него `make spec-validate` в `reference/` — на v0.1.0 — отвергает `blocks`)
+- [x] Релиз `spec v0.2.0` и `SPEC_VERSION` в `reference/Makefile` (до него `make spec-validate` в `reference/` — на v0.1.0 — отвергал `blocks`)
 - [x] Подтверждение человека: миграция `00005_page_contents.sql` меняет живые данные (вариант с `pages_legacy`, тест —
   `cmd/site/migrations_test.go`); подтверждена 2026-10-09 (сайт нигде не опубликован, локально применена `make migrate`)
 - [x] `internal/blocks/`: у каждого типа — Go-структура полей, проверка, templ-вывод на сайте, templ-фрагмент формы в админке.
