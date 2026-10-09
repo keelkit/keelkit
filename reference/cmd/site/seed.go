@@ -7,12 +7,15 @@ import (
 	"embed"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/voffkin/keelkit/modules/images"
 
 	"github.com/voffkin/keelkit/reference/internal/admin"
 	"github.com/voffkin/keelkit/reference/internal/blocks"
+	"github.com/voffkin/keelkit/reference/internal/content/categories"
 	"github.com/voffkin/keelkit/reference/internal/content/pages"
+	"github.com/voffkin/keelkit/reference/internal/content/posts"
 	"github.com/voffkin/keelkit/reference/internal/settings"
 )
 
@@ -42,7 +45,7 @@ func seed(ctx context.Context, cfg config) error {
 	return nil
 }
 
-// seedContent — настройки сайта, страницы и пользователь админки. imgs — id изображений из seedImages по имени
+// seedContent — настройки сайта, страницы, блог и пользователь админки. imgs — id изображений из seedImages по имени
 // файла; блоки с изображением, которого там нет, пропускаются. Отдельно от seedImages: обработка изображений
 // занимает около секунды, поэтому тестам, которым картинки не нужны, хватает seedContent(ctx, db, nil).
 func seedContent(ctx context.Context, db *sql.DB, imgs map[string]string) error {
@@ -58,6 +61,10 @@ func seedContent(ctx context.Context, db *sql.DB, imgs map[string]string) error 
 		if err := pages.SeedPublished(ctx, db, p.title, p.slug, p.blocks); err != nil {
 			return fmt.Errorf("seed page %s: %w", p.slug, err)
 		}
+	}
+
+	if err := seedBlog(ctx, db, imgs, time.Now()); err != nil {
+		return err
 	}
 
 	hash, err := admin.HashPassword(ctx, seedAdminPassword)
@@ -199,4 +206,87 @@ func (h *Handler) Show(w http.ResponseWriter, r *http.Request) {
 // textBlock — блок text для seed. id — читаемые и стабильные: по ним e2e находит блоки (block-<id>).
 func textBlock(id, body string) blocks.Block {
 	return blocks.Block{ID: id, Type: "text", Content: &blocks.Text{Body: body}}
+}
+
+// seedCategories — категории блога: имя и slug.
+var seedCategories = []struct{ name, slug string }{
+	{"Go", "go"},
+	{"Веб", "web"},
+	{"Заметки", "notes"},
+}
+
+// Посты seed, которых нет на сайте: черновик и пост с датой публикации в будущем.
+const (
+	seedDraftPost  = "draft-post"
+	seedFuturePost = "future-post"
+)
+
+// seedPostTitles — заголовки опубликованных постов, от новых к старым: пост i опубликован i+1 день назад
+// (относительно now) и попадает в категорию seedCategories[i%3]. Обложки — у каждого третьего, если есть imgs.
+var seedPostTitles = []string{
+	"Как устроен эталонный сайт",
+	"Черновик-копия вместо флажка",
+	"Заметки о SQLite в проде",
+	"Блоки вместо Markdown-картинок",
+	"Адаптивные изображения без CDN",
+	"Почему без Node в сборке",
+	"templ: шаблоны, которые проверяет компилятор",
+	"htmx для админки",
+	"Миграции, которые нельзя откатить",
+	"Один бинарник и systemd",
+	"Транслитерация для slug",
+	"argon2id вместо bcrypt",
+	"Первый пост",
+}
+
+// seedBlog — категории и посты блога: 13 опубликованных (2 страницы ленты), черновик и пост, запланированный
+// на будущее (оба не видны на сайте). imgs — id изображений из seedImages: без них посты без обложек.
+func seedBlog(ctx context.Context, db *sql.DB, imgs map[string]string, now time.Time) error {
+	cats := make([]int64, len(seedCategories))
+	for i, c := range seedCategories {
+		id, err := categories.Seed(ctx, db, c.name, c.slug)
+		if err != nil {
+			return fmt.Errorf("seed category %s: %w", c.slug, err)
+		}
+		cats[i] = id
+	}
+	covers := []string{imgs["photo.jpg"], imgs["transparent.png"], imgs["orientation-6.webp"]}
+	day := 24 * time.Hour
+	now = now.Truncate(time.Minute)
+
+	list := make([]posts.SeedPost, 0, len(seedPostTitles)+2)
+	for i, title := range seedPostTitles {
+		p := posts.SeedPost{
+			Title: title, Slug: fmt.Sprintf("post-%02d", len(seedPostTitles)-i), CategoryID: cats[i%len(cats)],
+			PublishDate: now.Add(-time.Duration(i+1) * day), Publish: true,
+			Blocks: []blocks.Block{textBlock("intro", seedPostBody(title))},
+		}
+		if i%3 == 0 {
+			p.Cover = covers[(i/3)%len(covers)]
+		}
+		list = append(list, p)
+	}
+	list = append(list,
+		posts.SeedPost{
+			Title: "Черновик поста", Slug: seedDraftPost, CategoryID: cats[0],
+			Blocks: []blocks.Block{textBlock("intro", "Этот пост ещё не опубликован: на сайте его нет, в админке — «Черновик».")},
+		},
+		posts.SeedPost{
+			Title: "Пост из будущего", Slug: seedFuturePost, CategoryID: cats[2], PublishDate: now.Add(30 * day), Publish: true,
+			Blocks: []blocks.Block{textBlock("intro", "Опубликован с датой в будущем: появится на сайте, когда она наступит.")},
+		},
+	)
+	for _, p := range list {
+		if err := posts.Seed(ctx, db, p); err != nil {
+			return fmt.Errorf("seed post %s: %w", p.Slug, err)
+		}
+	}
+	return nil
+}
+
+func seedPostBody(title string) string {
+	return "Пост «" + title + "» из dev-данных эталонного сайта. Текст поста собирается из блоков, как и страницы: " +
+		"текст, изображение, изображение с текстом, цитата.\n\n" +
+		"## Подробнее\n\nАнонс в ленте блога — начало текста блоков, без разметки. Дата публикации и категория — " +
+		"под заголовком, обложка — над текстом."
 }

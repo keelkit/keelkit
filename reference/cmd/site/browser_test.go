@@ -264,3 +264,51 @@ func TestBrowserMediaUpload(t *testing.T) {
 		t.Errorf("after upload: flash %q, first card %q, preview loaded %v", flash, name, loaded)
 	}
 }
+
+// Выбор обложки поста: поле перерисовывается с превью через htmx, введённое в форме не теряется;
+// после публикации обложка — в ленте блога.
+func TestBrowserPostCover(t *testing.T) {
+	site, _ := migratedSiteWithImages(t)
+	srv := httptest.NewServer(site.handler(config{}))
+	t.Cleanup(srv.Close)
+	ctx := browser(t)
+	browserLogin(t, ctx, srv.URL)
+
+	var marker bool
+	var title string
+	run(t, ctx, "pick cover",
+		chromedp.Navigate(srv.URL+"/admin/posts/new"),
+		chromedp.WaitVisible(`#post-form`, chromedp.ByQuery),
+		chromedp.Evaluate(`window.keelkitMarker = true`, nil),
+		chromedp.SendKeys(`input[name="title"]`, "Пост с обложкой", chromedp.ByQuery),
+		chromedp.SendKeys(`.block-form textarea`, "Текст", chromedp.ByQuery),
+		chromedp.Evaluate(`(() => { const s = document.querySelector('select[name="cover"]');
+			s.value = s.options[1].value; s.dispatchEvent(new Event('change', {bubbles: true})); })()`, nil),
+		chromedp.WaitReady(`#cover-field .block-thumb picture`, chromedp.ByQuery),
+		htmxSettled(),
+		chromedp.Value(`input[name="title"]`, &title, chromedp.ByQuery),
+		chromedp.Evaluate(`window.keelkitMarker === true`, &marker),
+	)
+	if title != "Пост с обложкой" || !marker {
+		t.Errorf("after picking: title %q, no reload %v", title, marker)
+	}
+
+	var flash string
+	run(t, ctx, "publish",
+		chromedp.Click(`.form-actions button[value="publish"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`.flash[role="status"]`, chromedp.ByQuery),
+		chromedp.Text(`.flash[role="status"]`, &flash, chromedp.ByQuery),
+	)
+	if flash != "Опубликовано." {
+		t.Fatalf("publish flash = %q", flash)
+	}
+	var covers int
+	run(t, ctx, "blog",
+		chromedp.Navigate(srv.URL+"/blog"),
+		chromedp.WaitVisible(`.post-list`, chromedp.ByQuery),
+		chromedp.Evaluate(`document.querySelectorAll('.post-card:first-child .post-card-cover picture').length`, &covers),
+	)
+	if covers != 1 {
+		t.Errorf("first card covers = %d, want 1", covers)
+	}
+}

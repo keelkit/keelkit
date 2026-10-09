@@ -1,0 +1,164 @@
+package categories
+
+import (
+	"strconv"
+
+	"github.com/voffkin/keelkit/reference/internal/admin"
+)
+
+// ListPage — список категорий в админке.
+templ ListPage(list []ListCategoriesRow, deleted bool) {
+	@admin.Layout("Категории") {
+		<div class="admin-title">
+			<h1>Категории</h1>
+			<a class="button" href={ templ.SafeURL(AdminPath + "/new") }>Создать категорию</a>
+		</div>
+		if deleted {
+			<p class="flash" role="status">Категория удалена.</p>
+		}
+		if len(list) == 0 {
+			<p>Категорий пока нет.</p>
+		} else {
+			<div class="table-wrap">
+				<table class="admin-table">
+					<thead>
+						<tr>
+							<th>Название</th>
+							<th>Slug</th>
+							<th>Постов</th>
+							<th>Обновлена</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, c := range list {
+							<tr>
+								<td><a href={ templ.SafeURL(EditPath(c.ID)) }>{ c.Name }</a></td>
+								<td>{ c.Slug }</td>
+								<td>{ strconv.FormatInt(c.Posts, 10) }</td>
+								<td>{ formatTime(c.UpdatedAt) }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	}
+}
+
+// FormPage — страница создания или редактирования категории.
+templ FormPage(a *Admin, f categoryForm) {
+	@admin.Layout(formTitle(f)) {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Категории</a></p>
+		<div class="admin-title">
+			<h1>{ formTitle(f) }</h1>
+			if f.ID != 0 {
+				<a href={ templ.SafeURL(a.publicPath(f.Slug)) }>Открыть на сайте</a>
+			}
+		</div>
+		if f.Flash != "" {
+			<p class="flash" role="status">{ f.Flash }</p>
+		}
+		@Form(f)
+		if f.ID != 0 {
+			<div class="danger-zone">
+				<p><a class="danger-link" href={ templ.SafeURL(EditPath(f.ID) + "/delete") }>Удалить категорию</a></p>
+			</div>
+		}
+	}
+}
+
+// Form — форма категории: обычный POST и htmx (с ошибками сервер возвращает только этот фрагмент, 422).
+templ Form(f categoryForm) {
+	<form
+		id="category-form"
+		class="form"
+		method="post"
+		action={ templ.SafeURL(formAction(f)) }
+		hx-post={ formAction(f) }
+		hx-target="this"
+		hx-swap="outerHTML"
+	>
+		@admin.CSRFInput()
+		if len(f.Errors) > 0 {
+			<p class="form-error" role="alert">Исправьте ошибки в форме.</p>
+		}
+		<label>
+			Название
+			<input
+				type="text"
+				name="name"
+				value={ f.Name }
+				required
+				maxlength="100"
+				if f.Errors["name"] != "" {
+					aria-invalid="true"
+					aria-describedby="name-error"
+				}
+			/>
+			@fieldError(f, "name")
+		</label>
+		<label>
+			Slug
+			<input
+				type="text"
+				name="slug"
+				value={ f.Slug }
+				placeholder="составится из названия"
+				if f.Errors["slug"] != "" {
+					aria-invalid="true"
+					aria-describedby="slug-hint slug-error"
+				} else {
+					aria-describedby="slug-hint"
+				}
+			/>
+			<span class="field-hint" id="slug-hint">Адрес категории в блоге: латиница, цифры и дефисы. Пусто — составится из названия. Изменение сразу видно на сайте.</span>
+			@fieldError(f, "slug")
+		</label>
+		<div class="form-actions">
+			<button type="submit">Сохранить</button>
+			<a href={ templ.SafeURL(AdminPath) }>Отмена</a>
+		</div>
+	</form>
+}
+
+templ fieldError(f categoryForm, field string) {
+	if msg := f.Errors[field]; msg != "" {
+		<span class="field-error" id={ field + "-error" }>{ msg }</span>
+	}
+}
+
+// DeletePage — подтверждение удаления.
+templ DeletePage(f categoryForm) {
+	@admin.Layout("Удаление категории") {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Категории</a></p>
+		<h1>Удалить категорию «{ f.Name }»?</h1>
+		<p>В категории нет постов. Отменить удаление нельзя.</p>
+		<form method="post" action={ templ.SafeURL(EditPath(f.ID) + "/delete") } class="form-actions">
+			@admin.CSRFInput()
+			<button type="submit" class="danger">Удалить</button>
+			<a href={ templ.SafeURL(EditPath(f.ID)) }>Отмена</a>
+		</form>
+	}
+}
+
+// DeleteBlockedPage — в категории есть посты (409).
+templ DeleteBlockedPage(f categoryForm, used []usage) {
+	@admin.Layout("Удаление категории") {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Категории</a></p>
+		<h1>В категории «{ f.Name }» есть посты</h1>
+		<p>Категорию нельзя удалить, пока она выбрана в постах (в том числе в черновиках). Сначала выберите им другую категорию:</p>
+		<ul class="usage-list">
+			for _, u := range used {
+				<li><a href={ templ.SafeURL(u.URL) }>{ u.Title }</a></li>
+			}
+		</ul>
+		<p><a href={ templ.SafeURL(EditPath(f.ID)) }>Вернуться к категории</a></p>
+	}
+}
+
+func formTitle(f categoryForm) string {
+	if f.ID == 0 {
+		return "Новая категория"
+	}
+	return "Редактирование категории"
+}

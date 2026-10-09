@@ -49,11 +49,17 @@ func (a *pageAdmin) get(path string) (response, string) {
 // как их отправит браузер.
 func (a *pageAdmin) form(path string) url.Values {
 	a.t.Helper()
+	return a.formByID(path, "page-form")
+}
+
+// formByID — поля формы с id из страницы path (форма поста, категории…).
+func (a *pageAdmin) formByID(path, id string) url.Values {
+	a.t.Helper()
 	resp, body := a.get(path)
 	if resp.StatusCode != http.StatusOK {
 		a.t.Fatalf("GET %s: status %d", path, resp.StatusCode)
 	}
-	return formValues(parse(a.t, body).Find("#page-form"))
+	return formValues(parse(a.t, body).Find("#" + id))
 }
 
 // submit отправляет форму страницы с кнопкой action ("save", "publish", "up:<id>"…).
@@ -307,7 +313,7 @@ func TestE2EAdminPageCreate(t *testing.T) {
 	}
 
 	_, body = a.get("/admin")
-	if got := text(parse(t, body).Find(".counter")); got != "Страниц: 4" {
+	if got := text(parse(t, body).Find(".counter").First()); got != "Страниц: 4" {
 		t.Errorf("counter = %q, want «Страниц: 4»", got)
 	}
 
@@ -877,10 +883,11 @@ func TestE2EPageImages(t *testing.T) {
 		t.Error("no thumbnail of the selected image")
 	}
 
-	// Используемое изображение не удаляется: карточка показывает страницу, подтверждение и POST — 409.
+	// Используемое изображение не удаляется: карточка показывает страницу (первой, затем посты seed с этой
+	// обложкой), подтверждение и POST — 409.
 	show := "/admin/media/" + imgs["photo.jpg"]
 	_, html = a.get(show)
-	if href, _ := parse(t, html).Find(".usage-list a").Attr("href"); href != edit {
+	if href, _ := parse(t, html).Find(".usage-list a").First().Attr("href"); href != edit {
 		t.Errorf("usage link = %q, want %s", href, edit)
 	}
 	for _, method := range []string{http.MethodGet, http.MethodPost} {
@@ -891,7 +898,7 @@ func TestE2EPageImages(t *testing.T) {
 			resp, html = post(t, a.client, a.srv.URL+show+"/delete", url.Values{"csrf_token": {a.token}}, nil)
 		}
 		doc := parse(t, html)
-		if resp.StatusCode != http.StatusConflict || text(doc.Find(".usage-list a")) != "Страница «О проекте»" {
+		if resp.StatusCode != http.StatusConflict || text(doc.Find(".usage-list a").First()) != "Страница «О проекте»" {
 			t.Errorf("%s delete used image: status %d, usage %q", method, resp.StatusCode, text(doc.Find(".usage-list")))
 		}
 	}

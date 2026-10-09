@@ -13,7 +13,9 @@ import (
 	"github.com/voffkin/keelkit/modules/images"
 
 	"github.com/voffkin/keelkit/reference/internal/admin"
+	"github.com/voffkin/keelkit/reference/internal/content/categories"
 	"github.com/voffkin/keelkit/reference/internal/content/pages"
+	"github.com/voffkin/keelkit/reference/internal/content/posts"
 	"github.com/voffkin/keelkit/reference/internal/database"
 	"github.com/voffkin/keelkit/reference/internal/media"
 	"github.com/voffkin/keelkit/reference/internal/settings"
@@ -27,7 +29,7 @@ const defaultSiteName = "Keelkit reference"
 // reservedSlugs — первые сегменты путей, занятые маршрутами newMux. Страница с таким slug была бы не видна,
 // поэтому админка их не принимает. Новый маршрут верхнего уровня — новая запись здесь; если маршрут — поддерево
 // (/static/), сам путь без слеша тоже нужно занять, иначе его заберёт GET /{slug} (проверяет e2e).
-var reservedSlugs = []string{"admin", "static", "media", "healthz"}
+var reservedSlugs = []string{"admin", "static", "media", "healthz", "blog"}
 
 // newMux — все маршруты сайта. HTML-маршруты оборачиваются в html: данные шапки в контексте запроса.
 // Маршруты админки — ещё и в adminOnly: защита от межсайтовых запросов (http.CrossOriginProtection),
@@ -37,12 +39,17 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 	html := web.WithSite(siteLoader(db))
 	pagesH := pages.NewHandler(db, imgs)
 	pagesAdmin := pages.NewAdmin(db, imgs, media.AdminPath, reservedSlugs)
+	postsH := posts.NewHandler(db, imgs)
+	postsAdmin := posts.NewAdmin(db, imgs, media.AdminPath)
+	categoriesAdmin := categories.NewAdmin(db, posts.CategoryPath, posts.EditPath)
 	mediaAdmin := media.NewAdmin(imgs, imageUsage(db))
 	adminH := admin.NewHandler(db, admin.Options{
 		SecureCookies: cfg.CookieSecure,
 		Counters:      adminCounters(db),
 		Sections: []admin.Section{
 			{Title: "Страницы", URL: pages.AdminPath},
+			{Title: "Посты", URL: posts.AdminPath},
+			{Title: "Категории", URL: categories.AdminPath},
 			{Title: "Медиатека", URL: media.AdminPath},
 		},
 	})
@@ -59,6 +66,9 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 
 	mux.Handle("GET /{$}", html(http.HandlerFunc(pagesH.Home)))
 	mux.Handle("GET /{slug}", html(http.HandlerFunc(pagesH.Show)))
+	mux.Handle("GET "+posts.BlogPath, html(http.HandlerFunc(postsH.Blog)))
+	mux.Handle("GET "+posts.BlogPath+"/{slug}", html(http.HandlerFunc(postsH.Show)))
+	mux.Handle("GET "+posts.BlogPath+"/category/{slug}", html(http.HandlerFunc(postsH.Category)))
 
 	mux.Handle("GET /admin/login", adminOnly(adminH.LoginForm))
 	mux.Handle("POST /admin/login", adminOnly(adminH.Login))
@@ -77,6 +87,25 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 	mux.Handle("POST /admin/pages/{id}/unpublish", signedIn(pagesAdmin.Unpublish))
 	mux.Handle("GET /admin/pages/{id}/delete", signedIn(pagesAdmin.ConfirmDelete))
 	mux.Handle("POST /admin/pages/{id}/delete", signedIn(pagesAdmin.Delete))
+	mux.Handle("GET /admin/posts", signedIn(postsAdmin.List))
+	mux.Handle("GET /admin/posts/new", signedIn(postsAdmin.New))
+	mux.Handle("POST /admin/posts", signedIn(postsAdmin.Create))
+	mux.Handle("POST /admin/posts/preview", signedIn(postsAdmin.Preview))
+	mux.Handle("POST /admin/posts/block", signedIn(postsAdmin.Block))
+	mux.Handle("POST /admin/posts/cover", signedIn(postsAdmin.Cover))
+	mux.Handle("GET /admin/posts/{id}", signedIn(postsAdmin.Edit))
+	mux.Handle("POST /admin/posts/{id}", signedIn(postsAdmin.Update))
+	mux.Handle("GET /admin/posts/{id}/view", signedIn(postsAdmin.View))
+	mux.Handle("POST /admin/posts/{id}/unpublish", signedIn(postsAdmin.Unpublish))
+	mux.Handle("GET /admin/posts/{id}/delete", signedIn(postsAdmin.ConfirmDelete))
+	mux.Handle("POST /admin/posts/{id}/delete", signedIn(postsAdmin.Delete))
+	mux.Handle("GET /admin/categories", signedIn(categoriesAdmin.List))
+	mux.Handle("GET /admin/categories/new", signedIn(categoriesAdmin.New))
+	mux.Handle("POST /admin/categories", signedIn(categoriesAdmin.Create))
+	mux.Handle("GET /admin/categories/{id}", signedIn(categoriesAdmin.Edit))
+	mux.Handle("POST /admin/categories/{id}", signedIn(categoriesAdmin.Update))
+	mux.Handle("GET /admin/categories/{id}/delete", signedIn(categoriesAdmin.ConfirmDelete))
+	mux.Handle("POST /admin/categories/{id}/delete", signedIn(categoriesAdmin.Delete))
 	mux.Handle("GET /admin/media", signedIn(mediaAdmin.List))
 	// Лимит тела — снаружи signedIn: форма без JavaScript передаёт CSRF-токен в multipart, RequireUser читает его первым.
 	mux.Handle("POST /admin/media", maxBody(media.MaxUploadRequest, signedIn(mediaAdmin.Upload)))
@@ -99,7 +128,7 @@ func maxBody(n int64, next http.Handler) http.Handler {
 	})
 }
 
-// siteLoader собирает данные для layout: название и описание сайта, меню из страниц (кроме главной).
+// siteLoader собирает данные для layout: название и описание сайта, меню из страниц (кроме главной) и блог.
 func siteLoader(db *sql.DB) func(context.Context) (web.Site, error) {
 	sq := settings.New(db)
 	pq := pages.New(db)
@@ -120,6 +149,7 @@ func siteLoader(db *sql.DB) func(context.Context) (web.Site, error) {
 		for _, l := range links {
 			site.Nav = append(site.Nav, web.Link{Title: l.Title, URL: "/" + url.PathEscape(l.Slug)})
 		}
+		site.Nav = append(site.Nav, web.Link{Title: "Блог", URL: posts.BlogPath})
 		return site, nil
 	}
 }
@@ -127,7 +157,7 @@ func siteLoader(db *sql.DB) func(context.Context) (web.Site, error) {
 // imageUsage — где используется изображение (медиатека показывает список и не даёт удалить используемое).
 // Новый тип контента со ссылками на изображения добавляет сюда свой запрос.
 func imageUsage(db *sql.DB) media.UsageFunc {
-	pq := pages.New(db)
+	pq, sq := pages.New(db), posts.New(db)
 	return func(ctx context.Context, imageID string) ([]media.Usage, error) {
 		rows, err := pq.PagesUsingImage(ctx, imageID)
 		if err != nil {
@@ -137,19 +167,38 @@ func imageUsage(db *sql.DB) media.UsageFunc {
 		for _, p := range rows {
 			used = append(used, media.Usage{Title: "Страница «" + p.Title + "»", URL: pages.EditPath(p.ID)})
 		}
+		postRows, err := sq.PostsUsingImage(ctx, imageID)
+		if err != nil {
+			return nil, fmt.Errorf("posts using image: %w", err)
+		}
+		for _, p := range postRows {
+			used = append(used, media.Usage{Title: "Пост «" + p.Title + "»", URL: posts.EditPath(p.ID)})
+		}
 		return used, nil
 	}
 }
 
 // adminCounters — счётчики контента для дашборда админки.
 func adminCounters(db *sql.DB) func(context.Context) ([]admin.Counter, error) {
-	pq := pages.New(db)
+	pq, sq, cq := pages.New(db), posts.New(db), categories.New(db)
 	return func(ctx context.Context) ([]admin.Counter, error) {
 		n, err := pq.CountPages(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("count pages: %w", err)
 		}
-		return []admin.Counter{{Label: "Страниц", Value: n, URL: pages.AdminPath}}, nil
+		np, err := sq.CountPosts(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("count posts: %w", err)
+		}
+		nc, err := cq.CountCategories(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("count categories: %w", err)
+		}
+		return []admin.Counter{
+			{Label: "Страниц", Value: n, URL: pages.AdminPath},
+			{Label: "Постов", Value: np, URL: posts.AdminPath},
+			{Label: "Категорий", Value: nc, URL: categories.AdminPath},
+		}, nil
 	}
 }
 

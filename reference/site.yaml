@@ -1,5 +1,4 @@
 # Спецификация эталонного сайта. Проверка: make spec-validate FILE=reference/site.yaml
-# Дополняется по этапам PLAN.md: posts и categories (этап 9).
 spec_version: 1
 site:
   name: keelkit-reference
@@ -15,3 +14,16 @@ content:
       # Набор блоков — дизайн сайта: поля блоков описаны в internal/blocks, здесь — только имена.
       body:  { type: blocks, allow: [text, image, image_text, quote] }
     features: [draft, sitemap]
+  # Посты блога: черновик-копия, как у pages (feature draft); publish_date — пост виден на сайте с этого момента.
+  posts:
+    fields:
+      title:    { type: string, required: true }
+      slug:     { type: slug, required: true }
+      cover:    { type: image }
+      category: { type: ref, to: categories }
+      body:     { type: blocks, allow: [text, image, image_text, quote] }
+    features: [publish_date, draft, rss, sitemap]
+  categories:
+    fields:
+      name: { type: string, required: true }
+      slug: { type: slug, required: true }

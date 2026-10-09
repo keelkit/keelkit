@@ -55,11 +55,15 @@
 | `DATA_DIR` | `data` | каталог с БД (`site.db`) и загрузками (`uploads/`: оригиналы и варианты изображений) |
 | `BACKUP_DIR` | `backups` | каталог снимков БД перед миграциями |
 | `COOKIE_SECURE` | `true` | флаг `Secure` у cookie админки; `false` — только для разработки по http (`make run`/`make dev` передают `false`) |
+| `TZ` | часовой пояс системы | в нём показываются и вводятся даты публикации постов (в БД — UTC) |
 
 ## Маршруты
 
 - `GET /` — страница со slug `home`; пока её нет — заглушка с названием и описанием сайта.
 - `GET /{slug}` — опубликованная копия страницы из `pages` (`page_contents`, `kind = 'published'`); `/home` → 301 на `/`.
+- Блог: `GET /blog` (лента, `?page=N`, по 10 постов), `GET /blog/{slug}` (пост), `GET /blog/category/{slug}` (лента
+  категории, `?page=N`). Только опубликованные копии с наступившей датой публикации; несуществующая или пустая
+  страница ленты (кроме первой), неверный `?page` — 404. В меню сайта блог — последним пунктом после страниц.
 - `GET /static/…` — файлы из `static/` (embed); ссылки с `?v=<хеш>` кэшируются на год, список каталога не отдаётся.
 - `GET /media/…` — варианты изображений, обработчик модуля `images` (`web.MediaPrefix`); кэш `immutable`, оригиналы
   не отдаются никогда. `GET /media` — 404.
@@ -70,13 +74,16 @@
   `GET /admin/pages/{id}/view` (предпросмотр черновика), `POST /admin/pages/{id}/unpublish` (снять с публикации),
   `GET|POST /admin/pages/{id}/delete` (подтверждение, удалить), `POST /admin/pages/preview?field=<поле>` (htmx: превью Markdown),
   `POST /admin/pages/block?type=<тип>|?id=<id>` (htmx: фрагмент формы нового блока или блока из присланной формы).
+- Раздел постов `/admin/posts` — те же маршруты, что у страниц, и `POST /admin/posts/cover` (htmx: поле обложки с превью).
+- Раздел категорий: `GET /admin/categories` (список), `GET /admin/categories/new`, `POST /admin/categories`,
+  `GET|POST /admin/categories/{id}` (форма), `GET|POST /admin/categories/{id}/delete` (подтверждение, удалить).
 - Медиатека: `GET /admin/media` (загрузка и сетка, `?page=N`), `POST /admin/media` (загрузка), `GET /admin/media/{id}`
   (карточка), `GET|POST /admin/media/{id}/delete` (подтверждение, удалить).
-- Зарезервированные slug — `reservedSlugs` в `cmd/site/server.go` (`admin`, `static`, `media`, `healthz`): их маршруты перекрывают
+- Зарезервированные slug — `reservedSlugs` в `cmd/site/server.go` (`admin`, `static`, `media`, `healthz`, `blog`): их маршруты перекрывают
   страницу, админка такие slug не принимает. Маршрут-поддерево (`/static/`) занимает и путь без слеша (`GET /static` → 404),
   иначе его забрал бы `GET /{slug}`; e2e `TestE2EReservedSlugsShadowPages` проверяет каждый slug из списка.
 - Всё остальное — оформленная 404 (`web.NotFound`).
-- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"site":{"version":5,"pending":0}}}`.
+- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"site":{"version":6,"pending":0}}}`.
 
 ## Бинарник
 
@@ -94,10 +101,15 @@
 - Таблица типа контента: `id INTEGER PRIMARY KEY`, поля из `site.yaml`, `created_at`/`updated_at` (TEXT, UTC RFC 3339), `STRICT`.
   Необязательные текстовые поля — `NOT NULL DEFAULT ''` (без `sql.NullString`), обязательные — `CHECK (поле <> '')`, `slug` — `UNIQUE`.
   Тип с черновиком-копией (образец — `pages`) делится на две таблицы — см. «Черновик-копия».
+- Необязательные поля `image` и `ref` — `NULL` (в Go `sql.NullString`/`sql.NullInt64`): у пустой строки или нуля нет
+  строки, на которую ссылается внешний ключ. Ссылка без `ON DELETE`: используемое изображение или категорию не удалить
+  (образец — `post_contents.cover`, `post_contents.category_id`).
+- Даты (`publish_date`) — `TEXT` в UTC, формат `2006-01-02T15:04:05Z`: такие строки сравниваются в SQL как время
+  (`publish_date <= ?` с текущим временем параметром).
 - Миграция, меняющая живые данные (образец — `00005_page_contents.sql`): старая таблица переименовывается
   в `<type>_legacy` и удаляется только следующей миграцией (двухэтапно); тест на копии реалистичных данных —
   `cmd/site/migrations_test.go` (`migrateTo` доводит БД до версии перед миграцией, затем штатный `migrate`).
-  `pages_legacy` удаляется в следующей версии схемы сайта.
+  `pages_legacy` ещё не удалена (`00006` её не трогает): удалит отдельная миграция `DROP TABLE pages_legacy`.
 - **`queries.sql` — только ASCII**, включая комментарии: sqlc v1.31.1 для SQLite вырезает текст запроса по смещениям
   в байтах, и кириллица в файле обрезает запросы. Русские тексты передаются параметрами. В миграциях кириллица допустима.
 
@@ -123,10 +135,11 @@
 - Seed — 4 изображения из `cmd/site/seeddata/` (копии из `modules/images/testdata`, встроены через embed);
   уже загруженное с тем же именем файла пропускается. `seedImages` возвращает id по имени файла, `seedContent`
   вставляет их в блоки «О проекте» (без изображений — тесты — эти блоки пропускаются).
-- Картинки в контенте — только блоками (`image`, `image_text`) с id изображения; ссылки — в `page_images`
-  (`<type>_images` для других типов), перезаписываются в той же транзакции, что и копия. Медиатека не знает о типах
+- Картинки в контенте — только блоками (`image`, `image_text`) с id изображения и полями `image` (обложка поста);
+  ссылки — в `page_images` (`<type>_images` для других типов, у постов — и обложка), перезаписываются в той же
+  транзакции, что и копия. Медиатека не знает о типах
   контента: «где используется» ей передаёт `imageUsage` в `cmd/site/server.go` (`media.UsageFunc`) — новый тип
-  со ссылками на изображения добавляет туда свой запрос. Используемое изображение: на карточке — список страниц,
+  со ссылками на изображения добавляет туда свой запрос (страницы, затем посты). Используемое изображение: на карточке — список страниц и постов,
   подтверждение удаления и `POST` — 409 со списком.
 
 ## Шаблоны и HTML
@@ -175,12 +188,15 @@
 
 ## Тип контента
 
-Один тип — один пакет `internal/content/<type>/` (пример — `pages`):
+Один тип — один пакет `internal/content/<type>/` (образцы — `pages`; `posts` — то же с обложкой, категорией и датой
+публикации; `categories` — справочник без черновика):
 `queries.sql` + код sqlc, `handlers.go` (`Handler`, `NewHandler(db, images)`, публичные хендлеры), `views.templ`,
 `admin.go` (`Admin`, `NewAdmin(db, media, mediaURL, reserved)`, `AdminPath`, `EditPath`, хендлеры раздела админки,
 `SeedPublished` для seed), `admin.templ`. Поле `blocks` — через `internal/blocks/` (см. «Блоки»).
 Миграция — в `db/migrations/`, маршруты — в `newMux`, dev-данные — в `cmd/site/seed.go`, запись sqlc — в `sqlc.yaml`,
 счётчик дашборда — в `adminCounters`, пункт меню — в `admin.Options.Sections`.
+Seed блога (`seedBlog`): 3 категории, 13 опубликованных постов (`post-01`…`post-13`, даты — дни назад от запуска,
+обложки у каждого третьего), черновик `draft-post` и `future-post` с датой через 30 дней.
 
 Раздел админки (образец — `pages/admin.go`):
 - Маршруты — `signedIn(...)`: сессия и CSRF уже проверены. Список, `new`, создание `POST /admin/<type>`,
@@ -199,6 +215,15 @@
   (`database.IsUniqueViolation`), без предварительного `SELECT`: так не проходит и гонка двух запросов.
 - slug — `internal/slug`: пустой составляется из заголовка (`slug.Make`, транслитерация кириллицы своей таблицей),
   введённый вручную приводится к тому же виду; затем проверка `reservedSlugs` и уникальности.
+- Поле `image` (обложка поста): `select` из медиатеки (последние `libraryLimit` и выбранное) и превью; смена выбора
+  через htmx перерисовывает только поле (`POST …/cover`, `hx-params` — только это поле). Выбранного изображения нет
+  в медиатеке — ошибка у поля.
+- Поле `ref` (категория поста): `select` с вариантом «— без категории —»; варианты — запрос в пакете типа
+  (`ListCategoryOptions`), а не импорт пакета другого типа. Несуществующий id — ошибка у поля, не число — 400.
+- Справочник без черновика (образец — `categories`): форма «Сохранить» и «Отмена», правки сразу на сайте;
+  удаление через подтверждение, используемую запись — 409 со списком (запрос и ошибка внешнего ключа).
+  Публичную страницу справочника отдаёт тип, который на него ссылается (лента категории — пакет `posts`),
+  поэтому адреса для админки категорий передаёт `newMux` (`categories.NewAdmin(db, posts.CategoryPath, posts.EditPath)`).
 - Поле `richtext` (и Markdown в блоках): textarea + превью (`hx-post` на `…/preview?field=<имя>`, `hx-params` — только это поле,
   `hx-trigger="input changed delay:400ms"`, `hx-sync="this:replace"`); превью при открытии формы рисует сервер,
   ответ превью — тот же `richtext.Render`.
@@ -218,6 +243,10 @@
   (черновик отличается от опубликованной: сравниваются колонки, блоки — строкой JSON, `blocks.Marshal` детерминирован).
 - Предпросмотр `/{id}/view` — черновик в публичном шаблоне с плашкой `.draft-banner`; «Открыть на сайте» — по
   опубликованному slug.
+- Feature `publish_date` (образец — `posts`): дата — часть копии. Поле `datetime-local` в часовом поясе сервера;
+  пустое — «в момент публикации»: «Опубликовать» ставит текущее время (до минуты, как в поле) в черновик и копию.
+  Опубликованная копия с датой в будущем на сайте не видна до этой даты; статус — «Запланирован на …», ссылки
+  «Открыть на сайте» нет. Лента — по дате публикации, новые сверху.
 
 ### Блоки (`internal/blocks/`)
 
@@ -237,7 +266,8 @@
   обычных полей. Изображения загружает `blocks.Resolve` (интерфейс `blocks.Images` — `Get` модуля).
 - `blocks.ImageIDs` — для `<type>_images` (скрытые блоки тоже держат изображение), `blocks.PlainText` и `blocks.Summary` —
   текст для описания страницы (`web.LayoutMeta`), позже RSS и поиска.
-- Список блоков поля — в коде типа (`pages.BodyBlocks`); `TestSpecBlocksMatchCode` сверяет его с `allow` в `site.yaml`.
+- Список блоков поля — в коде типа (`pages.BodyBlocks`, `posts.BodyBlocks`); `TestSpecBlocksMatchCode` сверяет каждое
+  поле `blocks` из `site.yaml` со списком своего типа (новое поле `blocks` — запись в карте `code` теста).
 
 Как добавить тип блока: запись в `blocks.Kinds`; структура с JSON-тегами и методами `Content` в `types.go`
 (`readForm`, `check` — нормализация и ошибки, `view`, `form`, `imageIDs`, `plainText`); templ-вывод в `view.templ`
@@ -260,12 +290,14 @@
 - e2e медиатеки — `cmd/site/e2e_media_admin_test.go`: seed, загрузка (htmx и форма), каждая ошибка проверки файла,
   тело сверх лимита, карточка, удаление, 409 для используемого изображения, постраничный вывод.
 - e2e раздела типа контента — `cmd/site/e2e_<type>_admin_test.go` (образец — `pages`): `newPageAdmin` (сайт + вошедший клиент),
-  `form` (поля формы так, как их отправит браузер — `formValues`), `submit(path, form, action, header)`, `addBlock`,
+  `form` (поля формы так, как их отправит браузер — `formValues`; другая форма — `formByID`), `submit(path, form, action, header)`, `addBlock`,
   заголовки `htmx`; каждая ошибка валидации проверяется и без `HX-Request` (страница), и с ним (фрагмент).
+- e2e блога — `cmd/site/e2e_blog_test.go` (лента, страницы, категория, пост, скрытые черновик и будущий пост) и
+  `cmd/site/e2e_posts_admin_test.go` (посты и категории в админке; хелперы `createPost`, `postForm`, `newPostForm`).
 - `TestSpecBlocksMatchCode` (`cmd/site/spec_test.go`) — блоки из `allow` в `site.yaml` есть в коде и совпадают со списком типа.
 - Браузерные тесты — `cmd/site/browser_test.go` (`//go:build browser`, `TestBrowser*`, chromedp, headless Chrome):
   только критичные htmx-взаимодействия — превью при наборе, сохранение через `HX-Redirect`, подмена формы с ошибкой
-  без перезагрузки, «Добавить блок», «↑», «Скрыть» и выбор изображения у блока, загрузка файла (`hx-encoding="multipart/form-data"`).
+  без перезагрузки, «Добавить блок», «↑», «Скрыть» и выбор изображения у блока, выбор обложки поста, загрузка файла (`hx-encoding="multipart/form-data"`).
   После каждого htmx-действия — `htmxSettled()`: обработчики на новый фрагмент htmx навешивает после фазы settle,
   и клик chromedp раньше этого ушёл бы обычной отправкой формы. Запуск — `make e2e-browser`; `make test` их не собирает, линтер — собирает (`build-tags` в `.golangci.yml`).
 
@@ -286,6 +318,8 @@ cmd/site/e2e_test.go        # e2e (TestE2E*)
 cmd/site/e2e_admin_test.go  # e2e админки
 cmd/site/e2e_pages_admin_test.go  # e2e раздела «Страницы»
 cmd/site/e2e_media_admin_test.go  # e2e медиатеки
+cmd/site/e2e_blog_test.go         # e2e блога на сайте
+cmd/site/e2e_posts_admin_test.go  # e2e разделов «Посты» и «Категории»
 cmd/site/migrations_test.go # миграции, меняющие данные, на копии реалистичных данных
 cmd/site/spec_test.go       # site.yaml ↔ код (блоки)
 cmd/site/images_test.go     # контрактные тесты модуля images (testkit)
@@ -294,6 +328,8 @@ db/migrations/              # миграции сайта (goose) + embed.go
 internal/admin/             # админка: вход, сессии, CSRF, ограничение попыток, оболочка, дашборд
 internal/blocks/            # поля blocks: типы блоков, JSON, форма, вывод на сайте
 internal/content/pages/     # тип контента pages: queries.sql, sqlc, handlers.go, views.templ, admin.go, admin.templ
+internal/content/posts/     # посты: то же + dates.go (дата публикации); лента категории — тоже здесь
+internal/content/categories/ # категории: queries.sql, sqlc, admin.go, admin.templ (без публичных шаблонов)
 internal/database/          # открытие SQLite, статус схем, снимок, применение миграций
 internal/media/             # медиатека в админке (модуль images)
 internal/richtext/          # Markdown → очищенный HTML

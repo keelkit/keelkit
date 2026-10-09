@@ -1,0 +1,102 @@
+package posts
+
+import (
+	"strconv"
+
+	"github.com/voffkin/keelkit/reference/internal/blocks"
+	"github.com/voffkin/keelkit/reference/internal/web"
+)
+
+// Ширина обложки в вёрстке (sizes): в посте — во всю колонку текста, в ленте — превью сбоку (на узком экране — во всю ширину).
+const (
+	sizesCover = "(min-width: 46rem) 44rem, calc(100vw - 2rem)"
+	sizesCard  = "(min-width: 40rem) 12rem, calc(100vw - 2rem)"
+)
+
+// ListPage — лента блога или категории.
+templ ListPage(v listView) {
+	@web.Layout(listTitle(v)) {
+		<section class="blog">
+			if v.Category != "" {
+				<p class="breadcrumbs"><a href={ templ.SafeURL(BlogPath) }>Блог</a></p>
+			}
+			<h1>{ v.Title }</h1>
+			if len(v.Cards) == 0 {
+				<p>Постов пока нет.</p>
+			} else {
+				<ul class="post-list">
+					for _, c := range v.Cards {
+						<li class="post-card">
+							if c.Cover != nil {
+								<a class="post-card-cover" href={ templ.SafeURL(PublicPath(c.Slug)) } tabindex="-1" aria-hidden="true">
+									@web.Picture(c.Cover, "", sizesCard)
+								</a>
+							}
+							<div class="post-card-body">
+								<h2><a href={ templ.SafeURL(PublicPath(c.Slug)) }>{ c.Title }</a></h2>
+								@meta(c.entry)
+								if c.Summary != "" {
+									<p>{ c.Summary }</p>
+								}
+							</div>
+						</li>
+					}
+				</ul>
+			}
+			if v.Page > 1 || v.HasNext {
+				<nav class="pagination" aria-label="Страницы блога">
+					if v.Page > 1 {
+						<a href={ templ.SafeURL(pagePath(v.Path, v.Page-1)) } rel="prev">← Новее</a>
+					}
+					<span>Страница { strconv.Itoa(v.Page) }</span>
+					if v.HasNext {
+						<a href={ templ.SafeURL(pagePath(v.Path, v.Page+1)) } rel="next">Старше →</a>
+					}
+				</nav>
+			}
+		</section>
+	}
+}
+
+// meta — дата публикации и категория поста.
+templ meta(e entry) {
+	<p class="post-meta">
+		if e.PublishDate != "" {
+			<time datetime={ isoDate(e.PublishDate) }>{ humanDate(e.PublishDate) }</time>
+		}
+		if e.CategorySlug != "" {
+			<a href={ templ.SafeURL(CategoryPath(e.CategorySlug)) }>{ e.CategoryName }</a>
+		}
+	</p>
+}
+
+// View — страница поста. Обложка декоративная (alt пуст): рядом заголовок поста. Описание — начало текста блоков.
+// Предпросмотр черновика видит только админка — с плашкой и ссылкой в редактор.
+templ View(p viewData) {
+	@web.LayoutMeta(p.Title, blocks.Summary(p.List, descriptionLen)) {
+		if p.Preview {
+			<p class="draft-banner" role="status">
+				Предпросмотр черновика: так пост будет выглядеть после публикации.
+				<a href={ templ.SafeURL(EditPath(p.PostID)) }>Вернуться к редактированию</a>
+			</p>
+		}
+		<article class="page post">
+			<p class="breadcrumbs"><a href={ templ.SafeURL(BlogPath) }>Блог</a></p>
+			<h1>{ p.Title }</h1>
+			@meta(p.entry)
+			if p.Cover != nil {
+				<div class="post-cover">
+					@web.Picture(p.Cover, "", sizesCover)
+				</div>
+			}
+			@blocks.View(p.List, p.Resolved)
+		</article>
+	}
+}
+
+func listTitle(v listView) string {
+	if v.Page > 1 {
+		return v.Title + " — страница " + strconv.Itoa(v.Page)
+	}
+	return v.Title
+}

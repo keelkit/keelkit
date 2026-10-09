@@ -20,6 +20,22 @@ sql:
         omit_unused_structs: true
   - engine: sqlite
     schema: db/migrations
+    queries: internal/content/categories/queries.sql
+    gen:
+      go:
+        package: categories
+        out: internal/content/categories
+        omit_unused_structs: true
+  - engine: sqlite
+    schema: db/migrations
+    queries: internal/content/posts/queries.sql
+    gen:
+      go:
+        package: posts
+        out: internal/content/posts
+        omit_unused_structs: true
+  - engine: sqlite
+    schema: db/migrations
     queries: internal/admin/queries.sql
     gen:
       go:

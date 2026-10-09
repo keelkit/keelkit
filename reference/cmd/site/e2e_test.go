@@ -84,13 +84,13 @@ func TestE2EHome(t *testing.T) {
 	if got := text(doc.Find("main h1")); got != "Добро пожаловать" {
 		t.Errorf("h1 = %q", got)
 	}
-	// Меню — все страницы, кроме главной, в порядке создания.
+	// Меню — все страницы, кроме главной, в порядке создания, затем блог.
 	var nav []string
 	doc.Find(".site-nav a").Each(func(_ int, a *goquery.Selection) {
 		href, _ := a.Attr("href")
 		nav = append(nav, text(a)+" "+href)
 	})
-	if got, want := strings.Join(nav, ", "), "О проекте /about, Контакты /contacts"; got != want {
+	if got, want := strings.Join(nav, ", "), "О проекте /about, Контакты /contacts, Блог /blog"; got != want {
 		t.Errorf("nav = %q, want %q", got, want)
 	}
 
@@ -116,8 +116,9 @@ func TestE2EHomeWithoutContent(t *testing.T) {
 	if got := text(doc.Find("main h1")); got != defaultSiteName {
 		t.Errorf("h1 = %q, want %q", got, defaultSiteName)
 	}
-	if doc.Find(".site-nav").Length() != 0 {
-		t.Error("nav is shown without pages")
+	// Без страниц в меню только блог.
+	if got := text(doc.Find(".site-nav")); got != "Блог" {
+		t.Errorf("nav = %q, want only «Блог»", got)
 	}
 }
 

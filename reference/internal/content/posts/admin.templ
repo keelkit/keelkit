@@ -1,0 +1,307 @@
+package posts
+
+import (
+	"strconv"
+
+	"github.com/voffkin/keelkit/modules/images"
+
+	"github.com/voffkin/keelkit/reference/internal/admin"
+	"github.com/voffkin/keelkit/reference/internal/blocks"
+	"github.com/voffkin/keelkit/reference/internal/web"
+)
+
+// ListAdminPage — список постов в админке, новые сверху.
+templ ListAdminPage(list []ListPostsRow, deleted bool) {
+	@admin.Layout("Посты") {
+		<div class="admin-title">
+			<h1>Посты</h1>
+			<a class="button" href={ templ.SafeURL(AdminPath + "/new") }>Создать пост</a>
+		</div>
+		if deleted {
+			<p class="flash" role="status">Пост удалён.</p>
+		}
+		if len(list) == 0 {
+			<p>Постов пока нет.</p>
+		} else {
+			<div class="table-wrap">
+				<table class="admin-table">
+					<thead>
+						<tr>
+							<th>Заголовок</th>
+							<th>Категория</th>
+							<th>Дата публикации</th>
+							<th>Статус</th>
+							<th>Обновлён</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, p := range list {
+							<tr>
+								<td><a href={ templ.SafeURL(EditPath(p.ID)) }>{ p.Title }</a></td>
+								<td>{ p.CategoryName }</td>
+								<td>{ adminDate(p.PublishDate) }</td>
+								<td>
+									@status(p.PublishedSlug != "", p.Changed != 0, p.PublishedDate)
+								</td>
+								<td>{ formatTime(p.UpdatedAt) }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	}
+}
+
+// status — статус поста: черновик, запланирован, опубликован, есть неопубликованные изменения.
+templ status(published, changed bool, publishedDate string) {
+	switch {
+		case !published:
+			<span class="status status-draft">Черновик</span>
+		case changed:
+			<span class="status status-changed">Есть неопубликованные изменения</span>
+		case scheduled(publishedDate):
+			<span class="status status-scheduled">Запланирован на { adminDate(publishedDate) }</span>
+		default:
+			<span class="status">Опубликован</span>
+	}
+}
+
+// FormPage — страница создания или редактирования поста.
+templ FormPage(f postForm) {
+	@admin.Layout(formTitle(f)) {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Посты</a></p>
+		<div class="admin-title">
+			<h1>{ formTitle(f) }</h1>
+			if f.ID != 0 {
+				@status(f.Published, f.Changed, f.PublishedDate)
+				<a href={ templ.SafeURL(viewPath(f.ID)) }>Предпросмотр черновика</a>
+				if f.Published && !scheduled(f.PublishedDate) {
+					<a href={ templ.SafeURL(PublicPath(f.PublishedSlug)) }>Открыть на сайте</a>
+				}
+			}
+		</div>
+		if f.Flash != "" {
+			<p class="flash" role="status">{ f.Flash }</p>
+		}
+		@Form(f)
+		if f.ID != 0 {
+			<div class="danger-zone">
+				if f.Published {
+					<form method="post" action={ templ.SafeURL(EditPath(f.ID) + "/unpublish") } class="form-actions">
+						@admin.CSRFInput()
+						<button type="submit" class="secondary">Снять с публикации</button>
+						<span class="field-hint">Пост пропадёт с сайта; черновик останется здесь.</span>
+					</form>
+					<p class="field-hint">{ deleteHint }</p>
+				} else {
+					<p><a class="danger-link" href={ templ.SafeURL(EditPath(f.ID) + "/delete") }>Удалить пост</a></p>
+				}
+			</div>
+		}
+	}
+}
+
+// Form — форма поста; устроена как форма страницы (pages.Form): обычный POST и htmx, кнопка — поле action.
+templ Form(f postForm) {
+	<form
+		id="post-form"
+		class="form page-form"
+		method="post"
+		action={ templ.SafeURL(formAction(f)) }
+		hx-post={ formAction(f) }
+		hx-target="this"
+		hx-swap="outerHTML"
+	>
+		@admin.CSRFInput()
+		// Enter в поле нажимает первую кнопку формы: пусть это будет «Сохранить», а не «↑» первого блока.
+		<button type="submit" name="action" value="save" class="visually-hidden" tabindex="-1" aria-hidden="true">Сохранить</button>
+		if len(f.Errors) > 0 {
+			<p class="form-error" role="alert">Исправьте ошибки в форме.</p>
+		}
+		if f.Unsaved {
+			<p class="flash flash-warning" role="status">Изменения ещё не сохранены: нажмите «Сохранить» или «Опубликовать».</p>
+		}
+		<label>
+			Заголовок
+			<input
+				type="text"
+				name="title"
+				value={ f.Title }
+				required
+				maxlength="200"
+				if f.Errors["title"] != "" {
+					aria-invalid="true"
+					aria-describedby="title-error"
+				}
+			/>
+			@fieldError(f, "title")
+		</label>
+		<label>
+			Slug
+			<input
+				type="text"
+				name="slug"
+				value={ f.Slug }
+				placeholder="составится из заголовка"
+				if f.Errors["slug"] != "" {
+					aria-invalid="true"
+					aria-describedby="slug-hint slug-error"
+				} else {
+					aria-describedby="slug-hint"
+				}
+			/>
+			<span class="field-hint" id="slug-hint">Адрес поста: /blog/slug — латиница, цифры и дефисы. Пусто — составится из заголовка. Новый адрес появится на сайте после публикации.</span>
+			@fieldError(f, "slug")
+		</label>
+		<label>
+			Категория
+			<select
+				name="category"
+				if f.Errors["category"] != "" {
+					aria-invalid="true"
+					aria-describedby="category-error"
+				}
+			>
+				<option value="">— без категории —</option>
+				for _, c := range f.Categories {
+					<option value={ strconv.FormatInt(c.ID, 10) } selected?={ c.ID == f.CategoryID }>{ c.Name }</option>
+				}
+			</select>
+			@fieldError(f, "category")
+		</label>
+		<label>
+			Дата публикации
+			<input
+				type="datetime-local"
+				name="publish_date"
+				value={ f.PublishDate }
+				if f.Errors["publish_date"] != "" {
+					aria-invalid="true"
+					aria-describedby="publish-date-hint publish_date-error"
+				} else {
+					aria-describedby="publish-date-hint"
+				}
+			/>
+			<span class="field-hint" id="publish-date-hint">Пусто — дата появится в момент публикации. Дата в будущем — пост появится на сайте в это время.</span>
+			@fieldError(f, "publish_date")
+		</label>
+		@coverField(f)
+		@blocks.Editor(f.Blocks, f.Env)
+		<div class="form-actions">
+			<button type="submit" name="action" value="save">Сохранить</button>
+			<button type="submit" name="action" value="publish" class="secondary">Опубликовать</button>
+			<a href={ templ.SafeURL(AdminPath) }>Отмена</a>
+		</div>
+		<span class="field-hint">«Сохранить» — сохранить черновик, на сайте ничего не изменится. «Опубликовать» — сохранить и показать на сайте.</span>
+	</form>
+}
+
+// coverField — выбор обложки из медиатеки (и ответ на POST /admin/posts/cover). Смена выбора через htmx
+// перерисовывает поле: появляется превью. Без JavaScript превью обновится после отправки формы.
+templ coverField(f postForm) {
+	<div class="block-image-pick" id="cover-field">
+		<div class="block-thumb">
+			if img := f.Env.Resolved[f.Cover]; img != nil {
+				@web.Picture(img, "", "8rem")
+			} else {
+				<span class="muted">Без обложки</span>
+			}
+		</div>
+		<label>
+			Обложка
+			<select
+				name="cover"
+				hx-post={ AdminPath + "/cover" }
+				hx-params="cover"
+				hx-trigger="change"
+				hx-target="#cover-field"
+				hx-swap="outerHTML"
+				if f.Errors["cover"] != "" {
+					aria-invalid="true"
+					aria-describedby="cover-hint cover-error"
+				} else {
+					aria-describedby="cover-hint"
+				}
+			>
+				<option value="">— без обложки —</option>
+				for _, img := range coverOptions(f) {
+					<option value={ img.ID } selected?={ img.ID == f.Cover }>{ optionLabel(img) }</option>
+				}
+			</select>
+			<span class="field-hint" id="cover-hint">
+				Необязательно: картинка над постом и в ленте блога. Новое изображение сначала загрузите в <a href={ templ.SafeURL(f.Env.MediaURL) } target="_blank">медиатеку</a>.
+			</span>
+			@fieldError(f, "cover")
+		</label>
+	</div>
+}
+
+templ fieldError(f postForm, field string) {
+	if msg := f.Errors[field]; msg != "" {
+		<span class="field-error" id={ field + "-error" }>{ msg }</span>
+	}
+}
+
+// DeletePage — подтверждение удаления.
+templ DeletePage(f postForm) {
+	@admin.Layout("Удаление поста") {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Посты</a></p>
+		<h1>Удалить пост «{ f.Title }»?</h1>
+		<p>Пост не опубликован, но его черновик пропадёт и из админки. Отменить удаление нельзя.</p>
+		<form method="post" action={ templ.SafeURL(EditPath(f.ID) + "/delete") } class="form-actions">
+			@admin.CSRFInput()
+			<button type="submit" class="danger">Удалить</button>
+			<a href={ templ.SafeURL(EditPath(f.ID)) }>Отмена</a>
+		</form>
+	}
+}
+
+// BlockedPage — опубликованный пост нельзя удалить сразу (409).
+templ BlockedPage(f postForm) {
+	@admin.Layout("Действие недоступно") {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Посты</a></p>
+		<h1>Пост «{ f.Title }» опубликован</h1>
+		<p>{ deleteHint }</p>
+		<p><a href={ templ.SafeURL(EditPath(f.ID)) }>Вернуться к редактированию</a></p>
+	}
+}
+
+// deleteHint — почему опубликованный пост нельзя удалить сразу.
+const deleteHint = "Удалить можно только неопубликованный пост: сначала снимите его с публикации."
+
+func formTitle(f postForm) string {
+	if f.ID == 0 {
+		return "Новый пост"
+	}
+	return "Редактирование поста"
+}
+
+func formAction(f postForm) string {
+	if f.ID == 0 {
+		return AdminPath
+	}
+	return EditPath(f.ID)
+}
+
+// coverOptions — изображения для выбора обложки: Library и выбранное, если его там нет (загружено давно).
+func coverOptions(f postForm) []*images.Image {
+	img := f.Env.Resolved[f.Cover]
+	if img == nil {
+		return f.Env.Library
+	}
+	for _, l := range f.Env.Library {
+		if l.ID == img.ID {
+			return f.Env.Library
+		}
+	}
+	return append([]*images.Image{img}, f.Env.Library...)
+}
+
+func optionLabel(img *images.Image) string {
+	name := img.Name
+	if name == "" {
+		name = img.ID
+	}
+	return name + " · " + strconv.Itoa(img.Width) + "×" + strconv.Itoa(img.Height)
+}
