@@ -17,7 +17,7 @@ BUILD_TAGS = nodynamic
 export GOFLAGS = -tags=$(BUILD_TAGS)
 
 # Адрес HTTP-сервера, каталог данных (БД, загрузки) и каталог снимков БД.
-ADDR ?= :8080
+ADDR ?= :9090
 DATA_DIR ?= data
 BACKUP_DIR ?= backups
 # Флаг Secure у cookie админки. make run/dev — локальная разработка по http, поэтому false;
@@ -52,7 +52,7 @@ SITE = ADDR=$(ADDR) DATA_DIR=$(DATA_DIR) BACKUP_DIR=$(BACKUP_DIR) COOKIE_SECURE=
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
-run: ## Запустить сайт (откажется при непримененных миграциях). Пример: make run ADDR=:9090 DATA_DIR=/tmp/site
+run: ## Запустить сайт (откажется при непримененных миграциях). Пример: make run ADDR=:9091 DATA_DIR=/tmp/site
 	$(SITE) serve
 
 dev: migrate seed ## Для разработки: миграции, seed и запуск

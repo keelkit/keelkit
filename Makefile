@@ -94,7 +94,7 @@ spec-validate: ## Проверить спецификацию сайта. При
 images-demo: ## Обработать изображения модулем images и построить отчёт modules/images/demo-out/index.html. Пример: make images-demo IN=~/Pictures/photo.jpg
 	@cd modules/images && go run ./internal/cmd/images-demo -in "$(abspath $(IN))" -out demo-out
 
-run: ## Запустить эталонный сайт на http://localhost:8080 (нужен make migrate). Пример: make run ADDR=:9090
+run: ## Запустить эталонный сайт на http://localhost:9090 (нужен make migrate). Пример: make run ADDR=:9091
 	@$(MAKE) -C reference run
 
 dev: ## Эталонный сайт для разработки: миграции, seed и запуск

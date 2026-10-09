@@ -152,7 +152,7 @@ func seedPages(imgs map[string]string) []seedPage {
 
 ` + "```sh" + `
 make reset && make dev
-open http://localhost:8080/
+open http://localhost:9090/
 ` + "```" + `
 
 Прозрачность сохраняется в WebP; в JPEG фон белый.`,
