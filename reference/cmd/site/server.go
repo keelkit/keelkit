@@ -35,9 +35,9 @@ var reservedSlugs = []string{"admin", "static", "media", "healthz"}
 // Изображения (images.Service) отдаются под web.MediaPrefix обработчиком модуля.
 func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 	html := web.WithSite(siteLoader(db))
-	pagesH := pages.NewHandler(db)
-	pagesAdmin := pages.NewAdmin(db, reservedSlugs)
-	mediaAdmin := media.NewAdmin(imgs)
+	pagesH := pages.NewHandler(db, imgs)
+	pagesAdmin := pages.NewAdmin(db, imgs, media.AdminPath, reservedSlugs)
+	mediaAdmin := media.NewAdmin(imgs, imageUsage(db))
 	adminH := admin.NewHandler(db, admin.Options{
 		SecureCookies: cfg.CookieSecure,
 		Counters:      adminCounters(db),
@@ -70,9 +70,11 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 	mux.Handle("GET /admin/pages/new", signedIn(pagesAdmin.New))
 	mux.Handle("POST /admin/pages", signedIn(pagesAdmin.Create))
 	mux.Handle("POST /admin/pages/preview", signedIn(pagesAdmin.Preview))
+	mux.Handle("POST /admin/pages/block", signedIn(pagesAdmin.Block))
 	mux.Handle("GET /admin/pages/{id}", signedIn(pagesAdmin.Edit))
 	mux.Handle("POST /admin/pages/{id}", signedIn(pagesAdmin.Update))
 	mux.Handle("GET /admin/pages/{id}/view", signedIn(pagesAdmin.View))
+	mux.Handle("POST /admin/pages/{id}/unpublish", signedIn(pagesAdmin.Unpublish))
 	mux.Handle("GET /admin/pages/{id}/delete", signedIn(pagesAdmin.ConfirmDelete))
 	mux.Handle("POST /admin/pages/{id}/delete", signedIn(pagesAdmin.Delete))
 	mux.Handle("GET /admin/media", signedIn(mediaAdmin.List))
@@ -119,6 +121,23 @@ func siteLoader(db *sql.DB) func(context.Context) (web.Site, error) {
 			site.Nav = append(site.Nav, web.Link{Title: l.Title, URL: "/" + url.PathEscape(l.Slug)})
 		}
 		return site, nil
+	}
+}
+
+// imageUsage — где используется изображение (медиатека показывает список и не даёт удалить используемое).
+// Новый тип контента со ссылками на изображения добавляет сюда свой запрос.
+func imageUsage(db *sql.DB) media.UsageFunc {
+	pq := pages.New(db)
+	return func(ctx context.Context, imageID string) ([]media.Usage, error) {
+		rows, err := pq.PagesUsingImage(ctx, imageID)
+		if err != nil {
+			return nil, fmt.Errorf("pages using image: %w", err)
+		}
+		used := make([]media.Usage, 0, len(rows))
+		for _, p := range rows {
+			used = append(used, media.Usage{Title: "Страница «" + p.Title + "»", URL: pages.EditPath(p.ID)})
+		}
+		return used, nil
 	}
 }
 

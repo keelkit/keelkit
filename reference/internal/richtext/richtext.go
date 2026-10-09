@@ -7,8 +7,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"html"
 	"io"
 	"regexp"
+	"strings"
 
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/yuin/goldmark"
@@ -47,4 +49,21 @@ func Render(src string) (HTML, error) {
 		return "", fmt.Errorf("render markdown: %w", err)
 	}
 	return HTML(policy.SanitizeBytes(buf.Bytes())), nil
+}
+
+// strict убирает все теги: для PlainText.
+var strict = bluemonday.StrictPolicy()
+
+var blockEnd = regexp.MustCompile(`</(p|h[1-6]|li|blockquote|pre|td|th)>|<br\s*/?>|<hr\s*/?>`)
+
+// PlainText — текст Markdown без разметки: для описания страницы, RSS и поиска. Абзацы и строки
+// схлопываются в одну строку с одиночными пробелами.
+func PlainText(src string) string {
+	var buf bytes.Buffer
+	if err := markdown.Convert([]byte(src), &buf); err != nil {
+		return strings.Join(strings.Fields(src), " ")
+	}
+	// После блочных элементов — пробел, иначе слова соседних абзацев склеятся.
+	spaced := blockEnd.ReplaceAllString(buf.String(), "$0 ")
+	return strings.Join(strings.Fields(html.UnescapeString(strict.Sanitize(spaced))), " ")
 }

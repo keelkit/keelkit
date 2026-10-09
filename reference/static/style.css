@@ -594,6 +594,235 @@ button.danger:hover {
   align-items: center;
 }
 
+/* Блоки на сайте (internal/blocks/view.templ): друг под другом в колонке текста. */
+.block {
+  margin: 0 0 1.5rem;
+}
+
+.block > :last-child,
+.block-image-text-body > :last-child {
+  margin-bottom: 0;
+}
+
+figure.block {
+  margin-inline: 0;
+}
+
+.block-image img {
+  display: block;
+  border-radius: var(--radius);
+}
+
+.block figcaption {
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* Изображение с текстом: рядом на широком экране (картинка слева или справа), друг под другом на узком. */
+.block-image-text {
+  display: grid;
+  gap: 1rem 1.5rem;
+  align-items: start;
+}
+
+.block-image-text-media img {
+  display: block;
+  border-radius: var(--radius);
+}
+
+@media (min-width: 40rem) {
+  .block-image-text {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .block-image-right .block-image-text-media {
+    order: 2;
+  }
+}
+
+.block-quote blockquote {
+  margin: 0;
+  font-size: 1.15rem;
+  white-space: pre-line;
+}
+
+.block-quote blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+.block-quote figcaption::before {
+  content: "— ";
+}
+
+/* Блоки в админке (internal/blocks/form.templ). */
+.blocks-editor {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.blocks-editor > legend {
+  padding: 0;
+  font-weight: 600;
+}
+
+.blocks {
+  display: grid;
+  gap: 1rem;
+}
+
+.block-form {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.block-form.block-hidden {
+  border-style: dashed;
+  opacity: 0.75;
+}
+
+.block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+}
+
+.block-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.block-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin-left: auto;
+}
+
+.form .link-button {
+  padding: 0;
+  background: none;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.form .link-button:hover {
+  background: none;
+  color: var(--text);
+}
+
+.form .link-button.danger-link {
+  color: #b42318;
+}
+
+.block-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+button.secondary,
+.form button.secondary {
+  padding: 0.45rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.secondary:hover,
+.form button.secondary:hover {
+  background: var(--surface);
+}
+
+.block-image-pick {
+  display: grid;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (min-width: 40rem) {
+  .block-image-pick {
+    grid-template-columns: 8rem 1fr;
+  }
+}
+
+.block-thumb {
+  display: grid;
+  place-items: center;
+  min-height: 5rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+}
+
+.block-thumb img {
+  display: block;
+  border-radius: var(--radius);
+}
+
+.form select {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-weight: 400;
+}
+
+.block-position {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.block-position legend {
+  float: left;
+  padding: 0;
+  font-weight: 600;
+}
+
+.block-form textarea {
+  min-height: 12rem;
+}
+
+.block-form textarea.short {
+  min-height: 6rem;
+  font-family: var(--font);
+}
+
+.flash-warning {
+  border-color: #b54708;
+}
+
+.status-changed {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid #b54708;
+  border-radius: var(--radius);
+  color: #b54708;
+  font-size: 0.875rem;
+}
+
+.usage-list {
+  padding-left: 1.25rem;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -611,5 +840,15 @@ button.danger:hover {
 
   .form [aria-invalid="true"] {
     border-color: #f97066;
+  }
+
+  .form .link-button.danger-link {
+    color: #f97066;
+  }
+
+  .flash-warning,
+  .status-changed {
+    border-color: #fdb022;
+    color: #fdb022;
   }
 }

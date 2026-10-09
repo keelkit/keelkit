@@ -3,6 +3,7 @@
 package media
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -33,11 +34,22 @@ const (
 
 // Admin — раздел «Медиатека». Маршруты оборачиваются в admin.RequireUser: сессия и CSRF-токен уже проверены.
 type Admin struct {
-	svc *images.Service
+	svc   *images.Service
+	usage UsageFunc
 }
 
-// NewAdmin создаёт раздел над сервисом изображений сайта.
-func NewAdmin(svc *images.Service) *Admin { return &Admin{svc: svc} }
+// Usage — где используется изображение: запись контента и ссылка на неё в админке.
+type Usage struct {
+	Title string
+	URL   string
+}
+
+// UsageFunc — контент сайта, который ссылается на изображение. Пакет не знает о типах контента:
+// функцию собирает cmd/site (imageUsage).
+type UsageFunc func(ctx context.Context, imageID string) ([]Usage, error)
+
+// NewAdmin создаёт раздел над сервисом изображений сайта; usage — где используется изображение.
+func NewAdmin(svc *images.Service, usage UsageFunc) *Admin { return &Admin{svc: svc, usage: usage} }
 
 // uploadForm — состояние формы загрузки: сообщение об ошибке или пусто.
 type uploadForm struct {
@@ -138,18 +150,37 @@ func uploadError(err error) string {
 	return ""
 }
 
-// Show — GET /admin/media/{id}: изображение, его данные и варианты.
+// Show — GET /admin/media/{id}: изображение, его данные, варианты и где оно используется.
 func (a *Admin) Show(w http.ResponseWriter, r *http.Request) {
-	if img, ok := a.image(w, r); ok {
-		web.Render(w, r, http.StatusOK, ShowPage(img))
+	img, ok := a.image(w, r)
+	if !ok {
+		return
 	}
+	used, err := a.usage(r.Context(), img.ID)
+	if err != nil {
+		admin.ServerError(w, r, err)
+		return
+	}
+	web.Render(w, r, http.StatusOK, ShowPage(img, used))
 }
 
 // ConfirmDelete — GET /admin/media/{id}/delete: подтверждение удаления (без JavaScript).
+// Используемое изображение удалить нельзя — сразу 409 со списком мест, где оно стоит.
 func (a *Admin) ConfirmDelete(w http.ResponseWriter, r *http.Request) {
-	if img, ok := a.image(w, r); ok {
-		web.Render(w, r, http.StatusOK, DeletePage(img))
+	img, ok := a.image(w, r)
+	if !ok {
+		return
 	}
+	used, err := a.usage(r.Context(), img.ID)
+	if err != nil {
+		admin.ServerError(w, r, err)
+		return
+	}
+	if len(used) > 0 {
+		web.Render(w, r, http.StatusConflict, DeleteBlockedPage(img, used))
+		return
+	}
+	web.Render(w, r, http.StatusOK, DeletePage(img))
 }
 
 // Delete — POST /admin/media/{id}/delete. Изображение, на которое ссылается контент сайта (внешний ключ на
@@ -166,7 +197,12 @@ func (a *Admin) Delete(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, images.ErrNotFound):
 		admin.NotFound(w, r)
 	case database.IsForeignKeyViolation(err):
-		web.Render(w, r, http.StatusConflict, DeleteBlockedPage(img))
+		used, err := a.usage(r.Context(), img.ID)
+		if err != nil {
+			admin.ServerError(w, r, err)
+			return
+		}
+		web.Render(w, r, http.StatusConflict, DeleteBlockedPage(img, used))
 	default:
 		admin.ServerError(w, r, err)
 	}

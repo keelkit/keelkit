@@ -9,13 +9,23 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/voffkin/keelkit/reference/internal/richtext"
+	"github.com/voffkin/keelkit/reference/internal/blocks"
 	"github.com/voffkin/keelkit/reference/internal/web"
 )
 
-// View — публичная страница. На главной в <title> только название сайта.
-// Черновик сайт не показывает; его видит только админка (предпросмотр) — с плашкой и ссылкой в редактор.
-func View(p Page, body richtext.HTML) templ.Component {
+// viewData — страница для публичного шаблона: опубликованная копия или (Preview) черновик в админке.
+type viewData struct {
+	ID       int64
+	Title    string
+	Slug     string
+	Blocks   []blocks.Block
+	Resolved blocks.Resolved
+	Preview  bool // предпросмотр черновика: плашка со ссылкой в редактор
+}
+
+// View — публичная страница. На главной в <title> только название сайта; описание — начало текста блоков.
+// Предпросмотр черновика видит только админка — с плашкой и ссылкой в редактор.
+func View(p viewData) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -48,15 +58,15 @@ func View(p Page, body richtext.HTML) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			if p.Draft {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<p class=\"draft-banner\" role=\"status\">Черновик: страница не видна на сайте. <a href=\"")
+			if p.Preview {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<p class=\"draft-banner\" role=\"status\">Предпросмотр черновика: так страница будет выглядеть после публикации. <a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var3 templ.SafeURL
-				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(editPath(p.ID)))
+				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(EditPath(p.ID)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 15, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 25, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -74,7 +84,7 @@ func View(p Page, body richtext.HTML) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(p.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 19, Col: 16}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 29, Col: 16}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -84,7 +94,7 @@ func View(p Page, body richtext.HTML) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = body.Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = blocks.View(p.Blocks, p.Resolved).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -94,7 +104,7 @@ func View(p Page, body richtext.HTML) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = web.Layout(viewTitle(p)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = web.LayoutMeta(viewTitle(p), blocks.Summary(p.Blocks, descriptionLen)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -102,7 +112,7 @@ func View(p Page, body richtext.HTML) templ.Component {
 	})
 }
 
-// HomeEmpty — главная, пока страница со slug home не создана.
+// HomeEmpty — главная, пока страница со slug home не опубликована.
 func HomeEmpty() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -144,7 +154,7 @@ func HomeEmpty() templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(site.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 29, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 39, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -162,7 +172,7 @@ func HomeEmpty() templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(site.Description)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 31, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 41, Col: 37}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -173,14 +183,14 @@ func HomeEmpty() templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, " <p>Главная страница ещё не заполнена: создайте страницу со slug «")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, " <p>Главная страница ещё не опубликована: создайте и опубликуйте страницу со slug «")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(HomeSlug)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 33, Col: 125}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 43, Col: 157}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -200,7 +210,7 @@ func HomeEmpty() templ.Component {
 	})
 }
 
-func viewTitle(p Page) string {
+func viewTitle(p viewData) string {
 	if p.Slug == HomeSlug {
 		return ""
 	}

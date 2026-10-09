@@ -99,7 +99,7 @@ templ UploadForm(f uploadForm) {
 }
 
 // ShowPage — карточка изображения: превью, данные оригинала и варианты.
-templ ShowPage(img *images.Image) {
+templ ShowPage(img *images.Image, used []Usage) {
 	@admin.Layout(displayName(img)) {
 		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Медиатека</a></p>
 		<h1>{ displayName(img) }</h1>
@@ -138,10 +138,28 @@ templ ShowPage(img *images.Image) {
 				</tbody>
 			</table>
 		</div>
+		<h2>Где используется</h2>
+		if len(used) == 0 {
+			<p class="muted">Нигде: изображение можно удалить.</p>
+		} else {
+			@usageList(used)
+		}
 		<p class="danger-zone">
-			<a class="danger-link" href={ templ.SafeURL(showPath(img.ID) + "/delete") }>Удалить изображение</a>
+			if len(used) == 0 {
+				<a class="danger-link" href={ templ.SafeURL(showPath(img.ID) + "/delete") }>Удалить изображение</a>
+			} else {
+				<span class="field-hint">Используемое изображение удалить нельзя: сначала уберите его из контента выше.</span>
+			}
 		</p>
 	}
+}
+
+templ usageList(used []Usage) {
+	<ul class="usage-list">
+		for _, u := range used {
+			<li><a href={ templ.SafeURL(u.URL) }>{ u.Title }</a></li>
+		}
+	</ul>
 }
 
 // DeletePage — подтверждение удаления.
@@ -159,11 +177,12 @@ templ DeletePage(img *images.Image) {
 }
 
 // DeleteBlockedPage — изображение используется контентом сайта (409).
-templ DeleteBlockedPage(img *images.Image) {
+templ DeleteBlockedPage(img *images.Image, used []Usage) {
 	@admin.Layout("Удаление изображения") {
 		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Медиатека</a></p>
 		<h1>«{ displayName(img) }» используется на сайте</h1>
-		<p>Изображение нельзя удалить, пока на него ссылаются страницы или записи. Сначала уберите его оттуда.</p>
+		<p>Изображение нельзя удалить, пока на него ссылаются страницы или записи (в том числе черновики и скрытые блоки). Сначала уберите его оттуда:</p>
+		@usageList(used)
 		<p><a href={ templ.SafeURL(showPath(img.ID)) }>Вернуться к изображению</a></p>
 	}
 }

@@ -1,7 +1,7 @@
 package main
 
-// e2e раздела «Страницы» в админке: черновик и публикация, редактирование, удаление черновика, ошибки валидации,
-// превью Markdown.
+// e2e раздела «Страницы» в админке: черновик-копия и публикация, блоки (добавление, порядок, скрытие, удаление),
+// ошибки валидации у полей и у полей блоков, снятие с публикации, удаление неопубликованной, превью Markdown.
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 // htmx — заголовки запроса, который отправляет htmx.
@@ -19,6 +21,7 @@ var htmx = http.Header{"Hx-Request": {"true"}}
 // pageAdmin — сайт с seed и вошедший «браузер» с CSRF-токеном сессии.
 type pageAdmin struct {
 	t      *testing.T
+	site   testSite
 	srv    *httptest.Server
 	client *http.Client
 	token  string
@@ -26,20 +29,15 @@ type pageAdmin struct {
 
 func newPageAdmin(t *testing.T) *pageAdmin {
 	t.Helper()
-	srv := e2eServer(t, true)
-	client := adminClient(t)
-	return &pageAdmin{t: t, srv: srv, client: client, token: loginOK(t, client, srv)}
+	return newPageAdminOn(t, migratedSite(t, true))
 }
 
-// save отправляет форму страницы (path — /admin/pages или /admin/pages/{id}).
-// draft — отмеченный флажок «Черновик»: снятый браузер не отправляет вовсе.
-func (a *pageAdmin) save(path, title, slug, body string, draft bool, header http.Header) (response, string) {
-	a.t.Helper()
-	form := url.Values{"csrf_token": {a.token}, "title": {title}, "slug": {slug}, "body": {body}}
-	if draft {
-		form.Set("draft", "1")
-	}
-	return post(a.t, a.client, a.srv.URL+path, form, header)
+func newPageAdminOn(t *testing.T, site testSite) *pageAdmin {
+	t.Helper()
+	srv := httptest.NewServer(site.handler(config{}))
+	t.Cleanup(srv.Close)
+	client := adminClient(t)
+	return &pageAdmin{t: t, site: site, srv: srv, client: client, token: loginOK(t, client, srv)}
 }
 
 func (a *pageAdmin) get(path string) (response, string) {
@@ -47,7 +45,109 @@ func (a *pageAdmin) get(path string) (response, string) {
 	return fetch(a.t, a.client, a.srv.URL+path)
 }
 
-var editURL = regexp.MustCompile(`^/admin/pages/(\d+)\?saved=1$`)
+// form открывает форму страницы (path — /admin/pages/new или /admin/pages/{id}) и возвращает её поля так,
+// как их отправит браузер.
+func (a *pageAdmin) form(path string) url.Values {
+	a.t.Helper()
+	resp, body := a.get(path)
+	if resp.StatusCode != http.StatusOK {
+		a.t.Fatalf("GET %s: status %d", path, resp.StatusCode)
+	}
+	return formValues(parse(a.t, body).Find("#page-form"))
+}
+
+// submit отправляет форму страницы с кнопкой action ("save", "publish", "up:<id>"…).
+// path — /admin/pages (создать) или /admin/pages/{id}.
+func (a *pageAdmin) submit(path string, form url.Values, action string, header http.Header) (response, string) {
+	a.t.Helper()
+	f := url.Values{}
+	for k, v := range form {
+		f[k] = v
+	}
+	f.Set("csrf_token", a.token)
+	if action != "" {
+		f.Set("action", action)
+	}
+	return post(a.t, a.client, a.srv.URL+path, f, header)
+}
+
+// formValues — поля формы так, как их отправит браузер: input (кроме кнопок и неотмеченных флажков),
+// выбранные option у select, textarea. Кнопки не входят: их значение добавляет submit.
+func formValues(form *goquery.Selection) url.Values {
+	v := url.Values{}
+	form.Find("input, select, textarea").Each(func(_ int, s *goquery.Selection) {
+		name, ok := s.Attr("name")
+		if !ok {
+			return
+		}
+		switch goquery.NodeName(s) {
+		case "textarea":
+			v.Add(name, s.Text())
+		case "select":
+			val, _ := s.Find("option[selected]").Attr("value")
+			v.Add(name, val)
+		default:
+			typ, _ := s.Attr("type")
+			if typ == "submit" || typ == "button" {
+				return
+			}
+			if _, checked := s.Attr("checked"); (typ == "checkbox" || typ == "radio") && !checked {
+				return
+			}
+			val, _ := s.Attr("value")
+			v.Add(name, val)
+		}
+	})
+	return v
+}
+
+// blockIDs — id блоков формы по порядку.
+func blockIDs(form url.Values) []string { return form["block"] }
+
+// addBlock добавляет в поля формы блок typ с id и полями fields (без префикса block-<id>-).
+func addBlock(form url.Values, id, typ string, fields map[string]string) {
+	form.Add("block", id)
+	form.Set("block-"+id+"-type", typ)
+	for k, val := range fields {
+		form.Set("block-"+id+"-"+k, val)
+	}
+}
+
+// newPageForm — поля формы новой страницы без блоков.
+func newPageForm(title, slug string) url.Values {
+	return url.Values{"title": {title}, "slug": {slug}}
+}
+
+var editURL = regexp.MustCompile(`^/admin/pages/(\d+)\?(saved|published)=1$`)
+
+// create создаёт страницу (action — save или publish) и возвращает адрес её формы.
+func (a *pageAdmin) create(form url.Values, action string) string {
+	a.t.Helper()
+	resp, body := a.submit("/admin/pages", form, action, nil)
+	loc := resp.Header.Get("Location")
+	if resp.StatusCode != http.StatusSeeOther || !editURL.MatchString(loc) {
+		a.t.Fatalf("create: status %d, Location %q; want 303 to the form\n%.500s", resp.StatusCode, loc, body)
+	}
+	return "/admin/pages/" + editURL.FindStringSubmatch(loc)[1]
+}
+
+// editLink — адрес формы страницы из списка по заголовку.
+func (a *pageAdmin) editLink(title string) string {
+	a.t.Helper()
+	_, html := a.get("/admin/pages")
+	href, ok := parse(a.t, html).Find(`.admin-table a:contains("` + title + `")`).Attr("href")
+	if !ok {
+		a.t.Fatalf("no edit link for «%s»", title)
+	}
+	return href
+}
+
+// listStatus — статус страницы в списке по заголовку.
+func (a *pageAdmin) listStatus(title string) string {
+	a.t.Helper()
+	_, html := a.get("/admin/pages")
+	return text(parse(a.t, html).Find(`.admin-table tr:contains("` + title + `") .status`))
+}
 
 func TestE2EAdminPageCreate(t *testing.T) {
 	a := newPageAdmin(t)
@@ -69,7 +169,11 @@ func TestE2EAdminPageCreate(t *testing.T) {
 	if n := doc.Find(".admin-table tbody tr").Length(); n != 3 {
 		t.Errorf("list rows = %d, want 3", n)
 	}
+	if got := a.listStatus("О проекте"); got != "Опубликована" {
+		t.Errorf("seed page status = %q", got)
+	}
 
+	// Новая страница: один пустой текстовый блок и кнопки «Добавить блок» для каждого типа из site.yaml.
 	resp, body = a.get("/admin/pages/new")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /admin/pages/new: status %d", resp.StatusCode)
@@ -78,48 +182,56 @@ func TestE2EAdminPageCreate(t *testing.T) {
 	if action, _ := doc.Find("#page-form").Attr("hx-post"); action != "/admin/pages" {
 		t.Errorf("form hx-post = %q", action)
 	}
-	if got := text(doc.Find("#page-preview")); got != "Здесь появится превью текста." {
+	if n := doc.Find(".block-form").Length(); n != 1 || text(doc.Find(".block-form h3")) != "Текст" {
+		t.Errorf("new page blocks = %d (%q), want one text block", n, text(doc.Find(".block-form h3")))
+	}
+	if got := text(doc.Find(".preview-empty")); got != "Здесь появится превью текста." {
 		t.Errorf("empty preview = %q", got)
 	}
-	// Новая страница — черновик; удалять ещё нечего; «Отмена» ведёт к списку.
-	if _, checked := doc.Find(`input[name="draft"]`).Attr("checked"); !checked {
-		t.Error("new page: draft checkbox must be checked")
+	var add []string
+	doc.Find(`.block-add button`).Each(func(_ int, b *goquery.Selection) {
+		v, _ := b.Attr("value")
+		add = append(add, v)
+	})
+	if got := strings.Join(add, ","); got != "add:text,add:image,add:image_text,add:quote" {
+		t.Errorf("add buttons = %s", got)
 	}
 	if doc.Find(".danger-zone").Length() != 0 {
-		t.Error("new page: no delete block expected")
+		t.Error("new page: no danger zone expected")
 	}
 	if href, _ := doc.Find(`.form-actions a:contains("Отмена")`).Attr("href"); href != "/admin/pages" {
 		t.Errorf("cancel link = %q", href)
 	}
 
-	// Пустой slug составляется из заголовка; CRLF из textarea хранится как LF.
-	resp, _ = a.save("/admin/pages", "Тестовая", "", "Текст: **жирный**\r\n\r\nВторой абзац.", true, nil)
-	loc := resp.Header.Get("Location")
-	if resp.StatusCode != http.StatusSeeOther || !editURL.MatchString(loc) {
-		t.Fatalf("create: status %d, Location %q; want 303 to /admin/pages/{id}?saved=1", resp.StatusCode, loc)
-	}
+	// «Сохранить»: пустой slug составляется из заголовка; CRLF из textarea хранится как LF.
+	form := formValues(doc.Find("#page-form"))
+	id := blockIDs(form)[0]
+	form.Set("title", "Тестовая")
+	form.Set("block-"+id+"-body", "Текст: **жирный**\r\n\r\nВторой абзац.")
+	edit := a.create(form, "save")
 
-	resp, body = a.get(loc)
+	resp, body = a.get(edit + "?saved=1")
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("GET %s: status %d", loc, resp.StatusCode)
+		t.Fatalf("GET %s: status %d", edit, resp.StatusCode)
 	}
 	doc = parse(t, body)
-	if got := text(doc.Find(".flash")); got != "Сохранено." {
+	if got := text(doc.Find(".flash")); got != "Черновик сохранён." {
 		t.Errorf("flash = %q", got)
 	}
 	if v, _ := doc.Find(`input[name="slug"]`).Attr("value"); v != "testovaya" {
 		t.Errorf("slug = %q, want testovaya", v)
 	}
-	if got := doc.Find(`textarea[name="body"]`).Text(); got != "Текст: **жирный**\n\nВторой абзац." {
+	if got := doc.Find(`textarea[name="block-` + id + `-body"]`).Text(); got != "Текст: **жирный**\n\nВторой абзац." {
 		t.Errorf("body = %q", got)
 	}
-	if got := text(doc.Find("#page-preview strong")); got != "жирный" {
+	if got := text(doc.Find("#block-" + id + "-body-preview strong")); got != "жирный" {
 		t.Errorf("preview strong = %q", got)
 	}
-	id := editURL.FindStringSubmatch(loc)[1]
-	edit := "/admin/pages/" + id
 
 	// Черновик: на сайте и в меню его нет, в админке — предпросмотр и удаление.
+	if got := text(doc.Find(".admin-title .status")); got != "Черновик" {
+		t.Errorf("status = %q", got)
+	}
 	if doc.Find(`a:contains("Открыть на сайте")`).Length() != 0 {
 		t.Error("draft: no public link expected")
 	}
@@ -129,22 +241,24 @@ func TestE2EAdminPageCreate(t *testing.T) {
 	if href, _ := doc.Find(`.danger-zone a`).Attr("href"); href != edit+"/delete" {
 		t.Errorf("delete link = %q", href)
 	}
+	if doc.Find(`.danger-zone form`).Length() != 0 {
+		t.Error("draft: no unpublish form expected")
+	}
 	page(t, a.srv, "/testovaya", http.StatusNotFound)
 	if n := page(t, a.srv, "/", http.StatusOK).Find(`.site-nav a[href="/testovaya"]`).Length(); n != 0 {
 		t.Error("draft must not be in the menu")
 	}
-	_, body = a.get("/admin/pages")
-	if got := text(parse(t, body).Find(`.admin-table tr:contains("Тестовая") .status`)); got != "Черновик" {
+	if got := a.listStatus("Тестовая"); got != "Черновик" {
 		t.Errorf("list status = %q", got)
 	}
 
-	// Предпросмотр — страница сайта с плашкой черновика; только после входа.
+	// Предпросмотр — страница сайта с плашкой; только после входа.
 	resp, body = a.get(edit + "/view")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET view: status %d", resp.StatusCode)
 	}
 	doc = parse(t, body)
-	if got := text(doc.Find("main article strong")); got != "жирный" {
+	if got := text(doc.Find("main article #block-" + id + " strong")); got != "жирный" {
 		t.Errorf("view strong = %q", got)
 	}
 	if href, _ := doc.Find(".draft-banner a").Attr("href"); href != edit {
@@ -154,20 +268,24 @@ func TestE2EAdminPageCreate(t *testing.T) {
 		t.Errorf("view without session: status %d, want 303", resp.StatusCode)
 	}
 
-	// Публикация: снять флажок и сохранить.
-	if resp, _ := a.save(edit, "Тестовая", "testovaya", "Текст: **жирный**", false, nil); resp.StatusCode != http.StatusSeeOther {
-		t.Fatalf("publish: status %d", resp.StatusCode)
+	// «Опубликовать».
+	resp, _ = a.submit(edit, a.form(edit), "publish", nil)
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != edit+"?published=1" {
+		t.Fatalf("publish: status %d, Location %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
-	_, body = a.get(edit)
+	_, body = a.get(edit + "?published=1")
 	doc = parse(t, body)
+	if got := text(doc.Find(".flash")); got != "Опубликовано." {
+		t.Errorf("flash = %q", got)
+	}
 	if href, _ := doc.Find(`a:contains("Открыть на сайте")`).Attr("href"); href != "/testovaya" {
 		t.Errorf("public link = %q", href)
 	}
-	if doc.Find(".danger-zone a").Length() != 0 {
-		t.Error("published: no delete link expected")
+	if doc.Find(".danger-zone a").Length() != 0 || doc.Find(`.danger-zone form button:contains("Снять с публикации")`).Length() != 1 {
+		t.Error("published: want the unpublish button and no delete link")
 	}
 
-	// Теперь страница видна на сайте и в меню.
+	// Теперь страница видна на сайте и в меню, описание — из текста блоков.
 	pub := page(t, a.srv, "/testovaya", http.StatusOK)
 	if got := text(pub.Find("main h1")); got != "Тестовая" {
 		t.Errorf("public h1 = %q", got)
@@ -178,45 +296,270 @@ func TestE2EAdminPageCreate(t *testing.T) {
 	if got := text(pub.Find("main article strong")); got != "жирный" {
 		t.Errorf("public strong = %q", got)
 	}
+	if got, _ := pub.Find(`meta[name="description"]`).Attr("content"); got != "Текст: жирный Второй абзац." {
+		t.Errorf("description = %q", got)
+	}
 	if got := text(pub.Find(`.site-nav a[href="/testovaya"]`)); got != "Тестовая" {
 		t.Errorf("nav item = %q", got)
+	}
+	if got := a.listStatus("Тестовая"); got != "Опубликована" {
+		t.Errorf("list status = %q", got)
 	}
 
 	_, body = a.get("/admin")
 	if got := text(parse(t, body).Find(".counter")); got != "Страниц: 4" {
 		t.Errorf("counter = %q, want «Страниц: 4»", got)
 	}
+
+	// Новую страницу можно и сразу опубликовать.
+	form = newPageForm("Сразу", "")
+	addBlock(form, "b1", "quote", map[string]string{"text": "Цитата"})
+	a.create(form, "publish")
+	page(t, a.srv, "/srazu", http.StatusOK)
+}
+
+// Правки опубликованной страницы не видны на сайте до «Опубликовать»; slug — часть версии.
+func TestE2EAdminPageDraftCopy(t *testing.T) {
+	a := newPageAdmin(t)
+	edit := a.editLink("О проекте")
+
+	form := a.form(edit)
+	form.Set("title", "О проекте (новое)")
+	addBlock(form, "new-quote", "quote", map[string]string{"text": "Новая цитата", "author": "Редактор"})
+	if resp, _ := a.submit(edit, form, "save", htmx); resp.StatusCode != http.StatusNoContent || resp.Header.Get("Hx-Redirect") != edit+"?saved=1" {
+		t.Fatalf("htmx save: status %d, HX-Redirect %q", resp.StatusCode, resp.Header.Get("Hx-Redirect"))
+	}
+
+	pub := page(t, a.srv, "/about", http.StatusOK)
+	if got := text(pub.Find("main h1")); got != "О проекте" {
+		t.Errorf("public h1 after save = %q, want the published title", got)
+	}
+	if pub.Find("#block-new-quote").Length() != 0 {
+		t.Error("unpublished block is on the site")
+	}
+	if got := text(page(t, a.srv, "/", http.StatusOK).Find(`.site-nav a[href="/about"]`)); got != "О проекте" {
+		t.Errorf("menu shows the draft title: %q", got)
+	}
+	if got := a.listStatus("О проекте (новое)"); got != "Есть неопубликованные изменения" {
+		t.Errorf("list status = %q", got)
+	}
+	_, body := a.get(edit)
+	if got := text(parse(t, body).Find(".admin-title .status")); got != "Есть неопубликованные изменения" {
+		t.Errorf("form status = %q", got)
+	}
+	_, body = a.get(edit + "/view")
+	if got := text(parse(t, body).Find("#block-new-quote blockquote")); got != "Новая цитата" {
+		t.Errorf("preview quote = %q", got)
+	}
+
+	// Сохранить без изменений — статус тот же; опубликовать — изменения на сайте.
+	if resp, _ := a.submit(edit, a.form(edit), "publish", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("publish: status %d", resp.StatusCode)
+	}
+	pub = page(t, a.srv, "/about", http.StatusOK)
+	if got := text(pub.Find("main h1")); got != "О проекте (новое)" {
+		t.Errorf("public h1 after publish = %q", got)
+	}
+	if got := text(pub.Find("#block-new-quote figcaption")); got != "Редактор" {
+		t.Errorf("published quote author = %q", got)
+	}
+	if got := a.listStatus("О проекте (новое)"); got != "Опубликована" {
+		t.Errorf("list status after publish = %q", got)
+	}
+
+	// Новый slug: сохранён — сайт открывает старый адрес; опубликован — старый 404, новый 200.
+	form = a.form(edit)
+	form.Set("slug", "about-us")
+	if resp, _ := a.submit(edit, form, "save", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("save slug: status %d", resp.StatusCode)
+	}
+	page(t, a.srv, "/about", http.StatusOK)
+	page(t, a.srv, "/about-us", http.StatusNotFound)
+	_, body = a.get(edit)
+	if href, _ := parse(t, body).Find(`a:contains("Открыть на сайте")`).Attr("href"); href != "/about" {
+		t.Errorf("public link = %q, want the published address", href)
+	}
+	if resp, _ := a.submit(edit, a.form(edit), "publish", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("publish slug: status %d", resp.StatusCode)
+	}
+	page(t, a.srv, "/about", http.StatusNotFound)
+	page(t, a.srv, "/about-us", http.StatusOK)
+}
+
+// Кнопки блоков без JavaScript: форма возвращается изменённой, ничего не сохраняется; с htmx — фрагмент формы.
+func TestE2EAdminPageBlocks(t *testing.T) {
+	a := newPageAdmin(t)
+	form := newPageForm("Блоки", "")
+	addBlock(form, "one", "text", map[string]string{"body": "Первый"})
+	addBlock(form, "two", "quote", map[string]string{"text": "Второй"})
+	addBlock(form, "three", "text", map[string]string{"body": "Третий"})
+	edit := a.create(form, "publish")
+
+	// apply нажимает кнопку блока и возвращает новые поля формы.
+	apply := func(form url.Values, action string, header http.Header) url.Values {
+		t.Helper()
+		resp, body := a.submit(edit, form, action, header)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s: status %d, want 200", action, resp.StatusCode)
+		}
+		doc := parse(t, body)
+		if got := text(doc.Find(".flash-warning")); !strings.Contains(got, "не сохранены") {
+			t.Errorf("%s: no unsaved notice, got %q", action, got)
+		}
+		if header != nil && (strings.Contains(body, "<html") || !strings.HasPrefix(strings.TrimSpace(body), `<form id="page-form"`)) {
+			t.Errorf("%s via htmx: want only the form fragment", action)
+		}
+		return formValues(doc.Find("#page-form"))
+	}
+	order := func(form url.Values) string { return strings.Join(blockIDs(form), ",") }
+
+	form = a.form(edit)
+	if got := order(form); got != "one,two,three" {
+		t.Fatalf("order = %s", got)
+	}
+	form = apply(form, "up:three", nil)
+	if got := order(form); got != "one,three,two" {
+		t.Errorf("after up:three = %s", got)
+	}
+	form = apply(form, "down:one", htmx)
+	if got := order(form); got != "three,one,two" {
+		t.Errorf("after down:one = %s", got)
+	}
+	form = apply(form, "hide:two", nil)
+	if form.Get("block-two-hidden") != "1" {
+		t.Error("hide:two did not hide")
+	}
+	form = apply(form, "add:quote", nil)
+	ids := blockIDs(form)
+	if len(ids) != 4 || form.Get("block-"+ids[3]+"-type") != "quote" {
+		t.Fatalf("after add:quote = %v", ids)
+	}
+	form = apply(form, "remove:"+ids[3], htmx)
+	if got := order(form); got != "three,one,two" {
+		t.Errorf("after remove = %s", got)
+	}
+	// Введённое в поля не теряется при действиях блоков.
+	if form.Get("block-one-body") != "Первый" || form.Get("title") != "Блоки" {
+		t.Errorf("fields lost: %v", form)
+	}
+
+	// Ничего не сохранено: на сайте прежний порядок и все блоки.
+	pubOrder := func() string {
+		var got []string
+		page(t, a.srv, "/bloki", http.StatusOK).Find("main article .block").Each(func(_ int, s *goquery.Selection) {
+			id, _ := s.Attr("id")
+			got = append(got, strings.TrimPrefix(id, "block-"))
+		})
+		return strings.Join(got, ",")
+	}
+	if got := pubOrder(); got != "one,two,three" {
+		t.Errorf("site changed before save: %s", got)
+	}
+
+	// Опубликовать: новый порядок, скрытого блока на сайте нет, в админке он есть с отметкой.
+	if resp, _ := a.submit(edit, form, "publish", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("publish: status %d", resp.StatusCode)
+	}
+	if got := pubOrder(); got != "three,one" {
+		t.Errorf("site order = %s, want three,one (two is hidden)", got)
+	}
+	_, body := a.get(edit)
+	doc := parse(t, body)
+	if got := text(doc.Find("#block-two.block-hidden .status")); got != "Скрыт" {
+		t.Errorf("hidden block in admin: %q", got)
+	}
+	if got := text(doc.Find(`#block-two button[value="hide:two"]`)); got != "Показать" {
+		t.Errorf("hidden block button = %q", got)
+	}
+
+	// Удалённый блок пропадает после публикации.
+	form = apply(a.form(edit), "remove:one", nil)
+	if resp, _ := a.submit(edit, form, "publish", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("publish after remove: status %d", resp.StatusCode)
+	}
+	if got := pubOrder(); got != "three" {
+		t.Errorf("site order after remove = %s", got)
+	}
+
+	// Неизвестное действие и испорченная форма — 400.
+	for _, tc := range []struct {
+		name   string
+		form   url.Values
+		action string
+	}{
+		{"unknown action", a.form(edit), "jump:three"},
+		{"add not allowed", a.form(edit), "add:gallery"},
+		{"bad block id", url.Values{"title": {"x"}, "block": {"<b>"}, "block-<b>-type": {"text"}}, "save"},
+		{"unknown type", url.Values{"title": {"x"}, "block": {"z"}, "block-z-type": {"script"}}, "save"},
+	} {
+		if resp, _ := a.submit(edit, tc.form, tc.action, nil); resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("%s: status %d, want 400", tc.name, resp.StatusCode)
+		}
+	}
+}
+
+// «Добавить блок» через htmx: фрагмент формы нового блока; блок из формы — перерисовка после выбора картинки.
+func TestE2EAdminPageBlockFragment(t *testing.T) {
+	a := newPageAdmin(t)
+	hdr := http.Header{"Hx-Request": {"true"}, "X-Csrf-Token": {a.token}}
+
+	resp, body := post(t, a.client, a.srv.URL+"/admin/pages/block?type=quote", nil, hdr)
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(strings.TrimSpace(body), `<section class="block-form"`) {
+		t.Fatalf("new block: status %d, body %.200q", resp.StatusCode, body)
+	}
+	v := formValues(parse(t, body).Selection)
+	id := v.Get("block")
+	if id == "" || v.Get("block-"+id+"-type") != "quote" {
+		t.Errorf("new block fields: %v", v)
+	}
+
+	form := url.Values{}
+	addBlock(form, "pic", "image", map[string]string{"alt": "Описание", "caption": "Подпись"})
+	resp, body = post(t, a.client, a.srv.URL+"/admin/pages/block?id=pic", form, hdr)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("existing block: status %d", resp.StatusCode)
+	}
+	if v := formValues(parse(t, body).Selection); v.Get("block-pic-alt") != "Описание" || v.Get("block-pic-caption") != "Подпись" {
+		t.Errorf("existing block lost fields: %v", v)
+	}
+
+	for _, path := range []string{"/admin/pages/block?type=gallery", "/admin/pages/block?id=nope", "/admin/pages/block"} {
+		if resp, _ := post(t, a.client, a.srv.URL+path, form, hdr); resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("POST %s: status %d, want 400", path, resp.StatusCode)
+		}
+	}
+	if resp, _ := post(t, a.client, a.srv.URL+"/admin/pages/block?type=quote", nil, htmx); resp.StatusCode != http.StatusForbidden {
+		t.Errorf("without CSRF token: status %d, want 403", resp.StatusCode)
+	}
 }
 
 func TestE2EAdminPageValidation(t *testing.T) {
 	a := newPageAdmin(t)
+	const taken = "Страница с адресом «%s» уже есть (опубликованная или черновик): выберите другой slug."
 
 	for _, tc := range []struct {
 		name, title, slug string
-		draft             bool
 		field, err        string
 	}{
-		{"duplicate slug", "Ещё о проекте", "about", false, "slug", "Страница с адресом «about» уже есть: выберите другой slug."},
-		{"duplicate generated slug", "О проекте", "", false, "slug", "Страница с адресом «o-proekte» уже есть: выберите другой slug."},
-		{"reserved slug", "Админ", "admin", true, "slug", "Адрес «/admin» занят разделом сайта: выберите другой slug."},
-		{"reserved after normalize", "Статика", " Static ", true, "slug", "Адрес «/static» занят разделом сайта: выберите другой slug."},
-		{"slug without letters", "Знаки", "!!!", true, "slug", "В slug нужны буквы или цифры."},
-		{"title without letters", "???", "", true, "slug", "Из заголовка не получился адрес: укажите slug латиницей."},
-		{"empty title", "  ", "x", true, "title", "Укажите заголовок."},
-		{"long title", strings.Repeat("я", 201), "x", true, "title", "Заголовок длиннее 200 символов."},
-		{"draft home", "Главная", "home", true, "draft", "Главная страница всегда опубликована: снимите флажок «Черновик»."},
+		{"duplicate slug", "Ещё о проекте", "about", "slug", strings.Replace(taken, "%s", "about", 1)},
+		{"duplicate generated slug", "О проекте", "", "slug", strings.Replace(taken, "%s", "o-proekte", 1)},
+		{"reserved slug", "Админ", "admin", "slug", "Адрес «/admin» занят разделом сайта: выберите другой slug."},
+		{"reserved after normalize", "Статика", " Static ", "slug", "Адрес «/static» занят разделом сайта: выберите другой slug."},
+		{"slug without letters", "Знаки", "!!!", "slug", "В slug нужны буквы или цифры."},
+		{"title without letters", "???", "", "slug", "Из заголовка не получился адрес: укажите slug латиницей."},
+		{"empty title", "  ", "x", "title", "Укажите заголовок."},
+		{"long title", strings.Repeat("я", 201), "x", "title", "Заголовок длиннее 200 символов."},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.name == "duplicate generated slug" {
-				// Сначала создаём страницу со slug o-proekte, затем ещё одну с тем же заголовком.
-				if resp, _ := a.save("/admin/pages", tc.title, "", "", false, nil); resp.StatusCode != http.StatusSeeOther {
-					t.Fatalf("first create: status %d", resp.StatusCode)
-				}
+				// Сначала создаём черновик со slug o-proekte, затем ещё одну страницу с тем же заголовком.
+				a.create(newPageForm(tc.title, ""), "save")
 			}
-			body := "Текст **сохраняется**"
+			form := newPageForm(tc.title, tc.slug)
+			addBlock(form, "keep", "text", map[string]string{"body": "Текст **сохраняется**"})
 
 			// Обычная форма: 422 и страница целиком, введённые данные на месте.
-			resp, html := a.save("/admin/pages", tc.title, tc.slug, body, tc.draft, nil)
+			resp, html := a.submit("/admin/pages", form, "save", nil)
 			if resp.StatusCode != http.StatusUnprocessableEntity {
 				t.Fatalf("status %d, want 422", resp.StatusCode)
 			}
@@ -230,21 +573,18 @@ func TestE2EAdminPageValidation(t *testing.T) {
 			if v, _ := doc.Find(`input[name="` + tc.field + `"]`).Attr("aria-invalid"); v != "true" {
 				t.Errorf("%s: aria-invalid = %q", tc.field, v)
 			}
-			if got := doc.Find(`textarea[name="body"]`).Text(); got != body {
-				t.Errorf("body not kept: %q", got)
+			if got := doc.Find(`textarea[name="block-keep-body"]`).Text(); got != "Текст **сохраняется**" {
+				t.Errorf("block body not kept: %q", got)
 			}
 			if v, _ := doc.Find(`input[name="title"]`).Attr("value"); v != strings.TrimSpace(tc.title) {
 				t.Errorf("title not kept: %q", v)
 			}
-			if _, checked := doc.Find(`input[name="draft"]`).Attr("checked"); checked != tc.draft {
-				t.Errorf("draft not kept: checked = %v", checked)
-			}
-			if got := text(doc.Find("#page-preview strong")); got != "сохраняется" {
+			if got := text(doc.Find("#block-keep-body-preview strong")); got != "сохраняется" {
 				t.Errorf("preview strong = %q", got)
 			}
 
 			// htmx: 422 и только фрагмент формы — его подставит hx-swap.
-			resp, html = a.save("/admin/pages", tc.title, tc.slug, body, tc.draft, htmx)
+			resp, html = a.submit("/admin/pages", form, "save", htmx)
 			if resp.StatusCode != http.StatusUnprocessableEntity {
 				t.Fatalf("htmx: status %d, want 422", resp.StatusCode)
 			}
@@ -257,19 +597,65 @@ func TestE2EAdminPageValidation(t *testing.T) {
 		})
 	}
 
-	// Ни одна ошибочная страница не сохранилась: 3 из seed и одна «О проекте» (o-proekte).
+	// Ни одна ошибочная страница не сохранилась: 3 из seed и черновик «О проекте» (o-proekte).
 	_, html := a.get("/admin/pages")
 	if n := parse(t, html).Find(".admin-table tbody tr").Length(); n != 4 {
 		t.Errorf("list rows = %d, want 4", n)
 	}
 }
 
+// Ошибка в поле блока — у этого поля (#block-<id>-<поле>-error); остальные блоки и введённое на месте.
+func TestE2EAdminPageBlockErrors(t *testing.T) {
+	a := newPageAdmin(t)
+	edit := a.editLink("Контакты")
+	form := a.form(edit)
+	before := blockIDs(form)
+	addBlock(form, "q", "quote", map[string]string{"text": "  ", "author": "Автор"})
+	addBlock(form, "img", "image", map[string]string{"image": "", "alt": "", "caption": "Подпись"})
+	addBlock(form, "it", "image_text", map[string]string{"image": "nosuchimage", "alt": "x", "body": "Текст"})
+	addBlock(form, "empty", "text", map[string]string{"body": "\r\n"})
+
+	for _, header := range []http.Header{nil, htmx} {
+		resp, html := a.submit(edit, form, "publish", header)
+		if resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("status %d, want 422", resp.StatusCode)
+		}
+		doc := parse(t, html)
+		for id, msg := range map[string]string{
+			"block-q-text":     "Введите цитату или удалите блок.",
+			"block-img-image":  "Выберите изображение.",
+			"block-img-alt":    "Опишите изображение для тех, кто его не видит (alt).",
+			"block-it-image":   "Изображения нет в медиатеке: выберите другое.",
+			"block-empty-body": "Введите текст или удалите блок.",
+		} {
+			if got := text(doc.Find("#" + id + "-error")); got != msg {
+				t.Errorf("#%s-error = %q, want %q", id, got, msg)
+			}
+			if v, _ := doc.Find(`[name="` + id + `"]`).Attr("aria-invalid"); v != "true" {
+				t.Errorf("%s: aria-invalid = %q", id, v)
+			}
+		}
+		got := formValues(doc.Find("#page-form"))
+		if n := len(blockIDs(got)); n != len(before)+4 {
+			t.Errorf("blocks in form = %d, want %d", n, len(before)+4)
+		}
+		if got.Get("block-q-author") != "Автор" || got.Get("block-img-caption") != "Подпись" || got.Get("block-it-body") != "Текст" {
+			t.Errorf("block fields not kept: %v", got)
+		}
+	}
+	// Ничего не сохранилось.
+	if got := blockIDs(a.form(edit)); len(got) != len(before) {
+		t.Errorf("draft changed after errors: %v", got)
+	}
+}
+
 func TestE2EAdminPagePreview(t *testing.T) {
 	a := newPageAdmin(t)
 	src := "# Заголовок\n\n**жирный** и [ссылка](javascript:alert(1))\n\n<script>alert(2)</script>"
+	hdr := http.Header{"Hx-Request": {"true"}, "X-Csrf-Token": {a.token}}
+	path := "/admin/pages/preview?field=block-x-body"
 
-	resp, html := post(t, a.client, a.srv.URL+"/admin/pages/preview", url.Values{"body": {src}},
-		http.Header{"Hx-Request": {"true"}, "X-Csrf-Token": {a.token}})
+	resp, html := post(t, a.client, a.srv.URL+path, url.Values{"block-x-body": {src}}, hdr)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("preview: status %d", resp.StatusCode)
 	}
@@ -285,87 +671,73 @@ func TestE2EAdminPagePreview(t *testing.T) {
 	}
 
 	// Пустой текст — подсказка.
-	_, html = post(t, a.client, a.srv.URL+"/admin/pages/preview", url.Values{"body": {""}},
-		http.Header{"Hx-Request": {"true"}, "X-Csrf-Token": {a.token}})
+	_, html = post(t, a.client, a.srv.URL+path, url.Values{"block-x-body": {""}}, hdr)
 	if got := text(parse(t, html).Find(".preview-empty")); got == "" {
 		t.Errorf("empty preview: %q", html)
 	}
 
 	// Без CSRF-токена — 403.
-	resp, _ = post(t, a.client, a.srv.URL+"/admin/pages/preview", url.Values{"body": {src}}, htmx)
+	resp, _ = post(t, a.client, a.srv.URL+path, url.Values{"block-x-body": {src}}, htmx)
 	if resp.StatusCode != http.StatusForbidden {
 		t.Errorf("preview without token: status %d, want 403", resp.StatusCode)
 	}
 }
 
-func TestE2EAdminPageEditDelete(t *testing.T) {
+func TestE2EAdminPageUnpublishDelete(t *testing.T) {
 	a := newPageAdmin(t)
-
-	// Найти «О проекте» в списке.
-	_, html := a.get("/admin/pages")
-	edit, ok := parse(t, html).Find(`.admin-table a:contains("О проекте")`).Attr("href")
-	if !ok {
-		t.Fatal("no edit link for «О проекте»")
-	}
-
-	// Сохранение через htmx: 204 и HX-Redirect на форму.
-	resp, _ := a.save(edit, "О нас", "about-us", "Новый текст.", false, htmx)
-	if resp.StatusCode != http.StatusNoContent || resp.Header.Get("Hx-Redirect") != edit+"?saved=1" {
-		t.Fatalf("htmx update: status %d, HX-Redirect %q", resp.StatusCode, resp.Header.Get("Hx-Redirect"))
-	}
-	page(t, a.srv, "/about", http.StatusNotFound)
-	doc := page(t, a.srv, "/about-us", http.StatusOK)
-	if got := text(doc.Find("main h1")); got != "О нас" {
-		t.Errorf("h1 = %q", got)
-	}
-
-	// Свой slug при сохранении не считается занятым.
-	if resp, _ := a.save(edit, "О нас", "about-us", "Ещё раз.", false, nil); resp.StatusCode != http.StatusSeeOther {
-		t.Errorf("update with same slug: status %d, want 303", resp.StatusCode)
-	}
-	// Чужой — занят.
-	_, html = a.get(edit)
-	if doc := parse(t, html); doc.Find(".danger-zone a").Length() != 0 || !strings.Contains(text(doc.Find(".danger-zone")), "только черновик") {
-		t.Errorf("published: want a hint instead of the delete link, got %q", text(doc.Find(".danger-zone")))
-	}
-	resp, _ = a.save(edit, "О нас", "contacts", "", false, nil)
-	if resp.StatusCode != http.StatusUnprocessableEntity {
-		t.Errorf("update with taken slug: status %d, want 422", resp.StatusCode)
-	}
+	edit := a.editLink("О проекте")
 
 	// Опубликованную страницу удалить нельзя: ни через подтверждение, ни прямым POST.
-	resp, html = a.get(edit + "/delete")
+	_, html := a.get(edit)
+	if doc := parse(t, html); doc.Find(".danger-zone a").Length() != 0 || !strings.Contains(text(doc.Find(".danger-zone")), "сначала снимите её с публикации") {
+		t.Errorf("published: want a hint instead of the delete link, got %q", text(doc.Find(".danger-zone")))
+	}
+	resp, html := a.get(edit + "/delete")
 	if resp.StatusCode != http.StatusConflict {
 		t.Errorf("GET delete published: status %d, want 409", resp.StatusCode)
 	}
-	if got := text(parse(t, html).Find("main h1")); got != "Страница «О нас» опубликована" {
+	if got := text(parse(t, html).Find("main h1")); got != "Страница «О проекте» опубликована" {
 		t.Errorf("blocked h1 = %q", got)
 	}
 	resp, _ = post(t, a.client, a.srv.URL+edit+"/delete", url.Values{"csrf_token": {a.token}}, nil)
 	if resp.StatusCode != http.StatusConflict {
 		t.Errorf("POST delete published: status %d, want 409", resp.StatusCode)
 	}
-	page(t, a.srv, "/about-us", http.StatusOK)
+	page(t, a.srv, "/about", http.StatusOK)
 
-	// Снять с публикации — страница пропадает с сайта, но остаётся в админке.
-	if resp, _ := a.save(edit, "О нас", "about-us", "Ещё раз.", true, nil); resp.StatusCode != http.StatusSeeOther {
-		t.Fatalf("unpublish: status %d", resp.StatusCode)
+	// «Снять с публикации»: только с CSRF-токеном; страница пропадает с сайта и из меню, черновик остаётся.
+	if resp, _ := post(t, a.client, a.srv.URL+edit+"/unpublish", nil, nil); resp.StatusCode != http.StatusForbidden {
+		t.Errorf("unpublish without token: status %d, want 403", resp.StatusCode)
 	}
-	page(t, a.srv, "/about-us", http.StatusNotFound)
+	resp, _ = post(t, a.client, a.srv.URL+edit+"/unpublish", url.Values{"csrf_token": {a.token}}, nil)
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != edit+"?unpublished=1" {
+		t.Fatalf("unpublish: status %d, Location %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	page(t, a.srv, "/about", http.StatusNotFound)
+	if page(t, a.srv, "/", http.StatusOK).Find(`.site-nav a[href="/about"]`).Length() != 0 {
+		t.Error("unpublished page is in the menu")
+	}
+	_, html = a.get(edit + "?unpublished=1")
+	doc := parse(t, html)
+	if got := text(doc.Find(".admin-title .status")); got != "Черновик" {
+		t.Errorf("status = %q", got)
+	}
+	if got := doc.Find(`textarea[name="block-about-intro-body"]`).Text(); !strings.Contains(got, "Keelkit") {
+		t.Error("draft content lost after unpublish")
+	}
 
-	// Удаление черновика: подтверждение, затем POST.
+	// Удаление неопубликованной: подтверждение, затем POST.
 	resp, html = a.get(edit + "/delete")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET delete: status %d", resp.StatusCode)
 	}
 	doc = parse(t, html)
-	if got := text(doc.Find("main h1")); got != "Удалить черновик «О нас»?" {
+	if got := text(doc.Find("main h1")); got != "Удалить страницу «О проекте»?" {
 		t.Errorf("confirm h1 = %q", got)
 	}
 	if href, _ := doc.Find(`main form a:contains("Отмена")`).Attr("href"); href != edit {
 		t.Errorf("confirm cancel link = %q", href)
 	}
-	// Без CSRF-токена не удаляется.
 	if resp, _ := post(t, a.client, a.srv.URL+edit+"/delete", nil, nil); resp.StatusCode != http.StatusForbidden {
 		t.Errorf("delete without token: status %d, want 403", resp.StatusCode)
 	}
@@ -377,19 +749,54 @@ func TestE2EAdminPageEditDelete(t *testing.T) {
 	if got := text(parse(t, html).Find(".flash")); got != "Страница удалена." {
 		t.Errorf("flash = %q", got)
 	}
+	var n int
+	if err := a.site.db.QueryRow(`SELECT count(*) FROM page_contents WHERE page_id = ?`, strings.TrimPrefix(edit, "/admin/pages/")).Scan(&n); err != nil || n != 0 {
+		t.Errorf("page_contents rows after delete = %d, %v", n, err)
+	}
 
-	// Удалённой страницы больше нет ни для формы, ни для повторного удаления.
+	// Удалённой страницы больше нет ни для формы, ни для действий.
 	for _, path := range []string{edit, edit + "/delete", edit + "/view", "/admin/pages/999999", "/admin/pages/abc", "/admin/pages/0"} {
 		if resp, _ := a.get(path); resp.StatusCode != http.StatusNotFound {
 			t.Errorf("GET %s: status %d, want 404", path, resp.StatusCode)
 		}
 	}
-	if resp, _ := post(t, a.client, a.srv.URL+edit+"/delete", url.Values{"csrf_token": {a.token}}, nil); resp.StatusCode != http.StatusNotFound {
-		t.Errorf("second delete: status %d, want 404", resp.StatusCode)
+	for _, path := range []string{edit + "/delete", edit + "/unpublish"} {
+		if resp, _ := post(t, a.client, a.srv.URL+path, url.Values{"csrf_token": {a.token}}, nil); resp.StatusCode != http.StatusNotFound {
+			t.Errorf("POST %s: status %d, want 404", path, resp.StatusCode)
+		}
 	}
-	if resp, _ := a.save(edit, "X", "x", "", true, nil); resp.StatusCode != http.StatusNotFound {
+	if resp, _ := a.submit(edit, newPageForm("X", "x"), "save", nil); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("update deleted: status %d, want 404", resp.StatusCode)
 	}
+}
+
+// Главная всегда опубликована: не снимается с публикации, не удаляется, не меняет адрес.
+func TestE2EAdminPageHome(t *testing.T) {
+	a := newPageAdmin(t)
+	edit := a.editLink("Добро пожаловать")
+
+	_, html := a.get(edit)
+	doc := parse(t, html)
+	if doc.Find(`.danger-zone form`).Length() != 0 {
+		t.Error("home: no unpublish button expected")
+	}
+	if got := text(doc.Find(".danger-zone")); !strings.Contains(got, "Главная страница всегда опубликована") {
+		t.Errorf("home hint = %q", got)
+	}
+	resp, _ := post(t, a.client, a.srv.URL+edit+"/unpublish", url.Values{"csrf_token": {a.token}}, nil)
+	if resp.StatusCode != http.StatusConflict {
+		t.Errorf("unpublish home: status %d, want 409", resp.StatusCode)
+	}
+	if resp, _ := a.get(edit + "/delete"); resp.StatusCode != http.StatusConflict {
+		t.Errorf("delete home: status %d, want 409", resp.StatusCode)
+	}
+	form := a.form(edit)
+	form.Set("slug", "welcome")
+	resp, html = a.submit(edit, form, "publish", nil)
+	if got := text(parse(t, html).Find("#slug-error")); resp.StatusCode != http.StatusUnprocessableEntity || got != "Это главная страница: её адрес — «home»." {
+		t.Errorf("home slug change: status %d, error %q", resp.StatusCode, got)
+	}
+	page(t, a.srv, "/", http.StatusOK)
 }
 
 // Маршруты из reservedSlugs перекрывают страницу с тем же slug: даже если она попала в БД в обход админки,
@@ -400,15 +807,164 @@ func TestE2EReservedSlugsShadowPages(t *testing.T) {
 	srv := httptest.NewServer(site.handler(config{}))
 	t.Cleanup(srv.Close)
 
-	for _, s := range reservedSlugs {
-		if _, err := db.ExecContext(context.Background(),
-			`INSERT INTO pages (title, slug, body) VALUES (?, ?, '')`, "Страница-"+s, s); err != nil {
+	for i, s := range reservedSlugs {
+		ctx := context.Background()
+		if _, err := db.ExecContext(ctx, `INSERT INTO pages (id) VALUES (?)`, i+1); err != nil {
 			t.Fatal(err)
+		}
+		for _, kind := range []string{"draft", "published"} {
+			if _, err := db.ExecContext(ctx, `INSERT INTO page_contents (page_id, kind, title, slug) VALUES (?, ?, ?, ?)`,
+				i+1, kind, "Страница-"+s, s); err != nil {
+				t.Fatal(err)
+			}
 		}
 		resp, body := fetch(t, noRedirect, srv.URL+"/"+s)
 		// Название страницы есть в меню любой HTML-страницы, поэтому смотрим на заголовок содержимого.
 		if strings.Contains(body, "<html") && text(parse(t, body).Find("main h1")) == "Страница-"+s {
 			t.Errorf("GET /%s: served the page (status %d), want the site route", s, resp.StatusCode)
 		}
+	}
+}
+
+// Изображения в блоках: адаптивная картинка на сайте, выбор из медиатеки в админке, ссылки в page_images
+// и запрет удалить используемое изображение (со списком страниц).
+func TestE2EPageImages(t *testing.T) {
+	site, imgs := migratedSiteWithImages(t)
+	a := newPageAdminOn(t, site)
+
+	// /about: текст, картинка, картинка с текстом справа, цитата — в порядке seed.
+	doc := page(t, a.srv, "/about", http.StatusOK)
+	var kinds []string
+	doc.Find("main article .block").Each(func(_ int, s *goquery.Selection) {
+		class, _ := s.Attr("class")
+		kinds = append(kinds, strings.TrimPrefix(strings.Fields(class)[1], "block-"))
+	})
+	if got := strings.Join(kinds, ","); got != "text,image,image-text,text,quote" {
+		t.Errorf("about blocks = %s", got)
+	}
+	pic := doc.Find("#block-about-photo picture")
+	srcset, _ := pic.Find(`source[type="image/webp"]`).Attr("srcset")
+	if !strings.Contains(srcset, ".webp 480w") || !strings.Contains(srcset, ".webp 2400w") {
+		t.Errorf("webp srcset = %q", srcset)
+	}
+	if alt, _ := pic.Find("img").Attr("alt"); alt != "Тестовая фотография из модуля images" {
+		t.Errorf("alt = %q", alt)
+	}
+	if got := text(doc.Find("#block-about-photo figcaption")); got == "" {
+		t.Error("no caption")
+	}
+	if doc.Find("#block-about-side.block-image-right picture").Length() != 1 {
+		t.Error("image_text: no picture on the right")
+	}
+	// Адреса вариантов отдаёт модуль.
+	src, _ := pic.Find("img").Attr("src")
+	if resp, _ := fetch(t, a.client, a.srv.URL+src); resp.StatusCode != http.StatusOK {
+		t.Errorf("GET %s: status %d", src, resp.StatusCode)
+	}
+
+	// В админке блок изображения — выбор из медиатеки с превью выбранного.
+	edit := a.editLink("О проекте")
+	_, html := a.get(edit)
+	doc = parse(t, html)
+	sel := doc.Find(`select[name="block-about-photo-image"]`)
+	if v, _ := sel.Find("option[selected]").Attr("value"); v != imgs["photo.jpg"] {
+		t.Errorf("selected image = %q, want photo.jpg (%s)", v, imgs["photo.jpg"])
+	}
+	if n := sel.Find("option").Length(); n != len(imgs)+1 {
+		t.Errorf("image options = %d, want %d and «— выберите —»", n, len(imgs)+1)
+	}
+	if doc.Find("#block-about-photo .block-thumb picture").Length() != 1 {
+		t.Error("no thumbnail of the selected image")
+	}
+
+	// Используемое изображение не удаляется: карточка показывает страницу, подтверждение и POST — 409.
+	show := "/admin/media/" + imgs["photo.jpg"]
+	_, html = a.get(show)
+	if href, _ := parse(t, html).Find(".usage-list a").Attr("href"); href != edit {
+		t.Errorf("usage link = %q, want %s", href, edit)
+	}
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		var resp response
+		if method == http.MethodGet {
+			resp, html = a.get(show + "/delete")
+		} else {
+			resp, html = post(t, a.client, a.srv.URL+show+"/delete", url.Values{"csrf_token": {a.token}}, nil)
+		}
+		doc := parse(t, html)
+		if resp.StatusCode != http.StatusConflict || text(doc.Find(".usage-list a")) != "Страница «О проекте»" {
+			t.Errorf("%s delete used image: status %d, usage %q", method, resp.StatusCode, text(doc.Find(".usage-list")))
+		}
+	}
+
+	// Новая страница с картинкой из формы: page_images у черновика, после публикации — и у опубликованной копии.
+	form := newPageForm("Галерея", "")
+	addBlock(form, "pic", "image", map[string]string{"image": imgs["small.jpg"], "alt": "Маленькая"})
+	gallery := a.create(form, "save")
+	id := strings.TrimPrefix(gallery, "/admin/pages/")
+	refs := func() string {
+		t.Helper()
+		rows, err := site.db.Query(`SELECT kind FROM page_images WHERE page_id = ? AND image_id = ? ORDER BY kind`, id, imgs["small.jpg"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = rows.Close() }()
+		var kinds []string
+		for rows.Next() {
+			var k string
+			if err := rows.Scan(&k); err != nil {
+				t.Fatal(err)
+			}
+			kinds = append(kinds, k)
+		}
+		return strings.Join(kinds, ",")
+	}
+	if got := refs(); got != "draft" {
+		t.Errorf("page_images after save = %q, want draft", got)
+	}
+	if resp, _ := a.submit(gallery, a.form(gallery), "publish", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("publish: status %d", resp.StatusCode)
+	}
+	if got := refs(); got != "draft,published" {
+		t.Errorf("page_images after publish = %q", got)
+	}
+	if page(t, a.srv, "/galereya", http.StatusOK).Find("#block-pic picture img").Length() != 1 {
+		t.Error("published image block has no picture")
+	}
+
+	// Скрытый блок тоже держит изображение. Блок убран из черновика — опубликованная копия всё ещё держит;
+	// снята с публикации — изображение свободно.
+	form = a.form(gallery)
+	resp, body := a.submit(gallery, form, "hide:pic", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("hide: status %d", resp.StatusCode)
+	}
+	if resp, _ := a.submit(gallery, formValues(parse(t, body).Find("#page-form")), "save", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("save hidden: status %d", resp.StatusCode)
+	}
+	if got := refs(); got != "draft,published" {
+		t.Errorf("hidden block: page_images = %q", got)
+	}
+	resp, body = a.submit(gallery, a.form(gallery), "remove:pic", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("remove: status %d", resp.StatusCode)
+	}
+	if resp, _ := a.submit(gallery, formValues(parse(t, body).Find("#page-form")), "save", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("save removed: status %d", resp.StatusCode)
+	}
+	if got := refs(); got != "published" {
+		t.Errorf("removed from draft: page_images = %q, want published", got)
+	}
+	if resp, _ := post(t, a.client, a.srv.URL+"/admin/media/"+imgs["small.jpg"]+"/delete", url.Values{"csrf_token": {a.token}}, nil); resp.StatusCode != http.StatusConflict {
+		t.Errorf("delete image of the published copy: status %d, want 409", resp.StatusCode)
+	}
+	if resp, _ := post(t, a.client, a.srv.URL+gallery+"/unpublish", url.Values{"csrf_token": {a.token}}, nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("unpublish: status %d", resp.StatusCode)
+	}
+	if got := refs(); got != "" {
+		t.Errorf("after unpublish: page_images = %q, want none", got)
+	}
+	resp, _ = post(t, a.client, a.srv.URL+"/admin/media/"+imgs["small.jpg"]+"/delete", url.Values{"csrf_token": {a.token}}, nil)
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("delete unused image: status %d, want 303", resp.StatusCode)
 	}
 }

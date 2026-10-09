@@ -10,15 +10,27 @@ import (
 // Layout — оболочка любой публичной страницы. title пуст — в <title> только название сайта.
 // Язык страницы — из site.yaml (languages: [ru]).
 templ Layout(title string) {
+	@LayoutMeta(title, "") {
+		{ children... }
+	}
+}
+
+// LayoutMeta — Layout с описанием страницы (meta description); пустое — описание сайта.
+templ LayoutMeta(title, description string) {
 	{{ site := SiteFrom(ctx) }}
+	{{
+	if description == "" {
+		description = site.Description
+	}
+	}}
 	<!DOCTYPE html>
 	<html lang="ru">
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ pageTitle(title, site.Name) }</title>
-			if site.Description != "" {
-				<meta name="description" content={ site.Description }/>
+			if description != "" {
+				<meta name="description" content={ description }/>
 			}
 			<link rel="icon" type="image/svg+xml" href={ static.Path("favicon.svg") }/>
 			<link rel="stylesheet" href={ static.Path("style.css") }/>

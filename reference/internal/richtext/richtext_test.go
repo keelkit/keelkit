@@ -73,3 +73,12 @@ func TestRender(t *testing.T) {
 		})
 	}
 }
+
+func TestPlainText(t *testing.T) {
+	src := "## Заголовок\n\nАбзац с **жирным** и [ссылкой](https://example.com).\n\n- раз\n- два\n\n<script>alert(1)</script>\n\n&amp; «кавычки»\n\n| a | b |\n|---|---|\n| 1 | 2 |"
+	got := PlainText(src)
+	want := "Заголовок Абзац с жирным и ссылкой. раз два & «кавычки» a b 1 2"
+	if got != want {
+		t.Errorf("PlainText = %q, want %q", got, want)
+	}
+}

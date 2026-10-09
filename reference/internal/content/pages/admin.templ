@@ -2,7 +2,7 @@ package pages
 
 import (
 	"github.com/voffkin/keelkit/reference/internal/admin"
-	"github.com/voffkin/keelkit/reference/internal/richtext"
+	"github.com/voffkin/keelkit/reference/internal/blocks"
 )
 
 // ListPage — список страниц в админке.
@@ -31,20 +31,16 @@ templ ListPage(list []ListPagesRow, deleted bool) {
 					<tbody>
 						for _, p := range list {
 							<tr>
-								<td><a href={ templ.SafeURL(editPath(p.ID)) }>{ p.Title }</a></td>
+								<td><a href={ templ.SafeURL(EditPath(p.ID)) }>{ p.Title }</a></td>
 								<td>
-									if p.Draft {
+									if p.PublishedSlug == "" {
 										<span class="muted">{ publicPath(p.Slug) }</span>
 									} else {
-										<a href={ templ.SafeURL(publicPath(p.Slug)) }>{ publicPath(p.Slug) }</a>
+										<a href={ templ.SafeURL(publicPath(p.PublishedSlug)) }>{ publicPath(p.PublishedSlug) }</a>
 									}
 								</td>
 								<td>
-									if p.Draft {
-										<span class="status status-draft">Черновик</span>
-									} else {
-										<span class="status">Опубликована</span>
-									}
+									@status(p.PublishedSlug != "", p.Changed != 0)
 								</td>
 								<td>{ formatTime(p.UpdatedAt) }</td>
 							</tr>
@@ -56,28 +52,59 @@ templ ListPage(list []ListPagesRow, deleted bool) {
 	}
 }
 
+// status — статус страницы: черновик, опубликована, есть неопубликованные изменения.
+templ status(published, changed bool) {
+	switch {
+		case !published:
+			<span class="status status-draft">Черновик</span>
+		case changed:
+			<span class="status status-changed">Есть неопубликованные изменения</span>
+		default:
+			<span class="status">Опубликована</span>
+	}
+}
+
 // FormPage — страница создания или редактирования.
 templ FormPage(f pageForm) {
 	@admin.Layout(formTitle(f)) {
 		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Страницы</a></p>
 		<div class="admin-title">
 			<h1>{ formTitle(f) }</h1>
-			if f.ID != 0 && !f.Published {
-				<a href={ templ.SafeURL(viewPath(f.ID)) }>Предпросмотр</a>
-			} else if f.ID != 0 && f.Errors == nil {
-				<a href={ templ.SafeURL(publicPath(f.Slug)) }>Открыть на сайте</a>
+			if f.ID != 0 {
+				@status(f.Published, f.Changed)
+				<a href={ templ.SafeURL(viewPath(f.ID)) }>Предпросмотр черновика</a>
+				if f.Published {
+					<a href={ templ.SafeURL(publicPath(f.PublishedSlug)) }>Открыть на сайте</a>
+				}
 			}
 		</div>
-		if f.Saved {
-			<p class="flash" role="status">Сохранено.</p>
+		if f.Flash != "" {
+			<p class="flash" role="status">{ f.Flash }</p>
 		}
 		@Form(f)
+		if f.ID != 0 {
+			<div class="danger-zone">
+				if f.Published && f.PublishedSlug != HomeSlug {
+					<form method="post" action={ templ.SafeURL(EditPath(f.ID) + "/unpublish") } class="form-actions">
+						@admin.CSRFInput()
+						<button type="submit" class="secondary">Снять с публикации</button>
+						<span class="field-hint">Страница пропадёт с сайта и из меню; черновик останется здесь.</span>
+					</form>
+				}
+				if !f.Published {
+					<p><a class="danger-link" href={ templ.SafeURL(EditPath(f.ID) + "/delete") }>Удалить страницу</a></p>
+				} else {
+					<p class="field-hint">{ deleteHint(f.PublishedSlug) }</p>
+				}
+			</div>
+		}
 	}
 }
 
 // Form — форма страницы. Отправляется через htmx: с ошибками сервер возвращает только этот фрагмент (422),
-// и он заменяет форму целиком; без JavaScript та же форма работает обычным POST.
-// Превью Markdown обновляется при наборе с задержкой; hx-sync отменяет устаревший запрос.
+// и он заменяет форму целиком; без JavaScript та же форма работает обычным POST. Кнопка — поле action:
+// «Сохранить» (save) пишет черновик, «Опубликовать» (publish) — ещё и показывает его на сайте, кнопки блоков —
+// действия blocks.Apply (форма возвращается изменённой, без сохранения).
 templ Form(f pageForm) {
 	<form
 		id="page-form"
@@ -89,8 +116,13 @@ templ Form(f pageForm) {
 		hx-swap="outerHTML"
 	>
 		@admin.CSRFInput()
+		// Enter в поле нажимает первую кнопку формы: пусть это будет «Сохранить», а не «↑» первого блока.
+		<button type="submit" name="action" value="save" class="visually-hidden" tabindex="-1" aria-hidden="true">Сохранить</button>
 		if len(f.Errors) > 0 {
 			<p class="form-error" role="alert">Исправьте ошибки в форме.</p>
+		}
+		if f.Unsaved {
+			<p class="flash flash-warning" role="status">Изменения ещё не сохранены: нажмите «Сохранить» или «Опубликовать».</p>
 		}
 		<label>
 			Заголовок
@@ -121,74 +153,17 @@ templ Form(f pageForm) {
 					aria-describedby="slug-hint"
 				}
 			/>
-			<span class="field-hint" id="slug-hint">Адрес страницы: латиница, цифры и дефисы. Пусто — составится из заголовка.</span>
+			<span class="field-hint" id="slug-hint">Адрес страницы: латиница, цифры и дефисы. Пусто — составится из заголовка. Новый адрес появится на сайте после публикации.</span>
 			@fieldError(f, "slug")
 		</label>
-		<div class="editor">
-			<label>
-				Текст (Markdown)
-				<textarea
-					name="body"
-					rows="18"
-					hx-post={ AdminPath + "/preview" }
-					hx-trigger="input changed delay:400ms"
-					hx-target="#page-preview"
-					hx-swap="innerHTML"
-					hx-sync="this:replace"
-					if f.Errors["body"] != "" {
-						aria-invalid="true"
-						aria-describedby="body-error"
-					}
-				>{ f.Body }</textarea>
-				@fieldError(f, "body")
-			</label>
-			<section class="preview" aria-labelledby="preview-title">
-				<h2 id="preview-title" class="preview-title">Превью</h2>
-				<div id="page-preview" class="page" aria-live="polite">
-					@Preview(f.Preview)
-				</div>
-			</section>
-		</div>
-		<label class="checkbox">
-			<input
-				type="checkbox"
-				name="draft"
-				value="1"
-				checked?={ f.Draft }
-				if f.Errors["draft"] != "" {
-					aria-invalid="true"
-					aria-describedby="draft-hint draft-error"
-				} else {
-					aria-describedby="draft-hint"
-				}
-			/>
-			Черновик
-		</label>
-		<span class="field-hint" id="draft-hint">Черновик не виден на сайте и в меню. Снимите флажок и сохраните, чтобы опубликовать.</span>
-		@fieldError(f, "draft")
+		@blocks.Editor(f.Blocks, f.Env)
 		<div class="form-actions">
-			<button type="submit">Сохранить</button>
+			<button type="submit" name="action" value="save">Сохранить</button>
+			<button type="submit" name="action" value="publish" class="secondary">Опубликовать</button>
 			<a href={ templ.SafeURL(AdminPath) }>Отмена</a>
 		</div>
-		if f.ID != 0 {
-			<p class="danger-zone">
-				if !f.Published {
-					<a class="danger-link" href={ templ.SafeURL(editPath(f.ID) + "/delete") }>Удалить черновик</a>
-				} else {
-					<span class="field-hint">{ deleteHint(f.Slug) }</span>
-				}
-			</p>
-		}
+		<span class="field-hint">«Сохранить» — сохранить черновик, на сайте ничего не изменится. «Опубликовать» — сохранить и показать на сайте.</span>
 	</form>
-}
-
-// Preview — содержимое блока превью (ответ на POST /admin/pages/preview).
-templ Preview(body richtext.HTML) {
-	if body == "" {
-		<p class="preview-empty">Здесь появится превью текста.</p>
-	} else {
-		@body
-	}
 }
 
 templ fieldError(f pageForm, field string) {
@@ -198,35 +173,35 @@ templ fieldError(f pageForm, field string) {
 }
 
 // DeletePage — подтверждение удаления.
-templ DeletePage(p Page) {
+templ DeletePage(f pageForm) {
 	@admin.Layout("Удаление страницы") {
 		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Страницы</a></p>
-		<h1>Удалить черновик «{ p.Title }»?</h1>
-		<p>Черновик на сайте не виден, но его текст пропадёт и из админки. Отменить удаление нельзя.</p>
-		<form method="post" action={ templ.SafeURL(editPath(p.ID) + "/delete") } class="form-actions">
+		<h1>Удалить страницу «{ f.Title }»?</h1>
+		<p>Страница не опубликована, но её черновик пропадёт и из админки. Отменить удаление нельзя.</p>
+		<form method="post" action={ templ.SafeURL(EditPath(f.ID) + "/delete") } class="form-actions">
 			@admin.CSRFInput()
 			<button type="submit" class="danger">Удалить</button>
-			<a href={ templ.SafeURL(editPath(p.ID)) }>Отмена</a>
+			<a href={ templ.SafeURL(EditPath(f.ID)) }>Отмена</a>
 		</form>
 	}
 }
 
-// DeleteBlockedPage — попытка удалить опубликованную страницу (409): что сделать сначала.
-templ DeleteBlockedPage(p Page) {
-	@admin.Layout("Удаление страницы") {
+// BlockedPage — действие недоступно в текущем состоянии страницы (409): что сделать сначала.
+templ BlockedPage(f pageForm, reason string) {
+	@admin.Layout("Действие недоступно") {
 		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Страницы</a></p>
-		<h1>Страница «{ p.Title }» опубликована</h1>
-		<p>{ deleteHint(p.Slug) }</p>
-		<p><a href={ templ.SafeURL(editPath(p.ID)) }>Вернуться к редактированию</a></p>
+		<h1>Страница «{ f.Title }» опубликована</h1>
+		<p>{ reason }</p>
+		<p><a href={ templ.SafeURL(EditPath(f.ID)) }>Вернуться к редактированию</a></p>
 	}
 }
 
 // deleteHint — почему опубликованную страницу нельзя удалить сразу.
-func deleteHint(slug string) string {
-	if slug == HomeSlug {
+func deleteHint(publishedSlug string) string {
+	if publishedSlug == HomeSlug {
 		return "Главная страница всегда опубликована, поэтому удалить её нельзя."
 	}
-	return "Удалить можно только черновик: отметьте «Черновик», сохраните — страница пропадёт с сайта, — и тогда удалите."
+	return "Удалить можно только неопубликованную страницу: сначала снимите её с публикации."
 }
 
 func formTitle(f pageForm) string {
@@ -240,5 +215,5 @@ func formAction(f pageForm) string {
 	if f.ID == 0 {
 		return AdminPath
 	}
-	return editPath(f.ID)
+	return EditPath(f.ID)
 }

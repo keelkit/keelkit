@@ -10,7 +10,7 @@ content:
     fields:
       title: { type: string, required: true }
       slug:  { type: slug, required: true }
-      body:  { type: richtext }
+      body:  { type: blocks, allow: [text, image, image_text, quote] }
     features: [sitemap]
   services:
     fields:

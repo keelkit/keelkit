@@ -1,0 +1,115 @@
+package blocks
+
+import (
+	"context"
+	"io"
+	"log/slog"
+	"strings"
+
+	"github.com/voffkin/keelkit/modules/images"
+
+	"github.com/voffkin/keelkit/reference/internal/richtext"
+	"github.com/voffkin/keelkit/reference/internal/web"
+)
+
+// Ширина картинок в вёрстке (атрибут sizes): блок — во всю колонку текста (--measure в style.css),
+// в image_text — половина колонки на широком экране.
+const (
+	sizesFull = "(min-width: 46rem) 44rem, calc(100vw - 2rem)"
+	sizesHalf = "(min-width: 46rem) 21rem, calc(100vw - 2rem)"
+)
+
+// View — блоки на сайте по порядку; скрытые и неизвестные не выводятся. Якорь блока — id="block-<ID>".
+templ View(list []Block, res Resolved) {
+	for _, b := range list {
+		if !b.Hidden {
+			@b.Content.view(b, res)
+		}
+	}
+}
+
+templ textView(b Block, t *Text) {
+	<div class="block block-text" id={ "block-" + b.ID }>
+		@markdown(t.Body)
+	</div>
+}
+
+templ imageView(b Block, m *Image, img *images.Image) {
+	if img == nil {
+		@missingImage(b, m.Image)
+	} else {
+		<figure class="block block-image" id={ "block-" + b.ID }>
+			@web.Picture(img, m.Alt, sizesFull)
+			if m.Caption != "" {
+				<figcaption>{ m.Caption }</figcaption>
+			}
+		</figure>
+	}
+}
+
+templ imageTextView(b Block, m *ImageText, img *images.Image) {
+	<div class={ "block", "block-image-text", templ.KV("block-image-right", m.right()) } id={ "block-" + b.ID }>
+		if img == nil {
+			@missingImage(b, m.Image)
+		} else {
+			<div class="block-image-text-media">
+				@web.Picture(img, m.Alt, sizesHalf)
+			</div>
+		}
+		<div class="block-image-text-body">
+			@markdown(m.Body)
+		</div>
+	</div>
+}
+
+templ quoteView(b Block, q *Quote) {
+	<figure class="block block-quote" id={ "block-" + b.ID }>
+		<blockquote>
+			for _, p := range paragraphs(q.Text) {
+				<p>{ p }</p>
+			}
+		</blockquote>
+		if q.Author != "" {
+			<figcaption>{ q.Author }</figcaption>
+		}
+	</figure>
+}
+
+// unknownView — блок неизвестного типа на сайт не выводится, только пишется в лог.
+func unknownView(b Block) templ.Component {
+	return templ.ComponentFunc(func(ctx context.Context, _ io.Writer) error {
+		logUnknown(ctx, b)
+		return nil
+	})
+}
+
+// missingImage — изображения нет (внешний ключ этого не допускает, но данные могли прийти из копии БД):
+// блок без картинки, в лог — предупреждение.
+func missingImage(b Block, id string) templ.Component {
+	return templ.ComponentFunc(func(ctx context.Context, _ io.Writer) error {
+		slog.WarnContext(ctx, "blocks: image not found", "block", b.ID, "image", id)
+		return nil
+	})
+}
+
+// markdown — Markdown блока как очищенный HTML (richtext.Render).
+func markdown(src string) templ.Component {
+	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		html, err := richtext.Render(src)
+		if err != nil {
+			return err
+		}
+		return html.Render(ctx, w)
+	})
+}
+
+// paragraphs — абзацы цитаты: разделены пустой строкой; переводы строк внутри абзаца сохраняет CSS (pre-line).
+func paragraphs(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, "\n\n") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}

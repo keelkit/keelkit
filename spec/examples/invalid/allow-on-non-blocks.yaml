@@ -1,0 +1,10 @@
+# expect: /content/pages/fields/body/allow: 'allow' is allowed only for fields of type blocks
+spec_version: 1
+site:
+  name: my-site
+  languages: [ru]
+content:
+  pages:
+    fields:
+      title: { type: string }
+      body:  { type: richtext, allow: [text] }

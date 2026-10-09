@@ -1,0 +1,10 @@
+# expect: /content/pages/fields/body/allow/1: 'Image-Text' does not match pattern
+spec_version: 1
+site:
+  name: my-site
+  languages: [ru]
+content:
+  pages:
+    fields:
+      title: { type: string }
+      body:  { type: blocks, allow: [text, Image-Text] }

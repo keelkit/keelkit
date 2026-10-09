@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -47,6 +48,7 @@ func browserLogin(t *testing.T, ctx context.Context, baseURL string) {
 	)
 }
 
+// Превью Markdown блока при наборе, сохранение через HX-Redirect, подмена формы с ошибкой без перезагрузки.
 func TestBrowserPagePreviewAndSave(t *testing.T) {
 	srv := e2eServer(t, true)
 	ctx := browser(t)
@@ -58,26 +60,24 @@ func TestBrowserPagePreviewAndSave(t *testing.T) {
 		chromedp.Navigate(srv.URL+"/admin/pages/new"),
 		chromedp.WaitVisible(`#page-form`, chromedp.ByQuery),
 		chromedp.SendKeys(`input[name="title"]`, "Тестовая", chromedp.ByQuery),
-		chromedp.SendKeys(`textarea[name="body"]`, "Текст **жирный**", chromedp.ByQuery),
-		chromedp.WaitVisible(`#page-preview strong`, chromedp.ByQuery),
-		chromedp.Text(`#page-preview strong`, &preview, chromedp.ByQuery),
+		chromedp.SendKeys(`.block-form textarea`, "Текст **жирный**", chromedp.ByQuery),
+		chromedp.WaitVisible(`.block-form .preview strong`, chromedp.ByQuery),
+		chromedp.Text(`.block-form .preview strong`, &preview, chromedp.ByQuery),
 	)
 	if preview != "жирный" {
 		t.Errorf("preview strong = %q", preview)
 	}
 
-	// Сохранение через htmx: HX-Redirect ведёт на форму с «Сохранено». Новая страница — черновик:
-	// снятый флажок публикует её (htmx, как и браузер, не отправляет неотмеченный checkbox).
+	// «Опубликовать» через htmx: HX-Redirect ведёт на форму с «Опубликовано».
 	var flash, slugValue string
-	run(t, ctx, "save",
-		chromedp.Click(`input[name="draft"]`, chromedp.ByQuery),
-		chromedp.Click(`#page-form button[type="submit"]`, chromedp.ByQuery),
+	run(t, ctx, "publish",
+		chromedp.Click(`.form-actions button[value="publish"]`, chromedp.ByQuery),
 		chromedp.WaitVisible(`.flash`, chromedp.ByQuery),
 		chromedp.Text(`.flash`, &flash, chromedp.ByQuery),
 		chromedp.Value(`input[name="slug"]`, &slugValue, chromedp.ByQuery),
 	)
-	if flash != "Сохранено." || slugValue != "testovaya" {
-		t.Errorf("after save: flash %q, slug %q", flash, slugValue)
+	if flash != "Опубликовано." || slugValue != "testovaya" {
+		t.Errorf("after publish: flash %q, slug %q", flash, slugValue)
 	}
 
 	// Ошибка валидации приходит фрагментом: форма заменяется без перезагрузки страницы
@@ -89,14 +89,14 @@ func TestBrowserPagePreviewAndSave(t *testing.T) {
 		chromedp.WaitVisible(`#page-form`, chromedp.ByQuery),
 		chromedp.Evaluate(`window.keelkitMarker = true`, nil),
 		chromedp.SendKeys(`input[name="title"]`, "Тестовая", chromedp.ByQuery),
-		chromedp.SendKeys(`textarea[name="body"]`, "Черновик", chromedp.ByQuery),
-		chromedp.Click(`#page-form button[type="submit"]`, chromedp.ByQuery),
+		chromedp.SendKeys(`.block-form textarea`, "Черновик", chromedp.ByQuery),
+		chromedp.Click(`.form-actions button[value="save"]`, chromedp.ByQuery),
 		chromedp.WaitVisible(`#slug-error`, chromedp.ByQuery),
 		chromedp.Text(`#slug-error`, &slugError, chromedp.ByQuery),
-		chromedp.Value(`textarea[name="body"]`, &body, chromedp.ByQuery),
+		chromedp.Value(`.block-form textarea`, &body, chromedp.ByQuery),
 		chromedp.Evaluate(`window.keelkitMarker === true`, &marker),
 	)
-	if slugError != "Страница с адресом «testovaya» уже есть: выберите другой slug." {
+	if slugError != "Страница с адресом «testovaya» уже есть (опубликованная или черновик): выберите другой slug." {
 		t.Errorf("slug error = %q", slugError)
 	}
 	if body != "Черновик" {
@@ -113,6 +113,104 @@ func TestBrowserPagePreviewAndSave(t *testing.T) {
 	)
 	if h1 != "Тестовая" {
 		t.Errorf("public h1 = %q", h1)
+	}
+}
+
+// htmxSettled ждёт, пока htmx закончит запрос и подмену: обработчики на новый фрагмент он навешивает после фазы
+// settle, и клик раньше этого ушёл бы обычной отправкой формы (человек так быстро не кликнет, chromedp — да).
+func htmxSettled() chromedp.Action {
+	var idle bool
+	return chromedp.Poll(`!document.querySelector('.htmx-request, .htmx-swapping, .htmx-settling, .htmx-added')`, &idle,
+		chromedp.WithPollingTimeout(10*time.Second))
+}
+
+// blockTitles — заголовки блоков формы по порядку (JS-выражение).
+const blockTitles = `Array.from(document.querySelectorAll('#blocks > .block-form h3')).map(h => h.textContent.trim()).join(',')`
+
+// «Добавить блок» дописывает фрагмент нового блока, «↑» и «Скрыть» подменяют форму, выбор изображения
+// перерисовывает блок с превью — всё через htmx, без перезагрузки страницы; результат публикуется.
+func TestBrowserBlocks(t *testing.T) {
+	site, _ := migratedSiteWithImages(t)
+	srv := httptest.NewServer(site.handler(config{}))
+	t.Cleanup(srv.Close)
+	ctx := browser(t)
+	browserLogin(t, ctx, srv.URL)
+
+	var order string
+	var marker bool
+	run(t, ctx, "add blocks",
+		chromedp.Navigate(srv.URL+"/admin/pages/new"),
+		chromedp.WaitVisible(`#page-form`, chromedp.ByQuery),
+		chromedp.Evaluate(`window.keelkitMarker = true`, nil),
+		chromedp.SendKeys(`input[name="title"]`, "Блоки", chromedp.ByQuery),
+		chromedp.SendKeys(`.block-form textarea`, "Первый", chromedp.ByQuery),
+		chromedp.Click(`.block-add button[value="add:quote"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`#blocks > .block-form:nth-child(2) textarea`, chromedp.ByQuery),
+		htmxSettled(),
+		chromedp.SendKeys(`#blocks > .block-form:nth-child(2) textarea`, "Цитата", chromedp.ByQuery),
+		chromedp.Click(`.block-add button[value="add:image"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`#blocks > .block-form:nth-child(3) select`, chromedp.ByQuery),
+		htmxSettled(),
+		chromedp.Evaluate(blockTitles, &order),
+	)
+	if order != "Текст,Цитата,Изображение" {
+		t.Errorf("after add: %s", order)
+	}
+
+	// Выбор изображения: блок перерисован с превью, введённый alt не потерян.
+	var thumbs int
+	run(t, ctx, "pick image",
+		chromedp.SendKeys(`#blocks > .block-form:nth-child(3) input[name$="-alt"]`, "Фото", chromedp.ByQuery),
+		chromedp.Evaluate(`(() => { const s = document.querySelector('#blocks > .block-form:nth-child(3) select');
+			s.value = s.options[1].value; s.dispatchEvent(new Event('change', {bubbles: true})); })()`, nil),
+		// Картинка с loading="lazy" до загрузки нулевого размера: ждём элемент, а не его видимость.
+		chromedp.WaitReady(`#blocks > .block-form:nth-child(3) .block-thumb picture`, chromedp.ByQuery),
+		htmxSettled(),
+		chromedp.Evaluate(`document.querySelectorAll('.block-thumb picture').length`, &thumbs),
+	)
+	var alt string
+	run(t, ctx, "alt kept", chromedp.Value(`#blocks > .block-form:nth-child(3) input[name$="-alt"]`, &alt, chromedp.ByQuery))
+	if thumbs != 1 || alt != "Фото" {
+		t.Errorf("after picking: thumbnails %d, alt %q", thumbs, alt)
+	}
+
+	// «↑» у цитаты и «Скрыть» у текста: форма подменяется, введённое на месте.
+	var unsaved string
+	run(t, ctx, "reorder and hide",
+		chromedp.Click(`#blocks > .block-form:nth-child(2) button[value^="up:"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`.flash-warning`, chromedp.ByQuery),
+		htmxSettled(),
+		chromedp.Evaluate(blockTitles, &order),
+		chromedp.Text(`.flash-warning`, &unsaved, chromedp.ByQuery),
+		chromedp.Click(`#blocks > .block-form:nth-child(2) button[value^="hide:"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`#blocks > .block-form:nth-child(2).block-hidden`, chromedp.ByQuery),
+		htmxSettled(),
+		chromedp.Evaluate(`window.keelkitMarker === true`, &marker),
+	)
+	if order != "Цитата,Текст,Изображение" || unsaved == "" {
+		t.Errorf("after up: %s, notice %q", order, unsaved)
+	}
+	if !marker {
+		t.Error("page was reloaded: want htmx swaps")
+	}
+
+	var flash string
+	run(t, ctx, "publish",
+		chromedp.Click(`.form-actions button[value="publish"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`.flash[role="status"]:not(.flash-warning)`, chromedp.ByQuery),
+		chromedp.Text(`.flash[role="status"]:not(.flash-warning)`, &flash, chromedp.ByQuery),
+	)
+	if flash != "Опубликовано." {
+		t.Fatalf("publish flash = %q", flash)
+	}
+	var public string
+	run(t, ctx, "public page",
+		chromedp.Navigate(srv.URL+"/bloki"),
+		chromedp.WaitVisible(`main article`, chromedp.ByQuery),
+		chromedp.Evaluate(`Array.from(document.querySelectorAll('main article .block')).map(b => b.classList[1]).join(',')`, &public),
+	)
+	if public != "block-quote,block-image" {
+		t.Errorf("public blocks = %s, want quote and image (text is hidden)", public)
 	}
 }
 

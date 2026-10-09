@@ -38,7 +38,7 @@ func newMediaAdmin(t *testing.T, withImages bool) *mediaAdmin {
 	t.Helper()
 	site := migratedSite(t, true)
 	if withImages {
-		if err := seedImages(context.Background(), site.media); err != nil {
+		if _, err := seedImages(context.Background(), site.media); err != nil {
 			t.Fatalf("seed images: %v", err)
 		}
 	}

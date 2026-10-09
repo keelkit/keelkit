@@ -1,0 +1,10 @@
+# expect: /content/pages/fields/body: missing property
+spec_version: 1
+site:
+  name: my-site
+  languages: [ru]
+content:
+  pages:
+    fields:
+      title: { type: string }
+      body:  { type: blocks }

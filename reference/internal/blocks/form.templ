@@ -1,0 +1,259 @@
+package blocks
+
+import (
+	"strconv"
+
+	"github.com/voffkin/keelkit/modules/images"
+
+	"github.com/voffkin/keelkit/reference/internal/web"
+)
+
+// Editor — блоки в форме админки: по порядку, затем кнопки «Добавить блок».
+// Кнопки блоков — submit с name="action" (Apply): без JavaScript они отправляют форму целиком, сервер выполняет
+// действие и возвращает форму, ничего не сохраняя; с htmx та же отправка подменяет форму. «Добавить блок» через htmx
+// запрашивает только фрагмент нового блока (BlockURL?type=) и дописывает его в конец списка.
+templ Editor(list []Block, e FormEnv) {
+	<fieldset class="blocks-editor" aria-describedby="blocks-hint">
+		<legend>Блоки</legend>
+		<span class="field-hint" id="blocks-hint">Страница собирается из блоков сверху вниз. Скрытый блок остаётся здесь, но не выводится на сайте.</span>
+		if msg := e.Errors["blocks"]; msg != "" {
+			<span class="field-error" id="blocks-error">{ msg }</span>
+		}
+		<div id="blocks" class="blocks">
+			for _, b := range list {
+				@Form(b, e)
+			}
+		</div>
+		if len(list) == 0 {
+			<p class="muted blocks-empty">Блоков пока нет: добавьте первый.</p>
+		}
+		<div class="block-add">
+			<span>Добавить блок:</span>
+			for _, name := range e.Allow {
+				<button
+					type="submit"
+					name="action"
+					value={ "add:" + name }
+					class="secondary"
+					formnovalidate
+					hx-post={ e.BlockURL + "?type=" + name }
+					hx-params="none"
+					hx-target="#blocks"
+					hx-swap="beforeend"
+				>{ Title(name) }</button>
+			}
+		</div>
+	</fieldset>
+}
+
+// Form — фрагмент формы одного блока (и ответ на POST BlockURL).
+templ Form(b Block, e FormEnv) {
+	<section class={ "block-form", templ.KV("block-hidden", b.Hidden) } id={ "block-" + b.ID } aria-labelledby={ "block-" + b.ID + "-title" }>
+		<input type="hidden" name="block" value={ b.ID }/>
+		<input type="hidden" name={ FieldName(b.ID, "type") } value={ b.Type }/>
+		if b.Hidden {
+			<input type="hidden" name={ FieldName(b.ID, "hidden") } value="1"/>
+		}
+		<div class="block-head">
+			<h3 id={ "block-" + b.ID + "-title" }>{ Title(b.Type) }</h3>
+			if b.Hidden {
+				<span class="status status-draft">Скрыт</span>
+			}
+			<div class="block-controls">
+				<button type="submit" name="action" value={ "up:" + b.ID } class="link-button" formnovalidate title="Выше" aria-label="Переместить блок выше">↑</button>
+				<button type="submit" name="action" value={ "down:" + b.ID } class="link-button" formnovalidate title="Ниже" aria-label="Переместить блок ниже">↓</button>
+				<button type="submit" name="action" value={ "hide:" + b.ID } class="link-button" formnovalidate>
+					if b.Hidden {
+						Показать
+					} else {
+						Скрыть
+					}
+				</button>
+				<button type="submit" name="action" value={ "remove:" + b.ID } class="link-button danger-link" formnovalidate>Удалить блок</button>
+			</div>
+		</div>
+		@b.Content.form(b, e)
+	</section>
+}
+
+templ textForm(b Block, t *Text, e FormEnv) {
+	@markdownField(b, "body", "Текст (Markdown)", t.Body, e)
+}
+
+templ imageForm(b Block, m *Image, e FormEnv) {
+	@imageField(b, m.Image, e)
+	@textField(b, "alt", "Описание (alt)", m.Alt, "Что изображено — для тех, кто не видит картинку, и для поисковиков.", e)
+	@textField(b, "caption", "Подпись", m.Caption, "Необязательно: выводится под изображением.", e)
+}
+
+templ imageTextForm(b Block, m *ImageText, e FormEnv) {
+	@imageField(b, m.Image, e)
+	@textField(b, "alt", "Описание (alt)", m.Alt, "Что изображено — для тех, кто не видит картинку, и для поисковиков.", e)
+	<fieldset class="block-position">
+		<legend>Изображение</legend>
+		<label class="checkbox">
+			<input type="radio" name={ FieldName(b.ID, "position") } value={ PositionLeft } checked?={ !m.right() }/>
+			слева
+		</label>
+		<label class="checkbox">
+			<input type="radio" name={ FieldName(b.ID, "position") } value={ PositionRight } checked?={ m.right() }/>
+			справа
+		</label>
+	</fieldset>
+	@markdownField(b, "body", "Текст (Markdown)", m.Body, e)
+}
+
+templ quoteForm(b Block, q *Quote, e FormEnv) {
+	<label>
+		Цитата
+		<textarea
+			name={ FieldName(b.ID, "text") }
+			rows="4"
+			class="short"
+			if e.err(b, "text") != "" {
+				aria-invalid="true"
+				aria-describedby={ FieldName(b.ID, "text") + "-error" }
+			}
+		>{ q.Text }</textarea>
+		@fieldError(b, "text", e)
+	</label>
+	@textField(b, "author", "Автор", q.Author, "Необязательно.", e)
+}
+
+templ unknownForm(b Block, u *Unknown) {
+	<input type="hidden" name={ FieldName(b.ID, "raw") } value={ u.Raw }/>
+	<p class="field-hint">
+		Этого типа блока нет в коде сайта: на сайте он не выводится, данные сохраняются как есть.
+		Его можно переставить, скрыть или удалить.
+	</p>
+}
+
+// textField — однострочное поле блока с подсказкой и ошибкой.
+templ textField(b Block, field, label, value, hint string, e FormEnv) {
+	{{ name := FieldName(b.ID, field) }}
+	<label>
+		{ label }
+		<input
+			type="text"
+			name={ name }
+			value={ value }
+			maxlength={ strconv.Itoa(maxShort) }
+			if e.err(b, field) != "" {
+				aria-invalid="true"
+				aria-describedby={ name + "-hint " + name + "-error" }
+			} else {
+				aria-describedby={ name + "-hint" }
+			}
+		/>
+		<span class="field-hint" id={ name + "-hint" }>{ hint }</span>
+		@fieldError(b, field, e)
+	</label>
+}
+
+// markdownField — textarea Markdown и превью рядом. Превью обновляется при наборе с задержкой (htmx, только
+// это поле — hx-params); hx-sync отменяет устаревший запрос. При открытии формы превью рисует сервер.
+templ markdownField(b Block, field, label, value string, e FormEnv) {
+	{{ name := FieldName(b.ID, field) }}
+	<div class="editor">
+		<label>
+			{ label }
+			<textarea
+				name={ name }
+				rows="10"
+				hx-post={ e.PreviewURL + "?field=" + name }
+				hx-params={ name }
+				hx-trigger="input changed delay:400ms"
+				hx-target={ "#" + name + "-preview" }
+				hx-swap="innerHTML"
+				hx-sync="this:replace"
+				if e.err(b, field) != "" {
+					aria-invalid="true"
+					aria-describedby={ name + "-error" }
+				}
+			>{ value }</textarea>
+			@fieldError(b, field, e)
+		</label>
+		<section class="preview" aria-label="Превью">
+			<p class="preview-title" aria-hidden="true">Превью</p>
+			<div id={ name + "-preview" } class="page" aria-live="polite">
+				@Preview(value)
+			</div>
+		</section>
+	</div>
+}
+
+// Preview — превью Markdown (и ответ на POST PreviewURL).
+templ Preview(src string) {
+	if src == "" {
+		<p class="preview-empty">Здесь появится превью текста.</p>
+	} else {
+		@markdown(src)
+	}
+}
+
+// imageField — выбор изображения из медиатеки. Смена выбора через htmx перерисовывает блок (BlockURL?id=):
+// появляется превью выбранной картинки. Без JavaScript превью обновится после отправки формы.
+templ imageField(b Block, id string, e FormEnv) {
+	{{ name := FieldName(b.ID, "image") }}
+	<div class="block-image-pick">
+		<div class="block-thumb">
+			if img := e.Resolved[id]; img != nil {
+				@web.Picture(img, "", "8rem")
+			} else {
+				<span class="muted">Не выбрано</span>
+			}
+		</div>
+		<label>
+			Изображение
+			<select
+				name={ name }
+				hx-post={ e.BlockURL + "?id=" + b.ID }
+				hx-trigger="change"
+				hx-target={ "#block-" + b.ID }
+				hx-swap="outerHTML"
+				if e.err(b, "image") != "" {
+					aria-invalid="true"
+					aria-describedby={ name + "-hint " + name + "-error" }
+				} else {
+					aria-describedby={ name + "-hint" }
+				}
+			>
+				<option value="">— выберите —</option>
+				for _, img := range options(id, e) {
+					<option value={ img.ID } selected?={ img.ID == id }>{ optionLabel(img) }</option>
+				}
+			</select>
+			<span class="field-hint" id={ name + "-hint" }>
+				Новое изображение сначала загрузите в <a href={ templ.SafeURL(e.MediaURL) } target="_blank">медиатеку</a>.
+			</span>
+			@fieldError(b, "image", e)
+		</label>
+	</div>
+}
+
+templ fieldError(b Block, field string, e FormEnv) {
+	if msg := e.err(b, field); msg != "" {
+		<span class="field-error" id={ FieldName(b.ID, field) + "-error" }>{ msg }</span>
+	}
+}
+
+// options — изображения для выбора: Library и выбранное, если его там нет (загружено давно).
+func options(id string, e FormEnv) []*images.Image {
+	if img := e.Resolved[id]; img != nil {
+		for _, l := range e.Library {
+			if l.ID == id {
+				return e.Library
+			}
+		}
+		return append([]*images.Image{img}, e.Library...)
+	}
+	return e.Library
+}
+
+func optionLabel(img *images.Image) string {
+	name := img.Name
+	if name == "" {
+		name = img.ID
+	}
+	return name + " · " + strconv.Itoa(img.Width) + "×" + strconv.Itoa(img.Height)
+}

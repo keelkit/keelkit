@@ -21,100 +21,121 @@ func (q *Queries) CountPages(ctx context.Context) (int64, error) {
 }
 
 const createPage = `-- name: CreatePage :one
-INSERT INTO pages (title, slug, body, draft) VALUES (?, ?, ?, ?)
-RETURNING id
+INSERT INTO pages DEFAULT VALUES RETURNING id
 `
 
-type CreatePageParams struct {
-	Title string
-	Slug  string
-	Body  string
-	Draft bool
-}
-
-func (q *Queries) CreatePage(ctx context.Context, arg CreatePageParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, createPage,
-		arg.Title,
-		arg.Slug,
-		arg.Body,
-		arg.Draft,
-	)
+func (q *Queries) CreatePage(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, createPage)
 	var id int64
 	err := row.Scan(&id)
 	return id, err
 }
 
-const deleteDraftPage = `-- name: DeleteDraftPage :execrows
-DELETE FROM pages WHERE id = ? AND draft = 1
+const deleteContentImages = `-- name: DeleteContentImages :exec
+DELETE FROM page_images WHERE page_id = ? AND kind = ?
 `
 
-// Only drafts can be deleted: a published page must be unpublished first.
-func (q *Queries) DeleteDraftPage(ctx context.Context, id int64) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteDraftPage, id)
+type DeleteContentImagesParams struct {
+	PageID int64
+	Kind   string
+}
+
+func (q *Queries) DeleteContentImages(ctx context.Context, arg DeleteContentImagesParams) error {
+	_, err := q.db.ExecContext(ctx, deleteContentImages, arg.PageID, arg.Kind)
+	return err
+}
+
+const deleteUnpublishedPage = `-- name: DeleteUnpublishedPage :execrows
+DELETE FROM pages
+WHERE id = ? AND NOT EXISTS (SELECT 1 FROM page_contents c WHERE c.page_id = pages.id AND c.kind = 'published')
+`
+
+// Only a page that is not on the site can be deleted: a published page must be unpublished first.
+func (q *Queries) DeleteUnpublishedPage(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteUnpublishedPage, id)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
 }
 
-const getPage = `-- name: GetPage :one
-SELECT id, title, slug, body, created_at, updated_at, draft FROM pages WHERE id = ?
+const draftPageIDBySlug = `-- name: DraftPageIDBySlug :one
+SELECT page_id FROM page_contents WHERE kind = 'draft' AND slug = ?
 `
 
-func (q *Queries) GetPage(ctx context.Context, id int64) (Page, error) {
-	row := q.db.QueryRowContext(ctx, getPage, id)
-	var i Page
+// Dev seed: an existing page with this draft slug.
+func (q *Queries) DraftPageIDBySlug(ctx context.Context, slug string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, draftPageIDBySlug, slug)
+	var page_id int64
+	err := row.Scan(&page_id)
+	return page_id, err
+}
+
+const getPageContent = `-- name: GetPageContent :one
+SELECT page_id, kind, title, slug, blocks FROM page_contents WHERE page_id = ? AND kind = ?
+`
+
+type GetPageContentParams struct {
+	PageID int64
+	Kind   string
+}
+
+func (q *Queries) GetPageContent(ctx context.Context, arg GetPageContentParams) (PageContent, error) {
+	row := q.db.QueryRowContext(ctx, getPageContent, arg.PageID, arg.Kind)
+	var i PageContent
 	err := row.Scan(
-		&i.ID,
+		&i.PageID,
+		&i.Kind,
 		&i.Title,
 		&i.Slug,
-		&i.Body,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Draft,
+		&i.Blocks,
 	)
 	return i, err
 }
 
 const getPublishedPageBySlug = `-- name: GetPublishedPageBySlug :one
-SELECT id, title, slug, body, created_at, updated_at, draft FROM pages WHERE slug = ? AND draft = 0
+SELECT page_id, title, slug, blocks FROM page_contents WHERE kind = 'published' AND slug = ?
 `
 
-// Public site: drafts are never shown.
-func (q *Queries) GetPublishedPageBySlug(ctx context.Context, slug string) (Page, error) {
+type GetPublishedPageBySlugRow struct {
+	PageID int64
+	Title  string
+	Slug   string
+	Blocks string
+}
+
+// Public site: only the published copy is ever shown.
+func (q *Queries) GetPublishedPageBySlug(ctx context.Context, slug string) (GetPublishedPageBySlugRow, error) {
 	row := q.db.QueryRowContext(ctx, getPublishedPageBySlug, slug)
-	var i Page
+	var i GetPublishedPageBySlugRow
 	err := row.Scan(
-		&i.ID,
+		&i.PageID,
 		&i.Title,
 		&i.Slug,
-		&i.Body,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Draft,
+		&i.Blocks,
 	)
 	return i, err
 }
 
-const insertPageIfMissing = `-- name: InsertPageIfMissing :exec
-INSERT INTO pages (title, slug, body) VALUES (?, ?, ?)
-ON CONFLICT (slug) DO NOTHING
+const insertContentImage = `-- name: InsertContentImage :exec
+INSERT INTO page_images (page_id, kind, image_id) VALUES (?, ?, ?)
 `
 
-type InsertPageIfMissingParams struct {
-	Title string
-	Slug  string
-	Body  string
+type InsertContentImageParams struct {
+	PageID  int64
+	Kind    string
+	ImageID string
 }
 
-// Dev seed: inserts a page unless its slug already exists.
-func (q *Queries) InsertPageIfMissing(ctx context.Context, arg InsertPageIfMissingParams) error {
-	_, err := q.db.ExecContext(ctx, insertPageIfMissing, arg.Title, arg.Slug, arg.Body)
+func (q *Queries) InsertContentImage(ctx context.Context, arg InsertContentImageParams) error {
+	_, err := q.db.ExecContext(ctx, insertContentImage, arg.PageID, arg.Kind, arg.ImageID)
 	return err
 }
 
 const listPageLinks = `-- name: ListPageLinks :many
-SELECT title, slug FROM pages WHERE slug <> ?1 AND draft = 0 ORDER BY id
+SELECT title, slug FROM page_contents
+WHERE kind = 'published' AND slug <> ?1
+ORDER BY page_id
 `
 
 type ListPageLinksRow struct {
@@ -147,18 +168,26 @@ func (q *Queries) ListPageLinks(ctx context.Context, excludeSlug string) ([]List
 }
 
 const listPages = `-- name: ListPages :many
-SELECT id, title, slug, draft, updated_at FROM pages ORDER BY id
+SELECT p.id, d.title, d.slug, p.updated_at,
+       CAST(coalesce(pub.slug, '') AS TEXT) AS published_slug,
+       CAST(pub.page_id IS NOT NULL AND (pub.title <> d.title OR pub.slug <> d.slug OR pub.blocks <> d.blocks) AS INTEGER) AS changed
+FROM pages p
+JOIN page_contents d ON d.page_id = p.id AND d.kind = 'draft'
+LEFT JOIN page_contents pub ON pub.page_id = p.id AND pub.kind = 'published'
+ORDER BY p.id
 `
 
 type ListPagesRow struct {
-	ID        int64
-	Title     string
-	Slug      string
-	Draft     bool
-	UpdatedAt string
+	ID            int64
+	Title         string
+	Slug          string
+	UpdatedAt     string
+	PublishedSlug string
+	Changed       int64
 }
 
-// Admin list, in creation order (the same order as the header menu).
+// Admin list, in creation order (the same order as the header menu). The draft always exists;
+// published_slug is empty for a page that is not on the site; changed: the draft differs from the published copy.
 func (q *Queries) ListPages(ctx context.Context) ([]ListPagesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listPages)
 	if err != nil {
@@ -172,8 +201,9 @@ func (q *Queries) ListPages(ctx context.Context) ([]ListPagesRow, error) {
 			&i.ID,
 			&i.Title,
 			&i.Slug,
-			&i.Draft,
 			&i.UpdatedAt,
+			&i.PublishedSlug,
+			&i.Changed,
 		); err != nil {
 			return nil, err
 		}
@@ -188,28 +218,108 @@ func (q *Queries) ListPages(ctx context.Context) ([]ListPagesRow, error) {
 	return items, nil
 }
 
-const updatePage = `-- name: UpdatePage :execrows
-UPDATE pages
-SET title = ?, slug = ?, body = ?, draft = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-WHERE id = ?
+const pagesUsingImage = `-- name: PagesUsingImage :many
+SELECT DISTINCT p.id, d.title
+FROM page_images i
+JOIN pages p ON p.id = i.page_id
+JOIN page_contents d ON d.page_id = p.id AND d.kind = 'draft'
+WHERE i.image_id = ?
+ORDER BY p.id
 `
 
-type UpdatePageParams struct {
-	Title string
-	Slug  string
-	Body  string
-	Draft bool
+type PagesUsingImageRow struct {
 	ID    int64
+	Title string
 }
 
-func (q *Queries) UpdatePage(ctx context.Context, arg UpdatePageParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updatePage,
+// Media library: pages whose draft or published copy uses the image (the draft title names the page).
+func (q *Queries) PagesUsingImage(ctx context.Context, imageID string) ([]PagesUsingImageRow, error) {
+	rows, err := q.db.QueryContext(ctx, pagesUsingImage, imageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PagesUsingImageRow
+	for rows.Next() {
+		var i PagesUsingImageRow
+		if err := rows.Scan(&i.ID, &i.Title); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const publishDraft = `-- name: PublishDraft :exec
+INSERT INTO page_contents (page_id, kind, title, slug, blocks)
+SELECT src.page_id, 'published', src.title, src.slug, src.blocks
+FROM page_contents AS src WHERE src.page_id = ? AND src.kind = 'draft'
+ON CONFLICT (page_id, kind) DO UPDATE SET title = excluded.title, slug = excluded.slug, blocks = excluded.blocks
+`
+
+// Copies the draft into the published copy (insert or replace its content).
+func (q *Queries) PublishDraft(ctx context.Context, pageID int64) error {
+	_, err := q.db.ExecContext(ctx, publishDraft, pageID)
+	return err
+}
+
+const publishDraftImages = `-- name: PublishDraftImages :exec
+INSERT INTO page_images (page_id, kind, image_id)
+SELECT src.page_id, 'published', src.image_id FROM page_images AS src WHERE src.page_id = ? AND src.kind = 'draft'
+`
+
+func (q *Queries) PublishDraftImages(ctx context.Context, pageID int64) error {
+	_, err := q.db.ExecContext(ctx, publishDraftImages, pageID)
+	return err
+}
+
+const saveDraft = `-- name: SaveDraft :exec
+INSERT INTO page_contents (page_id, kind, title, slug, blocks) VALUES (?, 'draft', ?, ?, ?)
+ON CONFLICT (page_id, kind) DO UPDATE SET title = excluded.title, slug = excluded.slug, blocks = excluded.blocks
+`
+
+type SaveDraftParams struct {
+	PageID int64
+	Title  string
+	Slug   string
+	Blocks string
+}
+
+func (q *Queries) SaveDraft(ctx context.Context, arg SaveDraftParams) error {
+	_, err := q.db.ExecContext(ctx, saveDraft,
+		arg.PageID,
 		arg.Title,
 		arg.Slug,
-		arg.Body,
-		arg.Draft,
-		arg.ID,
+		arg.Blocks,
 	)
+	return err
+}
+
+const touchPage = `-- name: TouchPage :execrows
+UPDATE pages SET updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?
+`
+
+func (q *Queries) TouchPage(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, touchPage, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const unpublish = `-- name: Unpublish :execrows
+DELETE FROM page_contents WHERE page_id = ? AND kind = 'published'
+`
+
+// Removes the published copy; its page_images rows go with it (ON DELETE CASCADE).
+func (q *Queries) Unpublish(ctx context.Context, pageID int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, unpublish, pageID)
 	if err != nil {
 		return 0, err
 	}

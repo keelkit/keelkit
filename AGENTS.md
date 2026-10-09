@@ -171,7 +171,7 @@ SEO, sitemap и RSS на первом этапе пишутся в коде эт
 - Формат: YAML, валидируется по `spec/schema.json` командой `make spec-validate FILE=...`
   (модуль `spec`, CLI `spec/cmd/spec-validate`). Ошибки выводятся как `файл:строка:столбец: /json/pointer: сообщение`.
 - Правила, не выражаемые в JSON Schema, проверяет валидатор: `ref` указывает на существующий тип контента,
-  `to` — только у `ref`, в типе не больше одного поля `slug`, служебные имена полей
+  `to` — только у `ref`, `allow` — только у `blocks`, в типе не больше одного поля `slug`, служебные имена полей
   (`id`, `created_at`, `updated_at`, `draft`, `publish_date`) запрещены.
 - Новое правило схемы — пример в `spec/examples/invalid/` с ожидаемым текстом ошибки (`# expect: …`).
 - Хранится в репозитории сайта как `site.yaml`.
@@ -180,7 +180,8 @@ SEO, sitemap и RSS на первом этапе пишутся в коде эт
 - Схему спецификации меняем осознанно: у неё есть версия, для старых версий нужен путь миграции.
 
 **Версия схемы 1**
-- Типы полей: `string`, `text`, `richtext` (Markdown), `int`, `bool`, `date`, `image`, `ref`, `slug`.
+- Типы полей: `string`, `text`, `richtext` (Markdown), `int`, `bool`, `date`, `image`, `ref`, `slug`, `blocks`
+  (с `spec v0.2.0`; `allow: [имена блоков]` — обязателен, непустой, без повторов; поля блоков описывает код сайта).
 - Features: `draft`, `publish_date`, `rss`, `sitemap`.
 - Ровно один язык: поле `languages` есть, но допускает один элемент. Мультиязычность — `spec_version: 2`.
 
@@ -268,6 +269,7 @@ internal/database/         # открытие SQLite, статус схем, с�
 internal/content/<type>/   # модель, sqlc-запросы, хендлеры, templ одного типа контента (миграции — в db/migrations/)
 internal/admin/            # оболочка админки и авторизация (пока здесь)
 internal/media/            # медиатека в админке поверх модуля images
+internal/blocks/           # поля blocks: типы блоков (структура, проверка, вывод, форма), JSON
 internal/web/              # layout, общие компоненты templ
 internal/richtext/         # richtext (Markdown) → очищенный HTML: goldmark + bluemonday
 internal/slug/             # slug из заголовка (транслитерация кириллицы) и проверка формата

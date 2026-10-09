@@ -177,7 +177,7 @@ func schemaIssues(ve *jsonschema.ValidationError, root *yaml.Node) []Issue {
 		// Имя свойства валидатор проверяет как отдельное значение и теряет его место
 		// в документе; запоминаем путь к ключу для вложенных ошибок.
 		if pn, ok := e.ErrorKind.(*kind.PropertyNames); ok {
-			keyLoc = append(slices.Clone(e.InstanceLocation), pn.Property)
+			keyLoc = propertyLoc(root, e.InstanceLocation, pn.Property)
 		}
 		if len(e.Causes) > 0 {
 			for _, c := range e.Causes {
@@ -197,6 +197,70 @@ func schemaIssues(ve *jsonschema.ValidationError, root *yaml.Node) []Issue {
 	}
 	walk(ve, nil)
 	return issues
+}
+
+// propertyLoc — путь к ключу name объекта loc. jsonschema v6.0.3 для propertyNames сохраняет InstanceLocation
+// без копии, и проверка соседних свойств может затереть его (порядок обхода map случаен — ошибка плавающая).
+// Если у объекта по loc такого ключа нет, путь ищется по документу: первый объект с ключом name.
+func propertyLoc(root *yaml.Node, loc []string, name string) []string {
+	if k, _ := childPair(lookupValue(root, loc), name); k != nil {
+		return append(slices.Clone(loc), name)
+	}
+	if found := findKey(root, nil, name); found != nil {
+		return found
+	}
+	return append(slices.Clone(loc), name)
+}
+
+// lookupValue — узел значения по пути (lookup возвращает узел ключа).
+func lookupValue(n *yaml.Node, tokens []string) *yaml.Node {
+	for _, tok := range tokens {
+		for n != nil && n.Kind == yaml.AliasNode {
+			n = n.Alias
+		}
+		switch {
+		case n == nil:
+			return nil
+		case n.Kind == yaml.MappingNode:
+			n = child(n, tok)
+		case n.Kind == yaml.SequenceNode:
+			i, err := strconv.Atoi(tok)
+			if err != nil || i < 0 || i >= len(n.Content) {
+				return nil
+			}
+			n = n.Content[i]
+		default:
+			return nil
+		}
+	}
+	return n
+}
+
+// findKey — путь к первому (в порядке документа) ключу name в объектах под n.
+func findKey(n *yaml.Node, path []string, name string) []string {
+	switch n.Kind {
+	case yaml.DocumentNode:
+		if len(n.Content) > 0 {
+			return findKey(n.Content[0], path, name)
+		}
+	case yaml.MappingNode:
+		for _, kv := range pairs(n) {
+			p := append(slices.Clone(path), kv[0].Value)
+			if kv[0].Value == name {
+				return p
+			}
+			if found := findKey(kv[1], p, name); found != nil {
+				return found
+			}
+		}
+	case yaml.SequenceNode:
+		for i, item := range n.Content {
+			if found := findKey(item, append(slices.Clone(path), strconv.Itoa(i)), name); found != nil {
+				return found
+			}
+		}
+	}
+	return nil
 }
 
 // semanticIssues — правила, которые не выражаются в JSON Schema.
@@ -231,6 +295,10 @@ func semanticIssues(root *yaml.Node) []Issue {
 			case fieldType == "ref" && !slices.Contains(types, to.Value):
 				issues = append(issues, issueAt(path+"/to", to, fmt.Sprintf(
 					"ref target %q is not a content type; known types: %s", to.Value, strings.Join(types, ", "))))
+			}
+			if allow := child(field, "allow"); fieldType != "blocks" && allow != nil {
+				issues = append(issues, issueAt(path+"/allow", allow, fmt.Sprintf(
+					"'allow' is allowed only for fields of type blocks, got type %s", fieldType)))
 			}
 
 			if fieldType == "slug" {

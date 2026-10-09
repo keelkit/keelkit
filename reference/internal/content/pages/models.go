@@ -4,12 +4,10 @@
 
 package pages
 
-type Page struct {
-	ID        int64
-	Title     string
-	Slug      string
-	Body      string
-	CreatedAt string
-	UpdatedAt string
-	Draft     bool
+type PageContent struct {
+	PageID int64
+	Kind   string
+	Title  string
+	Slug   string
+	Blocks string
 }

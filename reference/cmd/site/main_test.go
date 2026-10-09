@@ -49,7 +49,7 @@ func migratedSite(t *testing.T, withSeed bool) testSite {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	if withSeed {
-		if err := seedContent(ctx, db); err != nil {
+		if err := seedContent(ctx, db, nil); err != nil {
 			t.Fatalf("seed: %v", err)
 		}
 	}
@@ -59,6 +59,22 @@ func migratedSite(t *testing.T, withSeed bool) testSite {
 	}
 	t.Cleanup(closeMedia)
 	return testSite{cfg: cfg, db: db, media: media}
+}
+
+// migratedSiteWithImages — сайт после migrate и полного seed: изображения из seed и страницы, которые на них
+// ссылаются. Возвращает и id изображений по имени файла.
+func migratedSiteWithImages(t *testing.T) (testSite, map[string]string) {
+	t.Helper()
+	s := migratedSite(t, false)
+	ctx := context.Background()
+	imgs, err := seedImages(ctx, s.media)
+	if err != nil {
+		t.Fatalf("seed images: %v", err)
+	}
+	if err := seedContent(ctx, s.db, imgs); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	return s, imgs
 }
 
 // handler — все маршруты сайта (newMux) с настройками cfg.
@@ -117,8 +133,8 @@ func TestSeedIdempotent(t *testing.T) {
 	if err := db.QueryRow(`SELECT count(*) FROM site_settings`).Scan(&n); err != nil || n != 1 {
 		t.Errorf("site_settings rows = %d, %v; want 1", n, err)
 	}
-	if err := db.QueryRow(`SELECT count(*) FROM pages`).Scan(&n); err != nil || n != len(seedPages) {
-		t.Errorf("pages rows = %d, %v; want %d", n, err, len(seedPages))
+	if err := db.QueryRow(`SELECT count(*) FROM pages`).Scan(&n); err != nil || n != len(seedPages(nil)) {
+		t.Errorf("pages rows = %d, %v; want %d", n, err, len(seedPages(nil)))
 	}
 	if err := db.QueryRow(`SELECT count(*) FROM users`).Scan(&n); err != nil || n != 1 {
 		t.Errorf("users rows = %d, %v; want 1", n, err)
@@ -155,8 +171,8 @@ func TestHealthz(t *testing.T) {
 	if got.Status != "ok" || got.Version != version {
 		t.Errorf("got %+v, want status ok and version %q", got, version)
 	}
-	if s := got.Schema["site"]; s.Version != 4 || s.Pending != 0 {
-		t.Errorf("schema site = %+v, want version 4, pending 0", s)
+	if s := got.Schema["site"]; s.Version != 5 || s.Pending != 0 {
+		t.Errorf("schema site = %+v, want version 5, pending 0", s)
 	}
 	if s := got.Schema["images"]; s.Version != 1 || s.Pending != 0 {
 		t.Errorf("schema images = %+v, want version 1, pending 0", s)

@@ -1,0 +1,10 @@
+# expect: /content/pages/fields/body/allow: items at 0 and 2 are equal
+spec_version: 1
+site:
+  name: my-site
+  languages: [ru]
+content:
+  pages:
+    fields:
+      title: { type: string }
+      body:  { type: blocks, allow: [text, image, text] }
