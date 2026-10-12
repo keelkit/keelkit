@@ -7,6 +7,7 @@ package pages
 
 import (
 	"context"
+	"database/sql"
 )
 
 const countPages = `-- name: CountPages :one
@@ -83,7 +84,8 @@ func (q *Queries) DropRedirectToPublished(ctx context.Context, pageID int64) err
 }
 
 const getPageContent = `-- name: GetPageContent :one
-SELECT page_id, kind, title, slug, blocks FROM page_contents WHERE page_id = ? AND kind = ?
+SELECT page_id, kind, title, slug, blocks, seo_title, seo_description, seo_image
+FROM page_contents WHERE page_id = ? AND kind = ?
 `
 
 type GetPageContentParams struct {
@@ -100,19 +102,26 @@ func (q *Queries) GetPageContent(ctx context.Context, arg GetPageContentParams) 
 		&i.Title,
 		&i.Slug,
 		&i.Blocks,
+		&i.SeoTitle,
+		&i.SeoDescription,
+		&i.SeoImage,
 	)
 	return i, err
 }
 
 const getPublishedPageBySlug = `-- name: GetPublishedPageBySlug :one
-SELECT page_id, title, slug, blocks FROM page_contents WHERE kind = 'published' AND slug = ?
+SELECT page_id, title, slug, blocks, seo_title, seo_description, seo_image
+FROM page_contents WHERE kind = 'published' AND slug = ?
 `
 
 type GetPublishedPageBySlugRow struct {
-	PageID int64
-	Title  string
-	Slug   string
-	Blocks string
+	PageID         int64
+	Title          string
+	Slug           string
+	Blocks         string
+	SeoTitle       string
+	SeoDescription string
+	SeoImage       sql.NullString
 }
 
 // Public site: only the published copy is ever shown.
@@ -124,6 +133,9 @@ func (q *Queries) GetPublishedPageBySlug(ctx context.Context, slug string) (GetP
 		&i.Title,
 		&i.Slug,
 		&i.Blocks,
+		&i.SeoTitle,
+		&i.SeoDescription,
+		&i.SeoImage,
 	)
 	return i, err
 }
@@ -181,7 +193,9 @@ func (q *Queries) ListPageLinks(ctx context.Context, excludeSlug string) ([]List
 const listPages = `-- name: ListPages :many
 SELECT p.id, d.title, d.slug, p.updated_at,
        CAST(coalesce(pub.slug, '') AS TEXT) AS published_slug,
-       CAST(pub.page_id IS NOT NULL AND (pub.title <> d.title OR pub.slug <> d.slug OR pub.blocks <> d.blocks) AS INTEGER) AS changed
+       CAST(pub.page_id IS NOT NULL AND (pub.title <> d.title OR pub.slug <> d.slug OR pub.blocks <> d.blocks
+            OR pub.seo_title <> d.seo_title OR pub.seo_description <> d.seo_description
+            OR pub.seo_image IS NOT d.seo_image) AS INTEGER) AS changed
 FROM pages p
 JOIN page_contents d ON d.page_id = p.id AND d.kind = 'draft'
 LEFT JOIN page_contents pub ON pub.page_id = p.id AND pub.kind = 'published'
@@ -296,10 +310,11 @@ func (q *Queries) PagesUsingImage(ctx context.Context, imageID string) ([]PagesU
 }
 
 const publishDraft = `-- name: PublishDraft :exec
-INSERT INTO page_contents (page_id, kind, title, slug, blocks)
-SELECT src.page_id, 'published', src.title, src.slug, src.blocks
+INSERT INTO page_contents (page_id, kind, title, slug, blocks, seo_title, seo_description, seo_image)
+SELECT src.page_id, 'published', src.title, src.slug, src.blocks, src.seo_title, src.seo_description, src.seo_image
 FROM page_contents AS src WHERE src.page_id = ? AND src.kind = 'draft'
-ON CONFLICT (page_id, kind) DO UPDATE SET title = excluded.title, slug = excluded.slug, blocks = excluded.blocks
+ON CONFLICT (page_id, kind) DO UPDATE SET title = excluded.title, slug = excluded.slug, blocks = excluded.blocks,
+    seo_title = excluded.seo_title, seo_description = excluded.seo_description, seo_image = excluded.seo_image
 `
 
 // Copies the draft into the published copy (insert or replace its content).
@@ -345,15 +360,20 @@ func (q *Queries) RememberPublishedSlug(ctx context.Context, pageID int64) error
 }
 
 const saveDraft = `-- name: SaveDraft :exec
-INSERT INTO page_contents (page_id, kind, title, slug, blocks) VALUES (?, 'draft', ?, ?, ?)
-ON CONFLICT (page_id, kind) DO UPDATE SET title = excluded.title, slug = excluded.slug, blocks = excluded.blocks
+INSERT INTO page_contents (page_id, kind, title, slug, blocks, seo_title, seo_description, seo_image)
+VALUES (?, 'draft', ?, ?, ?, ?, ?, ?)
+ON CONFLICT (page_id, kind) DO UPDATE SET title = excluded.title, slug = excluded.slug, blocks = excluded.blocks,
+    seo_title = excluded.seo_title, seo_description = excluded.seo_description, seo_image = excluded.seo_image
 `
 
 type SaveDraftParams struct {
-	PageID int64
-	Title  string
-	Slug   string
-	Blocks string
+	PageID         int64
+	Title          string
+	Slug           string
+	Blocks         string
+	SeoTitle       string
+	SeoDescription string
+	SeoImage       sql.NullString
 }
 
 func (q *Queries) SaveDraft(ctx context.Context, arg SaveDraftParams) error {
@@ -362,6 +382,9 @@ func (q *Queries) SaveDraft(ctx context.Context, arg SaveDraftParams) error {
 		arg.Title,
 		arg.Slug,
 		arg.Blocks,
+		arg.SeoTitle,
+		arg.SeoDescription,
+		arg.SeoImage,
 	)
 	return err
 }

@@ -1,6 +1,7 @@
 -- name: ListPublishedPosts :many
 -- Blog feed: published copies with publish_date <= now (UTC RFC 3339), newest first.
-SELECT c.post_id, c.title, c.slug, c.cover, c.publish_date, c.blocks,
+SELECT c.post_id, c.title, c.slug, c.cover, c.publish_date, c.blocks, c.lead, c.excerpt, c.cover_alt,
+       c.seo_title, c.seo_description, c.seo_image,
        CAST(coalesce(cat.name, '') AS TEXT) AS category_name,
        CAST(coalesce(cat.slug, '') AS TEXT) AS category_slug
 FROM post_contents c
@@ -13,7 +14,8 @@ LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 SELECT count(*) FROM post_contents WHERE kind = 'published' AND publish_date <= sqlc.arg(now);
 
 -- name: ListPublishedPostsInCategory :many
-SELECT c.post_id, c.title, c.slug, c.cover, c.publish_date, c.blocks,
+SELECT c.post_id, c.title, c.slug, c.cover, c.publish_date, c.blocks, c.lead, c.excerpt, c.cover_alt,
+       c.seo_title, c.seo_description, c.seo_image,
        CAST(coalesce(cat.name, '') AS TEXT) AS category_name,
        CAST(coalesce(cat.slug, '') AS TEXT) AS category_slug
 FROM post_contents c
@@ -27,7 +29,8 @@ SELECT count(*) FROM post_contents
 WHERE kind = 'published' AND publish_date <= sqlc.arg(now) AND category_id = sqlc.arg(category_id);
 
 -- name: GetPublishedPostBySlug :one
-SELECT c.post_id, c.title, c.slug, c.cover, c.publish_date, c.blocks,
+SELECT c.post_id, c.title, c.slug, c.cover, c.publish_date, c.blocks, c.lead, c.excerpt, c.cover_alt,
+       c.seo_title, c.seo_description, c.seo_image,
        CAST(coalesce(cat.name, '') AS TEXT) AS category_name,
        CAST(coalesce(cat.slug, '') AS TEXT) AS category_slug
 FROM post_contents c
@@ -52,7 +55,10 @@ SELECT p.id, d.title, d.slug, d.publish_date, p.updated_at,
        CAST(coalesce(pub.slug, '') AS TEXT) AS published_slug,
        CAST(coalesce(pub.publish_date, '') AS TEXT) AS published_date,
        CAST(pub.post_id IS NOT NULL AND (pub.title <> d.title OR pub.slug <> d.slug OR pub.cover IS NOT d.cover
-            OR pub.category_id IS NOT d.category_id OR pub.publish_date <> d.publish_date OR pub.blocks <> d.blocks)
+            OR pub.category_id IS NOT d.category_id OR pub.publish_date <> d.publish_date OR pub.blocks <> d.blocks
+            OR pub.lead <> d.lead OR pub.excerpt <> d.excerpt OR pub.cover_alt <> d.cover_alt
+            OR pub.seo_title <> d.seo_title OR pub.seo_description <> d.seo_description
+            OR pub.seo_image IS NOT d.seo_image)
             AS INTEGER) AS changed
 FROM posts p
 JOIN post_contents d ON d.post_id = p.id AND d.kind = 'draft'
@@ -61,7 +67,9 @@ LEFT JOIN categories cat ON cat.id = d.category_id
 ORDER BY p.id DESC;
 
 -- name: GetPostContent :one
-SELECT post_id, kind, title, slug, cover, category_id, publish_date, blocks FROM post_contents WHERE post_id = ? AND kind = ?;
+SELECT post_id, kind, title, slug, cover, category_id, publish_date, blocks, lead, excerpt, cover_alt,
+       seo_title, seo_description, seo_image
+FROM post_contents WHERE post_id = ? AND kind = ?;
 
 -- name: CreatePost :one
 INSERT INTO posts DEFAULT VALUES RETURNING id;
@@ -70,10 +78,13 @@ INSERT INTO posts DEFAULT VALUES RETURNING id;
 UPDATE posts SET updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?;
 
 -- name: SaveDraft :exec
-INSERT INTO post_contents (post_id, kind, title, slug, cover, category_id, publish_date, blocks)
-VALUES (?, 'draft', ?, ?, ?, ?, ?, ?)
+INSERT INTO post_contents (post_id, kind, title, slug, cover, category_id, publish_date, blocks, lead, excerpt, cover_alt,
+    seo_title, seo_description, seo_image)
+VALUES (?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (post_id, kind) DO UPDATE SET title = excluded.title, slug = excluded.slug, cover = excluded.cover,
-    category_id = excluded.category_id, publish_date = excluded.publish_date, blocks = excluded.blocks;
+    category_id = excluded.category_id, publish_date = excluded.publish_date, blocks = excluded.blocks,
+    lead = excluded.lead, excerpt = excluded.excerpt, cover_alt = excluded.cover_alt,
+    seo_title = excluded.seo_title, seo_description = excluded.seo_description, seo_image = excluded.seo_image;
 
 -- name: DeleteContentImages :exec
 DELETE FROM post_images WHERE post_id = ? AND kind = ?;
@@ -83,11 +94,15 @@ INSERT INTO post_images (post_id, kind, image_id) VALUES (?, ?, ?);
 
 -- name: PublishDraft :exec
 -- Copies the draft into the published copy (insert or replace its content).
-INSERT INTO post_contents (post_id, kind, title, slug, cover, category_id, publish_date, blocks)
-SELECT src.post_id, 'published', src.title, src.slug, src.cover, src.category_id, src.publish_date, src.blocks
+INSERT INTO post_contents (post_id, kind, title, slug, cover, category_id, publish_date, blocks, lead, excerpt, cover_alt,
+    seo_title, seo_description, seo_image)
+SELECT src.post_id, 'published', src.title, src.slug, src.cover, src.category_id, src.publish_date, src.blocks,
+       src.lead, src.excerpt, src.cover_alt, src.seo_title, src.seo_description, src.seo_image
 FROM post_contents AS src WHERE src.post_id = ? AND src.kind = 'draft'
 ON CONFLICT (post_id, kind) DO UPDATE SET title = excluded.title, slug = excluded.slug, cover = excluded.cover,
-    category_id = excluded.category_id, publish_date = excluded.publish_date, blocks = excluded.blocks;
+    category_id = excluded.category_id, publish_date = excluded.publish_date, blocks = excluded.blocks,
+    lead = excluded.lead, excerpt = excluded.excerpt, cover_alt = excluded.cover_alt,
+    seo_title = excluded.seo_title, seo_description = excluded.seo_description, seo_image = excluded.seo_image;
 
 -- name: PublishDraftImages :exec
 INSERT INTO post_images (post_id, kind, image_id)

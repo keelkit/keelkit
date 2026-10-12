@@ -9,7 +9,10 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"github.com/voffkin/keelkit/modules/images"
+
 	"github.com/voffkin/keelkit/reference/internal/blocks"
+	"github.com/voffkin/keelkit/reference/internal/seofields"
 	"github.com/voffkin/keelkit/reference/internal/web"
 )
 
@@ -20,11 +23,12 @@ type viewData struct {
 	Slug     string
 	Blocks   []blocks.Block
 	Resolved blocks.Resolved
-	Preview  bool // предпросмотр черновика: плашка со ссылкой в редактор
+	SEO      seofields.Fields
+	SEOImage *images.Image // картинка SEO.Image; nil — подстановка
+	Preview  bool          // предпросмотр черновика: плашка со ссылкой в редактор
 }
 
-// View — публичная страница. На главной в <title> только название сайта; описание — начало текста блоков,
-// картинка для соцсетей — первое изображение блоков. Предпросмотр черновика видит только админка — с плашкой
+// View — публичная страница. Данные для поисковиков — viewMeta: заданные вручную (SEO) или подстановка. Предпросмотр черновика видит только админка — с плашкой
 // и ссылкой в редактор, без canonical и с noindex.
 func View(p viewData) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -67,7 +71,7 @@ func View(p viewData) templ.Component {
 				var templ_7745c5c3_Var3 templ.SafeURL
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(EditPath(p.ID)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 26, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 30, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -85,7 +89,7 @@ func View(p viewData) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(p.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 30, Col: 16}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 34, Col: 16}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -155,7 +159,7 @@ func HomeEmpty() templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(site.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 40, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 44, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -173,7 +177,7 @@ func HomeEmpty() templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(site.Description)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 42, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 46, Col: 37}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -191,7 +195,7 @@ func HomeEmpty() templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(HomeSlug)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 44, Col: 157}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 48, Col: 157}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -211,6 +215,8 @@ func HomeEmpty() templ.Component {
 	})
 }
 
+// viewMeta — данные для поисковиков: SEO, заданное вручную, поверх подстановки — заголовок страницы (на главной
+// в <title> только название сайта), начало текста блоков, первое изображение блоков.
 func viewMeta(p viewData) web.Meta {
 	m := web.Meta{
 		Title:       p.Title,
@@ -221,6 +227,7 @@ func viewMeta(p viewData) web.Meta {
 	if p.Slug == HomeSlug {
 		m.Title = ""
 	}
+	m = p.SEO.Apply(m, p.SEOImage)
 	if p.Preview {
 		m.Path, m.NoIndex = "", true
 	}

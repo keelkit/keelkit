@@ -3,6 +3,7 @@ package pages
 import (
 	"github.com/voffkin/keelkit/reference/internal/admin"
 	"github.com/voffkin/keelkit/reference/internal/blocks"
+	"github.com/voffkin/keelkit/reference/internal/seofields"
 )
 
 // ListPage — список страниц в админке.
@@ -157,6 +158,7 @@ templ Form(f pageForm) {
 			@fieldError(f, "slug")
 		</label>
 		@blocks.Editor(f.Blocks, f.Env)
+		@seofields.Section(f.SEO, f.SEOEnv)
 		<div class="form-actions">
 			<button type="submit" name="action" value="save">Сохранить</button>
 			<button type="submit" name="action" value="publish" class="secondary">Опубликовать</button>

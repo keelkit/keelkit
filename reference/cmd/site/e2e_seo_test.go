@@ -186,6 +186,12 @@ func TestE2EFeed(t *testing.T) {
 	if first := ch.Items[0].Link; first != testBaseURL+"/blog/post-13" {
 		t.Errorf("first item %s, want the newest post", first)
 	}
+	if got := ch.Items[0].Description; got != seedPostExcerpt {
+		t.Errorf("first item description %q, want the manual excerpt", got)
+	}
+	if got := ch.Items[1].Description; !strings.HasPrefix(got, "Пост «"+seedPostTitles[1]) {
+		t.Errorf("second item description %q, want the start of the text", got)
+	}
 }
 
 func TestE2ERobots(t *testing.T) {
@@ -255,6 +261,9 @@ func TestE2EHeadMeta(t *testing.T) {
 	img := h.og("og:image")
 	if !strings.HasPrefix(img, testBaseURL+"/media/") || !strings.HasSuffix(img, ".jpg") || h.og("og:image:width") == "" {
 		t.Errorf("post: og:image %q, width %q", img, h.og("og:image:width"))
+	}
+	if got := h.og("og:image:alt"); got == "" || got != h.doc.Find(".post-cover img").AttrOr("alt", "") {
+		t.Errorf("post: og:image:alt %q, want the cover alt", got)
 	}
 	if h.attr(`meta[name="twitter:card"]`, "content") != "summary_large_image" {
 		t.Error("post: twitter:card is not summary_large_image")

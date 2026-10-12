@@ -43,8 +43,13 @@ func TestE2EBlog(t *testing.T) {
 	if dt, ok := first.Find(".post-meta time").Attr("datetime"); !ok || dt == "" || text(first.Find(".post-meta time")) == "" {
 		t.Error("first post: no publish date")
 	}
-	if !strings.HasPrefix(text(first.Find(".post-card-body > p:last-child")), "Пост «"+seedPostTitles[0]+"» из dev-данных") {
-		t.Errorf("summary = %q", text(first.Find(".post-card-body > p:last-child")))
+	// Анонс: у первого поста seed — ручной, у остальных — начало текста.
+	if got := text(first.Find(".post-card-body > p:last-child")); got != seedPostExcerpt {
+		t.Errorf("summary = %q, want the manual excerpt", got)
+	}
+	second := doc.Find(".post-card").Eq(1)
+	if !strings.HasPrefix(text(second.Find(".post-card-body > p:last-child")), "Пост «"+seedPostTitles[1]+"» из dev-данных") {
+		t.Errorf("second summary = %q", text(second.Find(".post-card-body > p:last-child")))
 	}
 	if doc.Find(`.pagination a[rel="prev"]`).Length() != 0 {
 		t.Error("page 1: prev link")
@@ -133,8 +138,11 @@ func TestE2EPost(t *testing.T) {
 	if got := text(doc.Find("title")); got != seedPostTitles[0]+" — Keelkit — эталонный сайт" {
 		t.Errorf("title = %q", got)
 	}
-	if d, _ := doc.Find(`meta[name="description"]`).Attr("content"); !strings.HasPrefix(d, "Пост «"+seedPostTitles[0]) {
-		t.Errorf("description = %q", d)
+	if d, _ := doc.Find(`meta[name="description"]`).Attr("content"); d != seedPostExcerpt {
+		t.Errorf("description = %q, want the manual excerpt", d)
+	}
+	if got := text(doc.Find("article .post-lead")); got != seedPostLead {
+		t.Errorf("lead = %q", got)
 	}
 	if href, _ := doc.Find("article .post-meta a").Attr("href"); href != "/blog/category/go" {
 		t.Errorf("category link = %q", href)
@@ -144,6 +152,15 @@ func TestE2EPost(t *testing.T) {
 	}
 	if doc.Find(".draft-banner").Length() != 0 {
 		t.Error("public post has the draft banner")
+	}
+
+	// Без лида и анонса: лида нет, описание — начало текста.
+	doc = page(t, srv, "/blog/post-12", http.StatusOK)
+	if doc.Find(".post-lead").Length() != 0 {
+		t.Error("post without a lead has .post-lead")
+	}
+	if d, _ := doc.Find(`meta[name="description"]`).Attr("content"); !strings.HasPrefix(d, "Пост «"+seedPostTitles[1]) {
+		t.Errorf("description = %q", d)
 	}
 
 	for _, slug := range []string{seedDraftPost, seedFuturePost, "nope"} {

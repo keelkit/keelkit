@@ -17,6 +17,7 @@ import (
 	"github.com/voffkin/keelkit/reference/internal/admin"
 	"github.com/voffkin/keelkit/reference/internal/blocks"
 	"github.com/voffkin/keelkit/reference/internal/database"
+	"github.com/voffkin/keelkit/reference/internal/seofields"
 	"github.com/voffkin/keelkit/reference/internal/slug"
 	"github.com/voffkin/keelkit/reference/internal/web"
 )
@@ -36,9 +37,12 @@ const (
 
 // Ограничения формы.
 const (
-	maxTitleLen  = 200     // символов
-	maxFormSize  = 4 << 20 // байт всего запроса: до blocks.MaxBlocks блоков с Markdown
-	libraryLimit = 200     // изображений в выборе обложки и у блоков: последние загруженные
+	maxTitleLen   = 200     // символов
+	maxLeadLen    = 500     // символов лида
+	maxExcerptLen = 500     // символов ручного анонса
+	maxAltLen     = 300     // символов alt обложки
+	maxFormSize   = 4 << 20 // байт всего запроса: до blocks.MaxBlocks блоков с Markdown
+	libraryLimit  = 200     // изображений в выборе обложки и у блоков: последние загруженные
 )
 
 // Media — то, что разделу нужно от модуля images: изображения блоков и обложки, выбор из медиатеки.
@@ -67,10 +71,14 @@ type postForm struct {
 	ID          int64
 	Title       string
 	Slug        string
+	Lead        string // подзаголовок под заголовком; пусто — нет
+	Excerpt     string // анонс для ленты, RSS и описания; пусто — начало текста блоков
 	Cover       string // id изображения; пусто — без обложки
+	CoverAlt    string // alt обложки; пусто — обложка декоративная
 	CategoryID  int64  // 0 — без категории
 	PublishDate string // как в поле datetime-local (часовой пояс сервера); пусто — «в момент публикации»
 	Blocks      []blocks.Block
+	SEO         seofields.Fields
 
 	// Сохранённое состояние (от него зависят ссылки, статус и кнопки).
 	Published     bool   // есть опубликованная копия
@@ -80,6 +88,7 @@ type postForm struct {
 
 	Errors     map[string]string // поле → сообщение; поля блоков — blocks.FieldName
 	Env        blocks.FormEnv
+	SEOEnv     seofields.Env
 	Categories []ListCategoryOptionsRow
 	Flash      string
 	Unsaved    bool // форму изменила кнопка блока (↑, ↓, «Скрыть»…), но не сохранила
@@ -133,6 +142,7 @@ func (a *Admin) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	saved.Title, saved.Slug, saved.Cover, saved.CategoryID, saved.PublishDate, saved.Blocks = "", "", "", 0, "", nil
+	saved.Lead, saved.Excerpt, saved.CoverAlt, saved.SEO = "", "", "", seofields.Fields{}
 	a.submit(w, r, saved)
 }
 
@@ -172,7 +182,12 @@ func (a *Admin) submit(w http.ResponseWriter, r *http.Request, f postForm) {
 		admin.ServerError(w, r, err)
 		return
 	}
-	if validate(&f, cover != nil) {
+	seoImage, err := f.SEO.Resolve(ctx, a.media)
+	if err != nil {
+		admin.ServerError(w, r, err)
+		return
+	}
+	if validate(&f, cover != nil, seoImage != nil) {
 		publish := action == "publish"
 		id, err := a.save(ctx, f, publish, time.Now())
 		switch {
@@ -184,7 +199,7 @@ func (a *Admin) submit(w http.ResponseWriter, r *http.Request, f postForm) {
 				"Пост с адресом «%s» уже есть (опубликованный или черновик): выберите другой slug.", f.Slug)}
 		case database.IsForeignKeyViolation(err):
 			// Категорию или изображение удалили, пока форма была открыта.
-			f.Errors = map[string]string{"category": "Категория или обложка только что удалена: выберите заново."}
+			f.Errors = map[string]string{"category": "Категория или изображение только что удалены: выберите заново."}
 		case err != nil:
 			admin.ServerError(w, r, err)
 			return
@@ -233,13 +248,17 @@ func (a *Admin) save(ctx context.Context, f postForm, publish bool, now time.Tim
 		Cover:       sql.NullString{String: f.Cover, Valid: f.Cover != ""},
 		CategoryID:  sql.NullInt64{Int64: f.CategoryID, Valid: f.CategoryID != 0},
 		PublishDate: f.publishDB, Blocks: data,
+		Lead: f.Lead, Excerpt: f.Excerpt, CoverAlt: f.CoverAlt,
+		SeoTitle: f.SEO.Title, SeoDescription: f.SEO.Description, SeoImage: f.SEO.DBImage(),
 	})
 	if err != nil {
 		return 0, err
 	}
 	ids := blocks.ImageIDs(f.Blocks)
-	if f.Cover != "" && !slices.Contains(ids, f.Cover) {
-		ids = append(ids, f.Cover)
+	for _, img := range []string{f.Cover, f.SEO.Image} {
+		if img != "" && !slices.Contains(ids, img) {
+			ids = append(ids, img)
+		}
 	}
 	if err := replaceImages(ctx, q, id, kindDraft, ids); err != nil {
 		return 0, err
@@ -369,7 +388,11 @@ func (a *Admin) View(w http.ResponseWriter, r *http.Request) {
 		admin.ServerError(w, r, err)
 		return
 	}
-	e := entry{PostID: d.PostID, Title: d.Title, Slug: d.Slug, Cover: d.Cover, PublishDate: d.PublishDate, Blocks: d.Blocks}
+	e := entry{
+		PostID: d.PostID, Title: d.Title, Slug: d.Slug, Cover: d.Cover, PublishDate: d.PublishDate, Blocks: d.Blocks,
+		Lead: d.Lead, Excerpt: d.Excerpt, CoverAlt: d.CoverAlt,
+		SeoTitle: d.SeoTitle, SeoDescription: d.SeoDescription, SeoImage: d.SeoImage,
+	}
 	if d.CategoryID.Valid {
 		cats, err := a.q.ListCategoryOptions(ctx)
 		if err != nil {
@@ -388,6 +411,41 @@ func (a *Admin) View(w http.ResponseWriter, r *http.Request) {
 	}
 	v.Preview = true
 	web.Render(w, r, http.StatusOK, View(v))
+}
+
+// SEO — POST /admin/posts/seo (htmx): превью сниппета из присланной формы поста.
+func (a *Admin) SEO(w http.ResponseWriter, r *http.Request) {
+	var f postForm
+	if !a.parseForm(w, r, &f) {
+		return
+	}
+	v, err := a.viewData(r.Context(), f)
+	if err != nil {
+		admin.ServerError(w, r, err)
+		return
+	}
+	web.Render(w, r, http.StatusOK, seofields.Snippet(viewMeta(v), AdminPath+"/seo"))
+}
+
+// viewData — пост из формы так, как его покажет сайт (для превью сниппета): изображения загружены, пустой slug
+// составлен из заголовка, как при сохранении. Категория и дата в сниппет не попадают и не загружаются.
+func (a *Admin) viewData(ctx context.Context, f postForm) (viewData, error) {
+	data, err := blocks.Marshal(f.Blocks)
+	if err != nil {
+		return viewData{}, err
+	}
+	title := strings.TrimSpace(f.Title)
+	s := slug.Make(strings.TrimSpace(f.Slug))
+	if s == "" {
+		s = slug.Make(title)
+	}
+	return newViewData(ctx, a.media, entry{
+		PostID: f.ID, Title: title, Slug: s, Blocks: data,
+		Cover:    sql.NullString{String: strings.TrimSpace(f.Cover), Valid: strings.TrimSpace(f.Cover) != ""},
+		Excerpt:  plainText(f.Excerpt),
+		CoverAlt: strings.TrimSpace(f.CoverAlt),
+		SeoTitle: f.SEO.Title, SeoDescription: f.SEO.Description, SeoImage: f.SEO.DBImage(),
+	})
 }
 
 // Preview — POST /admin/posts/preview?field=<имя поля> (htmx): фрагмент с отрисованным Markdown поля.
@@ -440,7 +498,7 @@ func (a *Admin) Cover(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
-	f := postForm{Cover: strings.TrimSpace(r.PostFormValue("cover"))}
+	f := postForm{Cover: strings.TrimSpace(r.PostFormValue("cover")), CoverAlt: r.PostFormValue("cover_alt")}
 	env, err := a.env(r.Context(), nil, nil)
 	if err != nil {
 		admin.ServerError(w, r, err)
@@ -479,6 +537,8 @@ func (a *Admin) load(w http.ResponseWriter, r *http.Request) (postForm, bool) {
 	f := postForm{
 		ID: id, Title: draft.Title, Slug: draft.Slug, Cover: draft.Cover.String, CategoryID: draft.CategoryID.Int64,
 		PublishDate: inputValue(draft.PublishDate), Blocks: list,
+		Lead: draft.Lead, Excerpt: draft.Excerpt, CoverAlt: draft.CoverAlt,
+		SEO: seofields.FromDB(draft.SeoTitle, draft.SeoDescription, draft.SeoImage),
 	}
 	pub, err := a.q.GetPostContent(ctx, GetPostContentParams{PostID: id, Kind: kindPublished})
 	switch {
@@ -506,6 +566,8 @@ func (a *Admin) parseForm(w http.ResponseWriter, r *http.Request, f *postForm) b
 	}
 	f.Title, f.Slug, f.Blocks = r.PostFormValue("title"), r.PostFormValue("slug"), list
 	f.Cover, f.PublishDate = strings.TrimSpace(r.PostFormValue("cover")), strings.TrimSpace(r.PostFormValue("publish_date"))
+	f.Lead, f.Excerpt, f.CoverAlt = r.PostFormValue("lead"), r.PostFormValue("excerpt"), r.PostFormValue("cover_alt")
+	f.SEO = seofields.Parse(r.PostForm)
 	if s := r.PostFormValue("category"); s != "" {
 		if f.CategoryID, err = strconv.ParseInt(s, 10, 64); err != nil || f.CategoryID <= 0 {
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -517,8 +579,8 @@ func (a *Admin) parseForm(w http.ResponseWriter, r *http.Request, f *postForm) b
 
 // validate нормализует поля и проверяет их; ошибки — в f.Errors. Уникальность slug проверяет БД при сохранении.
 // Изображения блоков должны быть уже загружены в f.Env.Resolved, категории — в f.Categories; coverFound —
-// выбранная обложка есть в медиатеке.
-func validate(f *postForm, coverFound bool) bool {
+// выбранная обложка есть в медиатеке, seoImageFound — картинка SEO.
+func validate(f *postForm, coverFound, seoImageFound bool) bool {
 	errs := blocks.Validate(f.Blocks, f.Env.Resolved)
 	f.Title = strings.TrimSpace(f.Title)
 
@@ -539,9 +601,26 @@ func validate(f *postForm, coverFound bool) bool {
 		errs["slug"] = "Из заголовка не получился адрес: укажите slug латиницей."
 	}
 
+	f.Lead = plainText(f.Lead)
+	if utf8.RuneCountInString(f.Lead) > maxLeadLen {
+		errs["lead"] = fmt.Sprintf("Лид длиннее %d символов.", maxLeadLen)
+	}
+	f.Excerpt = plainText(f.Excerpt)
+	if utf8.RuneCountInString(f.Excerpt) > maxExcerptLen {
+		errs["excerpt"] = fmt.Sprintf("Анонс длиннее %d символов.", maxExcerptLen)
+	}
+
 	if f.Cover != "" && !coverFound {
 		errs["cover"] = "Изображения нет в медиатеке: выберите другое."
 	}
+	// alt без обложки ничего не описывает: убираем, чтобы он не появился у следующей выбранной картинки.
+	if f.CoverAlt = strings.TrimSpace(f.CoverAlt); f.Cover == "" {
+		f.CoverAlt = ""
+	}
+	if utf8.RuneCountInString(f.CoverAlt) > maxAltLen {
+		errs["cover_alt"] = fmt.Sprintf("Описание обложки длиннее %d символов.", maxAltLen)
+	}
+	f.SEO.Validate(errs, seoImageFound)
 	if f.CategoryID != 0 && !slices.ContainsFunc(f.Categories, func(c ListCategoryOptionsRow) bool { return c.ID == f.CategoryID }) {
 		errs["category"] = "Такой категории нет: выберите другую."
 	}
@@ -559,6 +638,11 @@ func validate(f *postForm, coverFound bool) bool {
 		return false
 	}
 	return true
+}
+
+// plainText — поле простого текста (лид, анонс): без пробелов по краям, CRLF → LF.
+func plainText(s string) string {
+	return strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n"))
 }
 
 // env — данные формы блоков: выбор изображений из медиатеки, выбранные изображения, адреса htmx.
@@ -607,6 +691,15 @@ func (a *Admin) renderForm(w http.ResponseWriter, r *http.Request, status int, f
 		admin.ServerError(w, r, err)
 		return
 	}
+	v, err := a.viewData(ctx, f)
+	if err != nil {
+		admin.ServerError(w, r, err)
+		return
+	}
+	f.SEOEnv = seofields.Env{
+		Errors: f.Errors, Library: env.Library, Image: v.SEOImage, Meta: viewMeta(v),
+		Snippet: AdminPath + "/seo", MediaURL: a.mediaURL,
+	}
 	c := FormPage(f)
 	if admin.IsHTMX(r) {
 		c = Form(f)
@@ -636,8 +729,11 @@ func formatTime(s string) string {
 // SeedPost — пост для dev-данных.
 type SeedPost struct {
 	Title, Slug string
+	Lead        string
+	Excerpt     string // пусто — анонс из текста блоков
 	Cover       string // id изображения или пусто
-	CategoryID  int64  // 0 — без категории
+	CoverAlt    string
+	CategoryID  int64 // 0 — без категории
 	PublishDate time.Time
 	Blocks      []blocks.Block
 	Publish     bool // false — только черновик
@@ -654,7 +750,10 @@ func Seed(ctx context.Context, db *sql.DB, p SeedPost) error {
 	if !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
-	f := postForm{Title: p.Title, Slug: p.Slug, Cover: p.Cover, CategoryID: p.CategoryID, Blocks: p.Blocks}
+	f := postForm{
+		Title: p.Title, Slug: p.Slug, Lead: p.Lead, Excerpt: p.Excerpt, Cover: p.Cover, CoverAlt: p.CoverAlt,
+		CategoryID: p.CategoryID, Blocks: p.Blocks,
+	}
 	if !p.PublishDate.IsZero() {
 		f.publishDB = dbTime(p.PublishDate)
 	}

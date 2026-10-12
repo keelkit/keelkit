@@ -312,3 +312,40 @@ func TestBrowserPostCover(t *testing.T) {
 		t.Errorf("first card covers = %d, want 1", covers)
 	}
 }
+
+// Превью сниппета SEO обновляется при вводе в любое поле формы (заголовок поста — подстановка) и в поля SEO,
+// не сбивая ввод и не перезагружая страницу; выбранная картинка появляется в карточке соцсетей.
+func TestBrowserSEOSnippet(t *testing.T) {
+	site, _ := migratedSiteWithImages(t)
+	srv := httptest.NewServer(site.handler(config{}))
+	t.Cleanup(srv.Close)
+	ctx := browser(t)
+	browserLogin(t, ctx, srv.URL)
+
+	const searchTitle = `document.querySelector('#seo-snippet .seo-snippet-search .seo-snippet-title').textContent.trim()`
+	var marker bool
+	var typed string
+	run(t, ctx, "auto title",
+		chromedp.Navigate(srv.URL+"/admin/posts/new"),
+		chromedp.WaitVisible(`#post-form`, chromedp.ByQuery),
+		chromedp.Evaluate(`window.keelkitMarker = true`, nil),
+		chromedp.SendKeys(`input[name="title"]`, "Пост для сниппета", chromedp.ByQuery),
+		chromedp.Poll(searchTitle+` === 'Пост для сниппета — Keelkit — эталонный сайт'`, nil),
+		htmxSettled(),
+	)
+	run(t, ctx, "manual title and image",
+		chromedp.Click(`details.seo-fields summary`, chromedp.ByQuery),
+		chromedp.SendKeys(`input[name="seo_title"]`, "Свой заголовок", chromedp.ByQuery),
+		chromedp.Poll(searchTitle+` === 'Свой заголовок'`, nil),
+		htmxSettled(),
+		chromedp.Evaluate(`(() => { const s = document.querySelector('select[name="seo_image"]');
+			s.value = s.options[1].value; s.dispatchEvent(new Event('input', {bubbles: true})); })()`, nil),
+		chromedp.WaitReady(`#seo-snippet .seo-snippet-card picture`, chromedp.ByQuery),
+		htmxSettled(),
+		chromedp.Value(`input[name="seo_title"]`, &typed, chromedp.ByQuery),
+		chromedp.Evaluate(`window.keelkitMarker === true`, &marker),
+	)
+	if typed != "Свой заголовок" || !marker {
+		t.Errorf("seo_title %q, no reload %v", typed, marker)
+	}
+}

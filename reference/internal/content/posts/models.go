@@ -9,12 +9,18 @@ import (
 )
 
 type PostContent struct {
-	PostID      int64
-	Kind        string
-	Title       string
-	Slug        string
-	Cover       sql.NullString
-	CategoryID  sql.NullInt64
-	PublishDate string
-	Blocks      string
+	PostID         int64
+	Kind           string
+	Title          string
+	Slug           string
+	Cover          sql.NullString
+	CategoryID     sql.NullInt64
+	PublishDate    string
+	Blocks         string
+	Lead           string
+	Excerpt        string
+	CoverAlt       string
+	SeoTitle       string
+	SeoDescription string
+	SeoImage       sql.NullString
 }

@@ -1,6 +1,7 @@
 -- name: GetPublishedPageBySlug :one
 -- Public site: only the published copy is ever shown.
-SELECT page_id, title, slug, blocks FROM page_contents WHERE kind = 'published' AND slug = ?;
+SELECT page_id, title, slug, blocks, seo_title, seo_description, seo_image
+FROM page_contents WHERE kind = 'published' AND slug = ?;
 
 -- name: ListPageLinks :many
 -- Published pages for the header menu, in creation order; the home page is excluded by slug.
@@ -16,14 +17,17 @@ SELECT count(*) FROM pages;
 -- published_slug is empty for a page that is not on the site; changed: the draft differs from the published copy.
 SELECT p.id, d.title, d.slug, p.updated_at,
        CAST(coalesce(pub.slug, '') AS TEXT) AS published_slug,
-       CAST(pub.page_id IS NOT NULL AND (pub.title <> d.title OR pub.slug <> d.slug OR pub.blocks <> d.blocks) AS INTEGER) AS changed
+       CAST(pub.page_id IS NOT NULL AND (pub.title <> d.title OR pub.slug <> d.slug OR pub.blocks <> d.blocks
+            OR pub.seo_title <> d.seo_title OR pub.seo_description <> d.seo_description
+            OR pub.seo_image IS NOT d.seo_image) AS INTEGER) AS changed
 FROM pages p
 JOIN page_contents d ON d.page_id = p.id AND d.kind = 'draft'
 LEFT JOIN page_contents pub ON pub.page_id = p.id AND pub.kind = 'published'
 ORDER BY p.id;
 
 -- name: GetPageContent :one
-SELECT page_id, kind, title, slug, blocks FROM page_contents WHERE page_id = ? AND kind = ?;
+SELECT page_id, kind, title, slug, blocks, seo_title, seo_description, seo_image
+FROM page_contents WHERE page_id = ? AND kind = ?;
 
 -- name: CreatePage :one
 INSERT INTO pages DEFAULT VALUES RETURNING id;
@@ -32,8 +36,10 @@ INSERT INTO pages DEFAULT VALUES RETURNING id;
 UPDATE pages SET updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?;
 
 -- name: SaveDraft :exec
-INSERT INTO page_contents (page_id, kind, title, slug, blocks) VALUES (?, 'draft', ?, ?, ?)
-ON CONFLICT (page_id, kind) DO UPDATE SET title = excluded.title, slug = excluded.slug, blocks = excluded.blocks;
+INSERT INTO page_contents (page_id, kind, title, slug, blocks, seo_title, seo_description, seo_image)
+VALUES (?, 'draft', ?, ?, ?, ?, ?, ?)
+ON CONFLICT (page_id, kind) DO UPDATE SET title = excluded.title, slug = excluded.slug, blocks = excluded.blocks,
+    seo_title = excluded.seo_title, seo_description = excluded.seo_description, seo_image = excluded.seo_image;
 
 -- name: DeleteContentImages :exec
 DELETE FROM page_images WHERE page_id = ? AND kind = ?;
@@ -43,10 +49,11 @@ INSERT INTO page_images (page_id, kind, image_id) VALUES (?, ?, ?);
 
 -- name: PublishDraft :exec
 -- Copies the draft into the published copy (insert or replace its content).
-INSERT INTO page_contents (page_id, kind, title, slug, blocks)
-SELECT src.page_id, 'published', src.title, src.slug, src.blocks
+INSERT INTO page_contents (page_id, kind, title, slug, blocks, seo_title, seo_description, seo_image)
+SELECT src.page_id, 'published', src.title, src.slug, src.blocks, src.seo_title, src.seo_description, src.seo_image
 FROM page_contents AS src WHERE src.page_id = ? AND src.kind = 'draft'
-ON CONFLICT (page_id, kind) DO UPDATE SET title = excluded.title, slug = excluded.slug, blocks = excluded.blocks;
+ON CONFLICT (page_id, kind) DO UPDATE SET title = excluded.title, slug = excluded.slug, blocks = excluded.blocks,
+    seo_title = excluded.seo_title, seo_description = excluded.seo_description, seo_image = excluded.seo_image;
 
 -- name: PublishDraftImages :exec
 INSERT INTO page_images (page_id, kind, image_id)

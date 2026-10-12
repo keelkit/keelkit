@@ -13,6 +13,7 @@ import (
 
 	"github.com/voffkin/keelkit/reference/internal/blocks"
 	"github.com/voffkin/keelkit/reference/internal/seo"
+	"github.com/voffkin/keelkit/reference/internal/seofields"
 	"github.com/voffkin/keelkit/reference/internal/web"
 )
 
@@ -114,5 +115,13 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, p GetPublishedP
 		web.ServerError(w, r, err)
 		return
 	}
-	web.Render(w, r, http.StatusOK, View(viewData{ID: p.PageID, Title: p.Title, Slug: p.Slug, Blocks: list, Resolved: res}))
+	v := viewData{
+		ID: p.PageID, Title: p.Title, Slug: p.Slug, Blocks: list, Resolved: res,
+		SEO: seofields.FromDB(p.SeoTitle, p.SeoDescription, p.SeoImage),
+	}
+	if v.SEOImage, err = v.SEO.Resolve(r.Context(), h.images); err != nil {
+		web.ServerError(w, r, err)
+		return
+	}
+	web.Render(w, r, http.StatusOK, View(v))
 }

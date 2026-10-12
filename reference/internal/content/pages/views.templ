@@ -1,7 +1,10 @@
 package pages
 
 import (
+	"github.com/voffkin/keelkit/modules/images"
+
 	"github.com/voffkin/keelkit/reference/internal/blocks"
+	"github.com/voffkin/keelkit/reference/internal/seofields"
 	"github.com/voffkin/keelkit/reference/internal/web"
 )
 
@@ -12,11 +15,12 @@ type viewData struct {
 	Slug     string
 	Blocks   []blocks.Block
 	Resolved blocks.Resolved
-	Preview  bool // предпросмотр черновика: плашка со ссылкой в редактор
+	SEO      seofields.Fields
+	SEOImage *images.Image // картинка SEO.Image; nil — подстановка
+	Preview  bool          // предпросмотр черновика: плашка со ссылкой в редактор
 }
 
-// View — публичная страница. На главной в <title> только название сайта; описание — начало текста блоков,
-// картинка для соцсетей — первое изображение блоков. Предпросмотр черновика видит только админка — с плашкой
+// View — публичная страница. Данные для поисковиков — viewMeta: заданные вручную (SEO) или подстановка. Предпросмотр черновика видит только админка — с плашкой
 // и ссылкой в редактор, без canonical и с noindex.
 templ View(p viewData) {
 	@web.LayoutMeta(viewMeta(p)) {
@@ -45,6 +49,8 @@ templ HomeEmpty() {
 	}
 }
 
+// viewMeta — данные для поисковиков: SEO, заданное вручную, поверх подстановки — заголовок страницы (на главной
+// в <title> только название сайта), начало текста блоков, первое изображение блоков.
 func viewMeta(p viewData) web.Meta {
 	m := web.Meta{
 		Title:       p.Title,
@@ -55,6 +61,7 @@ func viewMeta(p viewData) web.Meta {
 	if p.Slug == HomeSlug {
 		m.Title = ""
 	}
+	m = p.SEO.Apply(m, p.SEOImage)
 	if p.Preview {
 		m.Path, m.NoIndex = "", true
 	}

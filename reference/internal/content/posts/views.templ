@@ -70,8 +70,8 @@ templ meta(e entry) {
 	</p>
 }
 
-// View — страница поста. Обложка декоративная (alt пуст): рядом заголовок поста. Описание — начало текста блоков,
-// картинка для соцсетей — обложка, без неё — первое изображение блоков. Предпросмотр черновика видит только
+// View — страница поста: заголовок, лид, дата и категория, обложка (alt пуст — декоративная: рядом заголовок),
+// блоки. Данные для поисковиков — viewMeta. Предпросмотр черновика видит только
 // админка — с плашкой и ссылкой в редактор, без canonical и с noindex.
 templ View(p viewData) {
 	@web.LayoutMeta(viewMeta(p)) {
@@ -84,10 +84,13 @@ templ View(p viewData) {
 		<article class="page post">
 			<p class="breadcrumbs"><a href={ templ.SafeURL(BlogPath) }>Блог</a></p>
 			<h1>{ p.Title }</h1>
+			if p.Lead != "" {
+				<p class="post-lead">{ p.Lead }</p>
+			}
 			@meta(p.entry)
 			if p.Cover != nil {
 				<div class="post-cover">
-					@web.Picture(p.Cover, "", sizesCover)
+					@web.Picture(p.Cover, p.CoverAlt, sizesCover)
 				</div>
 			}
 			@blocks.View(p.List, p.Resolved)
@@ -102,18 +105,22 @@ func listTitle(v listView) string {
 	return v.Title
 }
 
+// viewMeta — данные для поисковиков: SEO, заданное вручную, поверх подстановки — заголовок поста, анонс (summary),
+// обложка с её alt, без обложки — первое изображение блоков.
 func viewMeta(p viewData) web.Meta {
 	m := web.Meta{
 		Title:       p.Title,
-		Description: blocks.Summary(p.List, descriptionLen),
+		Description: summary(p.entry, p.List, descriptionLen),
 		Path:        PublicPath(p.Slug),
 		Article:     true,
 		Published:   p.PublishDate,
 		Image:       p.Cover,
+		ImageAlt:    p.CoverAlt,
 	}
 	if m.Image == nil {
-		m.Image = blocks.FirstImage(p.List, p.Resolved)
+		m.Image, m.ImageAlt = blocks.FirstImage(p.List, p.Resolved), ""
 	}
+	m = p.seo().Apply(m, p.SEOImage)
 	if p.Preview {
 		m.Path, m.NoIndex = "", true
 	}

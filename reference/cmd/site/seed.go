@@ -287,6 +287,14 @@ func seedBlog(ctx context.Context, db *sql.DB, imgs map[string]string, now time.
 		if i%3 == 0 {
 			p.Cover = covers[(i/3)%len(covers)]
 		}
+		if i == 0 {
+			// Новый пост — со всеми полями: лид, ручной анонс, alt обложки (остальные — с анонсом из текста).
+			p.Lead = seedPostLead
+			p.Excerpt = seedPostExcerpt
+			if p.Cover != "" {
+				p.CoverAlt = "Пример фотографии из dev-данных"
+			}
+		}
 		list = append(list, p)
 	}
 	list = append(list,
@@ -306,6 +314,12 @@ func seedBlog(ctx context.Context, db *sql.DB, imgs map[string]string, now time.
 	}
 	return nil
 }
+
+// Лид и ручной анонс первого поста seed.
+const (
+	seedPostLead    = "Из чего состоит сайт на Keelkit и почему каждый новый сайт повторяет его устройство."
+	seedPostExcerpt = "Анонс, написанный вручную: он заменяет начало текста в ленте, RSS и описании страницы."
+)
 
 func seedPostBody(title string) string {
 	return "Пост «" + title + "» из dev-данных эталонного сайта. Текст поста собирается из блоков, как и страницы: " +

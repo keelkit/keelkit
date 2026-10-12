@@ -26,7 +26,9 @@ type Site struct {
 
 // Meta — заголовок страницы и данные для поисковиков и соцсетей (<head>).
 type Meta struct {
-	Title       string // пусто — в <title> только название сайта
+	Title string // пусто — в <title> только название сайта
+	// ExactTitle — Title выводится в <title> как есть, без названия сайта (SEO-заголовок, заданный вручную).
+	ExactTitle  bool
 	Description string // пусто — описание сайта
 	// Path — адрес страницы на сайте для canonical и og:url (страницы ленты — с ?page=N). Пусто — без них:
 	// страницы ошибок, предпросмотр черновика.
@@ -34,6 +36,7 @@ type Meta struct {
 	Article   bool          // og:type article (пост), иначе website
 	Published string        // время публикации статьи, RFC 3339 (article:published_time)
 	Image     *images.Image // картинка для og:image; nil — без неё
+	ImageAlt  string        // og:image:alt; пусто — без него
 	NoIndex   bool          // robots noindex: предпросмотр черновика
 }
 
@@ -98,7 +101,16 @@ func ServerError(w http.ResponseWriter, r *http.Request, err error) {
 	Render(w, r, http.StatusInternalServerError, ErrorPage())
 }
 
-// pageTitle — содержимое <title>: «Заголовок — Сайт» или только название сайта.
+// TitleTag — содержимое <title> страницы: Title как есть при ExactTitle, иначе «Заголовок — Сайт» или только
+// название сайта. Его же показывает превью сниппета в админке.
+func TitleTag(m Meta, siteName string) string {
+	if m.ExactTitle && m.Title != "" {
+		return m.Title
+	}
+	return pageTitle(m.Title, siteName)
+}
+
+// pageTitle — «Заголовок — Сайт» или только название сайта.
 func pageTitle(title, siteName string) string {
 	if title == "" || title == siteName {
 		return siteName

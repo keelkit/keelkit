@@ -342,6 +342,92 @@ func TestE2EAdminPostCover(t *testing.T) {
 	}
 }
 
+// Лид, ручной анонс и alt обложки: сохраняются в черновике, их правка — неопубликованное изменение, на сайте —
+// лид под заголовком, анонс в ленте и описании, alt у обложки; alt без обложки не сохраняется; длина проверяется.
+func TestE2EAdminPostFields(t *testing.T) {
+	site, imgs := migratedSiteWithImages(t)
+	a := newPageAdminOn(t, site)
+	img := imgs["small.jpg"]
+
+	// Поле обложки через htmx сохраняет введённый alt.
+	_, html := post(t, a.client, a.srv.URL+"/admin/posts/cover", url.Values{"cover": {img}, "cover_alt": {"Кот"}}, http.Header{
+		"Hx-Request": {"true"}, "X-Csrf-Token": {a.token},
+	})
+	if v, _ := parse(t, html).Find(`input[name="cover_alt"]`).Attr("value"); v != "Кот" {
+		t.Errorf("cover fragment: cover_alt = %q", v)
+	}
+
+	form := newPostForm("С лидом", "s-lidom", "", "")
+	form.Set("lead", "  Подзаголовок\r\nв две строки  ")
+	form.Set("excerpt", "Анонс\r\nвручную")
+	form.Set("cover", img)
+	form.Set("cover_alt", " Кот на подоконнике ")
+	edit := a.createPost(form, "publish")
+	f := a.postForm(edit)
+	if f.Get("lead") != "Подзаголовок\nв две строки" || f.Get("excerpt") != "Анонс\nвручную" || f.Get("cover_alt") != "Кот на подоконнике" {
+		t.Errorf("saved: lead %q, excerpt %q, cover_alt %q", f.Get("lead"), f.Get("excerpt"), f.Get("cover_alt"))
+	}
+
+	doc := page(t, a.srv, "/blog/s-lidom", http.StatusOK)
+	if got := text(doc.Find("article .post-lead")); got != "Подзаголовок\nв две строки" {
+		t.Errorf("lead on site = %q", got)
+	}
+	if alt, _ := doc.Find(".post-cover img").Attr("alt"); alt != "Кот на подоконнике" {
+		t.Errorf("cover alt = %q", alt)
+	}
+	if d, _ := doc.Find(`meta[name="description"]`).Attr("content"); d != "Анонс вручную" {
+		t.Errorf("description = %q", d)
+	}
+	doc = page(t, a.srv, "/blog", http.StatusOK)
+	if got := text(doc.Find(`.post-card:contains("С лидом") .post-card-body > p:last-child`)); got != "Анонс вручную" {
+		t.Errorf("card summary = %q", got)
+	}
+
+	// Правка анонса — неопубликованное изменение; пустой анонс — снова начало текста.
+	f.Set("excerpt", "")
+	if resp, _ := a.submit(edit, f, "save", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("save: status %d", resp.StatusCode)
+	}
+	if got := a.postStatus("С лидом"); got != "Есть неопубликованные изменения" {
+		t.Errorf("status after excerpt edit = %q", got)
+	}
+	_, html = a.get(edit + "/view")
+	if d, _ := parse(t, html).Find(`meta[name="description"]`).Attr("content"); d != "Текст поста С лидом." {
+		t.Errorf("preview description = %q, want the start of the text", d)
+	}
+
+	// Без обложки alt не сохраняется.
+	f = a.postForm(edit)
+	f.Set("cover", "")
+	if resp, _ := a.submit(edit, f, "save", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("save without cover: status %d", resp.StatusCode)
+	}
+	if got := a.postForm(edit).Get("cover_alt"); got != "" {
+		t.Errorf("cover_alt without cover = %q", got)
+	}
+
+	// Длина: ошибка у поля, со страницей и фрагментом htmx.
+	for _, tc := range []struct{ field, value, err string }{
+		{"lead", strings.Repeat("л", 501), "Лид длиннее 500 символов."},
+		{"excerpt", strings.Repeat("а", 501), "Анонс длиннее 500 символов."},
+		{"cover_alt", strings.Repeat("к", 301), "Описание обложки длиннее 300 символов."},
+	} {
+		form := newPostForm("Длинное поле", "", "", "")
+		form.Set("cover", img)
+		form.Set(tc.field, tc.value)
+		for _, h := range []http.Header{nil, htmx} {
+			resp, html := a.submit("/admin/posts", form, "save", h)
+			doc := parse(t, html)
+			if resp.StatusCode != http.StatusUnprocessableEntity || text(doc.Find("#"+tc.field+"-error")) != tc.err {
+				t.Errorf("%s (htmx %v): status %d, error %q", tc.field, h != nil, resp.StatusCode, text(doc.Find("#"+tc.field+"-error")))
+			}
+			if v, _ := doc.Find(`[name="` + tc.field + `"]`).Attr("aria-invalid"); v != "true" {
+				t.Errorf("%s: aria-invalid = %q", tc.field, v)
+			}
+		}
+	}
+}
+
 func TestE2EAdminCategories(t *testing.T) {
 	a := newPageAdmin(t)
 

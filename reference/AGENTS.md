@@ -76,7 +76,8 @@
   `GET|POST /admin/pages/{id}` (форма; «Сохранить», «Опубликовать» или кнопка блока — поле `action`),
   `GET /admin/pages/{id}/view` (предпросмотр черновика), `POST /admin/pages/{id}/unpublish` (снять с публикации),
   `GET|POST /admin/pages/{id}/delete` (подтверждение, удалить), `POST /admin/pages/preview?field=<поле>` (htmx: превью Markdown),
-  `POST /admin/pages/block?type=<тип>|?id=<id>` (htmx: фрагмент формы нового блока или блока из присланной формы).
+  `POST /admin/pages/block?type=<тип>|?id=<id>` (htmx: фрагмент формы нового блока или блока из присланной формы),
+  `POST /admin/pages/seo` (htmx: превью сниппета SEO из присланной формы).
 - Раздел постов `/admin/posts` — те же маршруты, что у страниц, и `POST /admin/posts/cover` (htmx: поле обложки с превью).
 - Раздел категорий: `GET /admin/categories` (список), `GET /admin/categories/new`, `POST /admin/categories`,
   `GET|POST /admin/categories/{id}` (форма), `GET|POST /admin/categories/{id}/delete` (подтверждение, удалить).
@@ -86,7 +87,7 @@
   страницу, админка такие slug не принимает. Маршрут-поддерево (`/static/`) занимает и путь без слеша (`GET /static` → 404),
   иначе его забрал бы `GET /{slug}`; e2e `TestE2EReservedSlugsShadowPages` проверяет каждый slug из списка.
 - Всё остальное — оформленная 404 (`web.NotFound`).
-- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"site":{"version":7,"pending":0}}}`.
+- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"site":{"version":9,"pending":0}}}`.
 
 ## Бинарник
 
@@ -200,7 +201,8 @@
 Миграция — в `db/migrations/`, маршруты — в `newMux`, dev-данные — в `cmd/site/seed.go`, запись sqlc — в `sqlc.yaml`,
 счётчик дашборда — в `adminCounters`, пункт меню — в `admin.Options.Sections`, feature `sitemap`/`rss` — см. «SEO».
 Seed блога (`seedBlog`): 3 категории, 13 опубликованных постов (`post-01`…`post-13`, даты — дни назад от запуска,
-обложки у каждого третьего), черновик `draft-post` и `future-post` с датой через 30 дней.
+обложки у каждого третьего; у самого нового `post-13` — лид, ручной анонс и alt обложки), черновик `draft-post`
+и `future-post` с датой через 30 дней.
 
 Раздел админки (образец — `pages/admin.go`):
 - Маршруты — `signedIn(...)`: сессия и CSRF уже проверены. Список, `new`, создание `POST /admin/<type>`,
@@ -220,8 +222,14 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 - slug — `internal/slug`: пустой составляется из заголовка (`slug.Make`, транслитерация кириллицы своей таблицей),
   введённый вручную приводится к тому же виду; затем проверка `reservedSlugs` и уникальности.
 - Поле `image` (обложка поста): `select` из медиатеки (последние `libraryLimit` и выбранное) и превью; смена выбора
-  через htmx перерисовывает только поле (`POST …/cover`, `hx-params` — только это поле). Выбранного изображения нет
+  через htmx перерисовывает только поле (`POST …/cover`, `hx-params` — только поля обложки). Выбранного изображения нет
   в медиатеке — ошибка у поля.
+- Поля простого текста (`text`: лид и анонс поста) — textarea без превью, `TrimSpace` и CRLF → LF, лимит длины;
+  на сайте выводятся как текст, без Markdown. alt обложки (`cover_alt`) — в поле обложки, рядом с выбором картинки:
+  htmx-перерисовка поля отправляет и его (`hx-params="cover,cover_alt"`); без обложки alt не сохраняется,
+  пустой — обложка декоративная (`alt=""`).
+- Анонс поста (`posts.summary`): ручной `excerpt` целиком, в одну строку; пусто — `blocks.Summary` начала текста.
+  Один источник для ленты, RSS и `meta description` (с этапа SEO записи — и для подстановки в пустое SEO-описание).
 - Поле `ref` (категория поста): `select` с вариантом «— без категории —»; варианты — запрос в пакете типа
   (`ListCategoryOptions`), а не импорт пакета другого типа. Несуществующий id — ошибка у поля, не число — 400.
 - Справочник без черновика (образец — `categories`): форма «Сохранить» и «Отмена», правки сразу на сайте;
@@ -297,15 +305,32 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 - `<head>` — `web.LayoutMeta(web.Meta{…})`: `Title`, `Description` (пусто — описание сайта; у типов — `blocks.Summary`),
   `Path` — адрес страницы для `canonical` и `og:url` (у ленты — с `?page=N`; лишние параметры запроса не попадают),
   `Article` и `Published` (пост: `og:type article`, `article:published_time`), `Image` (`og:image` — JPEG не шире
-  1600 px, `web.ShareImage`; у поста — обложка, иначе первое изображение блоков), `NoIndex`. Без `Path` — нет canonical
+  1600 px, `web.ShareImage`; у поста — обложка, иначе первое изображение блоков), `ImageAlt` (`og:image:alt`; у поста —
+  alt обложки), `NoIndex`. Описание поста — анонс (ручной или начало текста). Без `Path` — нет canonical
   и Open Graph (404, 500). Предпросмотр черновика — без `Path` и с `NoIndex`. Абсолютные адреса — `web.Site.BaseURL` +
   путь; на каждой странице — `<link rel="alternate">` на RSS.
+- SEO записи вручную — общий компонент `internal/seofields` у каждого типа со своим адресом (страницы, в том числе
+  главная, и посты; у справочников без адреса его нет). Поля в `site.yaml`: `seo_title` (`string`), `seo_description`
+  (`text`), `seo_image` (`image`) — `TestSpecSEOFieldsMatchCode` сверяет их с типами, подключившими компонент.
+  Колонки — в копии записи (`<type>_contents`, миграция `00009`): правка SEO опубликованной записи видна после
+  «Опубликовать» и отмечает «Есть неопубликованные изменения»; `seo_image` — в `<type>_images`, как обложка.
+  Пустое поле — подстановка, её задаёт тип в `viewMeta` (у поста — заголовок, анонс, обложка; у страницы — заголовок,
+  начало текста, первое изображение блоков), затем `Fields.Apply` накладывает заданное: SEO-заголовок идёт в `<title>`
+  и `og:title` как есть, без названия сайта (`web.Meta.ExactTitle`); описание — в `meta description` и `og:description`
+  (анонс в ленте и RSS не меняется); картинка — в `og:image`. Пробелы и переводы строк — один пробел.
+  Форма: `seofields.Section(f.SEO, f.SEOEnv)` — свёрнутый `<details>` (раскрыт, если что-то задано или ошибка) с превью
+  выдачи и карточки соцсетей (`seofields.Snippet` — то же, что выведет `web.LayoutMeta`, `<title>` — `web.TitleTag`);
+  превью обновляется через htmx при вводе в любое поле формы (`hx-trigger="input delay:500ms from:closest form"`,
+  `hx-include="closest form"`, `POST /admin/<type>/seo`: хендлер разбирает форму как при сохранении и собирает
+  `viewData` из неё), без JavaScript — после отправки. Лимиты 200/500 символов, превью предупреждает о длине
+  сверх ~60/160. Новый тип со своим адресом: колонки, поля в `site.yaml`, `SEO` в форме, `Apply` в `viewMeta`,
+  маршрут `…/seo`, запись в `TestSpecSEOFieldsMatchCode`.
 - `/sitemap.xml` — `seo.Sitemap(baseURL, sources…)`: адреса от типов с feature `sitemap` в `site.yaml` —
   `sitemapSources` в `cmd/site/server.go` (метод `SitemapURLs` пакета типа: только видимое на сайте). Страницы — без
   `lastmod` (у копии нет времени публикации), лента `/blog` и посты — `lastmod` по дате публикации. Один файл: лимит
   протокола — 50 000 адресов.
 - `/rss.xml` — `seo.Feed(baseURL, feedSource)`: RSS 2.0, последние 20 видимых постов (`posts.FeedItems`), анонс —
-  `blocks.Summary` (500 символов, без разметки), категория, обложка — `<enclosure>` JPEG; `guid` — `post-<id>`
+  ручной или `blocks.Summary` (500 символов, без разметки), категория, обложка — `<enclosure>` JPEG; `guid` — `post-<id>`
   (`isPermaLink="false"`), не меняется со сменой slug. Типы с feature `rss` — `feedTypes`.
 - `/robots.txt` — `seo.Robots(baseURL, "/admin/")` и ссылка на sitemap.
 - Новый тип с feature `sitemap` или `rss`: метод `SitemapURLs` / `FeedItems` в пакете типа, запись в `sitemapSources`
@@ -334,12 +359,14 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
   `cmd/site/e2e_posts_admin_test.go` (посты и категории в админке; хелперы `createPost`, `postForm`, `newPostForm`).
 - `TestSpecBlocksMatchCode` (`cmd/site/spec_test.go`) — блоки из `allow` в `site.yaml` есть в коде и совпадают со списком типа;
   `TestSpecFeaturesMatchCode` — типы с feature `sitemap` и `rss` совпадают с `sitemapSources` и `feedTypes`.
+- e2e SEO записи — `cmd/site/e2e_seo_admin_test.go`: превью сниппета (форма и htmx), `<title>`, описание и `og:image`
+  поста и страницы (и главной), очистка — снова подстановка, ошибки полей, `seo_image` держит изображение.
 - e2e SEO — `cmd/site/e2e_seo_test.go`: sitemap и RSS разбираются `encoding/xml` (без черновиков, будущих постов и
   неопубликованных страниц, адреса от `BASE_URL`), robots.txt, canonical и Open Graph, `noindex` предпросмотра,
   редиректы со старых slug. В тестах `BASE_URL` — `testBaseURL` (`https://example.test`; `handler(config{})` подставляет его сам).
 - Браузерные тесты — `cmd/site/browser_test.go` (`//go:build browser`, `TestBrowser*`, chromedp, headless Chrome):
   только критичные htmx-взаимодействия — превью при наборе, сохранение через `HX-Redirect`, подмена формы с ошибкой
-  без перезагрузки, «Добавить блок», «↑», «Скрыть» и выбор изображения у блока, выбор обложки поста, загрузка файла (`hx-encoding="multipart/form-data"`).
+  без перезагрузки, «Добавить блок», «↑», «Скрыть» и выбор изображения у блока, выбор обложки поста, превью сниппета SEO, загрузка файла (`hx-encoding="multipart/form-data"`).
   После каждого htmx-действия — `htmxSettled()`: обработчики на новый фрагмент htmx навешивает после фазы settle,
   и клик chromedp раньше этого ушёл бы обычной отправкой формы. Запуск — `make e2e-browser`; `make test` их не собирает, линтер — собирает (`build-tags` в `.golangci.yml`).
 
@@ -363,6 +390,7 @@ cmd/site/e2e_media_admin_test.go  # e2e медиатеки
 cmd/site/e2e_blog_test.go         # e2e блога на сайте
 cmd/site/e2e_posts_admin_test.go  # e2e разделов «Посты» и «Категории»
 cmd/site/e2e_seo_test.go          # e2e sitemap, RSS, robots.txt, <head>, редиректов
+cmd/site/e2e_seo_admin_test.go    # e2e SEO записи (internal/seofields) в админке и на сайте
 cmd/site/migrations_test.go # миграции, меняющие данные, на копии реалистичных данных
 cmd/site/spec_test.go       # site.yaml ↔ код (блоки, features sitemap и rss)
 cmd/site/images_test.go     # контрактные тесты модуля images (testkit)
@@ -377,6 +405,7 @@ internal/database/          # открытие SQLite, статус схем, с
 internal/media/             # медиатека в админке (модуль images)
 internal/richtext/          # Markdown → очищенный HTML
 internal/seo/               # sitemap.xml, rss.xml, robots.txt
+internal/seofields/         # SEO записи вручную: поля, проверка, раздел формы с превью сниппета, наложение на web.Meta
 internal/slug/              # slug: Make (транслитерация), Valid
 internal/settings/          # site_settings: queries.sql и код sqlc
 internal/web/               # layout (Layout, LayoutMeta, Meta), страницы ошибок, рендер, Picture

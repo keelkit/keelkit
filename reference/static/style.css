@@ -428,6 +428,12 @@ button.danger:hover {
   resize: vertical;
 }
 
+/* Простой текст в несколько строк (лид, анонс, SEO-описание): высота по rows, шрифт текста, а не кода. */
+.form textarea.plain {
+  min-height: 0;
+  font-family: var(--font);
+}
+
 .form [aria-invalid="true"] {
   border-color: #b42318;
 }
@@ -471,6 +477,86 @@ button.danger:hover {
 
 .muted {
   color: var(--muted);
+}
+
+/* SEO записи (internal/seofields): свёрнутый раздел формы и превью сниппета в поиске и соцсетях. */
+.seo-fields {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.seo-fields summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.seo-fields[open] > summary {
+  margin-bottom: 1rem;
+}
+
+.seo-fields > label + label {
+  margin-top: 1rem;
+}
+
+.seo-snippet {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.seo-snippet-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.seo-snippet-search,
+.seo-snippet-card {
+  display: grid;
+  gap: 0.2rem;
+  max-width: 36rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.seo-snippet-url {
+  color: var(--muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.seo-snippet-title {
+  overflow: hidden;
+  color: var(--accent);
+  font-size: 1.15rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seo-snippet-desc {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 0.9rem;
+}
+
+.seo-snippet-card {
+  max-width: 22rem;
+}
+
+.seo-snippet-card img {
+  display: block;
+  border-radius: var(--radius);
+}
+
+.seo-snippet-card .seo-snippet-title {
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .status {
@@ -937,6 +1023,12 @@ button.secondary:hover,
   .post-card:has(.post-card-cover) {
     grid-template-columns: 12rem 1fr;
   }
+}
+
+.post-lead {
+  margin: -0.25rem 0 0.75rem;
+  font-size: 1.2rem;
+  line-height: 1.5;
 }
 
 .post-meta {

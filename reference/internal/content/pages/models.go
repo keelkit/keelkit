@@ -4,10 +4,17 @@
 
 package pages
 
+import (
+	"database/sql"
+)
+
 type PageContent struct {
-	PageID int64
-	Kind   string
-	Title  string
-	Slug   string
-	Blocks string
+	PageID         int64
+	Kind           string
+	Title          string
+	Slug           string
+	Blocks         string
+	SeoTitle       string
+	SeoDescription string
+	SeoImage       sql.NullString
 }

@@ -12,11 +12,13 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/voffkin/keelkit/modules/images"
 
 	"github.com/voffkin/keelkit/reference/internal/blocks"
 	"github.com/voffkin/keelkit/reference/internal/seo"
+	"github.com/voffkin/keelkit/reference/internal/seofields"
 	"github.com/voffkin/keelkit/reference/internal/web"
 )
 
@@ -27,9 +29,9 @@ const BlogPath = "/blog"
 const (
 	perPage        = 10  // постов на странице ленты
 	descriptionLen = 160 // символов описания поста (meta description) из текста блоков
-	summaryLen     = 240 // символов анонса в ленте
+	summaryLen     = 240 // символов анонса в ленте из текста блоков
 	feedLen        = 20  // последних постов в RSS
-	feedSummaryLen = 500 // символов анонса в RSS
+	feedSummaryLen = 500 // символов анонса в RSS из текста блоков
 )
 
 // Handler — публичные страницы блога: лента, пост, лента категории.
@@ -139,7 +141,7 @@ func (h *Handler) card(ctx context.Context, e entry) (card, error) {
 	if err != nil {
 		return card{}, err
 	}
-	return card{entry: e, Cover: cover, Summary: blocks.Summary(list, summaryLen)}, nil
+	return card{entry: e, Cover: cover, Summary: summary(e, list, summaryLen)}, nil
 }
 
 // Show — GET /blog/{slug}: опубликованный пост, дата публикации которого наступила. Иначе — 301 на текущий адрес
@@ -196,8 +198,8 @@ func (h *Handler) SitemapURLs(ctx context.Context) ([]seo.URL, error) {
 	return urls, nil
 }
 
-// FeedItems — последние feedLen постов, видимых на сайте, для RSS (site.yaml: feature rss): анонс из текста
-// блоков, обложка — вложением. guid — по id поста: не меняется вместе со slug.
+// FeedItems — последние feedLen постов, видимых на сайте, для RSS (site.yaml: feature rss): анонс (summary),
+// обложка — вложением. guid — по id поста: не меняется вместе со slug.
 func (h *Handler) FeedItems(ctx context.Context) ([]seo.Item, error) {
 	rows, err := h.q.ListPublishedPosts(ctx, ListPublishedPostsParams{Now: nowDB(), Lim: feedLen, Off: 0})
 	if err != nil {
@@ -214,7 +216,7 @@ func (h *Handler) FeedItems(ctx context.Context) ([]seo.Item, error) {
 			Title:       row.Title,
 			Path:        PublicPath(row.Slug),
 			GUID:        "post-" + strconv.FormatInt(row.PostID, 10),
-			Description: blocks.Summary(list, feedSummaryLen),
+			Description: summary(row, list, feedSummaryLen),
 			Category:    row.CategoryName,
 			Published:   published,
 		}
@@ -236,7 +238,13 @@ type viewData struct {
 	List     []blocks.Block
 	Resolved blocks.Resolved
 	Cover    *images.Image
-	Preview  bool // предпросмотр черновика: плашка со ссылкой в редактор
+	SEOImage *images.Image // картинка SEO (seo_image); nil — подстановка
+	Preview  bool          // предпросмотр черновика: плашка со ссылкой в редактор
+}
+
+// seo — SEO поста, заданное вручную.
+func (v viewData) seo() seofields.Fields {
+	return seofields.FromDB(v.SeoTitle, v.SeoDescription, v.SeoImage)
 }
 
 func newViewData(ctx context.Context, imgs blocks.Images, e entry) (viewData, error) {
@@ -252,7 +260,20 @@ func newViewData(ctx context.Context, imgs blocks.Images, e entry) (viewData, er
 	if err != nil {
 		return viewData{}, err
 	}
-	return viewData{entry: e, List: list, Resolved: res, Cover: cover}, nil
+	v := viewData{entry: e, List: list, Resolved: res, Cover: cover}
+	if v.SEOImage, err = v.seo().Resolve(ctx, imgs); err != nil {
+		return viewData{}, err
+	}
+	return v, nil
+}
+
+// summary — анонс поста для ленты, RSS и описания страницы: ручной (excerpt) целиком, в одну строку; без него —
+// начало текста блоков, не длиннее n символов.
+func summary(e entry, list []blocks.Block, n int) string {
+	if e.Excerpt != "" {
+		return strings.Join(strings.Fields(e.Excerpt), " ")
+	}
+	return blocks.Summary(list, n)
 }
 
 // resolveCover — обложка по id; пустой id или изображения нет в медиатеке — nil.

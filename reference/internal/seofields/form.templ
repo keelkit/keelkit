@@ -1,0 +1,129 @@
+package seofields
+
+import (
+	"cmp"
+	"strconv"
+
+	"github.com/voffkin/keelkit/reference/internal/web"
+)
+
+// Section — раздел «Поисковики и соцсети» в форме записи: превью сниппета и поля. Свёрнут (<details>, без
+// JavaScript), пока ничего не задано вручную и нет ошибок. f — поля из формы, e.Errors — ошибки всей формы.
+templ Section(f Fields, e Env) {
+	<details class="seo-fields" open?={ open(f, e.Errors) }>
+		<summary>Поисковики и соцсети</summary>
+		@Snippet(e.Meta, e.Snippet)
+		<label>
+			SEO-заголовок
+			<input
+				type="text"
+				name={ FieldTitle }
+				value={ f.Title }
+				maxlength={ strconv.Itoa(MaxTitleLen) }
+				if e.Errors[FieldTitle] != "" {
+					aria-invalid="true"
+					aria-describedby={ FieldTitle + "-hint " + FieldTitle + "-error" }
+				} else {
+					aria-describedby={ FieldTitle + "-hint" }
+				}
+			/>
+			<span class="field-hint" id={ FieldTitle + "-hint" }>
+				Весь заголовок вкладки и выдачи, название сайта не добавляется. Пусто — заголовок записи и название сайта.
+				Поисковики показывают около { strconv.Itoa(searchTitleLen) } символов.
+			</span>
+			@fieldError(e, FieldTitle)
+		</label>
+		<label>
+			SEO-описание
+			<textarea
+				class="plain"
+				name={ FieldDescription }
+				rows="3"
+				maxlength={ strconv.Itoa(MaxDescriptionLen) }
+				if e.Errors[FieldDescription] != "" {
+					aria-invalid="true"
+					aria-describedby={ FieldDescription + "-hint " + FieldDescription + "-error" }
+				} else {
+					aria-describedby={ FieldDescription + "-hint" }
+				}
+			>{ f.Description }</textarea>
+			<span class="field-hint" id={ FieldDescription + "-hint" }>
+				Пусто — подставится автоматически (см. превью). Поисковики показывают около { strconv.Itoa(searchDescriptionLen) } символов.
+			</span>
+			@fieldError(e, FieldDescription)
+		</label>
+		<label>
+			Картинка для соцсетей
+			<select
+				name={ FieldImage }
+				if e.Errors[FieldImage] != "" {
+					aria-invalid="true"
+					aria-describedby={ FieldImage + "-hint " + FieldImage + "-error" }
+				} else {
+					aria-describedby={ FieldImage + "-hint" }
+				}
+			>
+				<option value="">— автоматически —</option>
+				for _, img := range options(e) {
+					<option value={ img.ID } selected?={ img.ID == f.Image }>{ optionLabel(img) }</option>
+				}
+			</select>
+			<span class="field-hint" id={ FieldImage + "-hint" }>
+				Превью ссылки в соцсетях и мессенджерах. Пусто — подставится автоматически (см. превью).
+				Новое изображение сначала загрузите в <a href={ templ.SafeURL(e.MediaURL) } target="_blank">медиатеку</a>.
+			</span>
+			@fieldError(e, FieldImage)
+		</label>
+	</details>
+}
+
+// Snippet — превью записи в выдаче поисковика и в соцсетях: ровно то, что выведет web.LayoutMeta(m) (и ответ на
+// POST Env.Snippet). Обновляется через htmx при любом вводе в форме записи — подстановка зависит и от её полей;
+// без JavaScript — после отправки формы. hx-target задан явно: форма записи задаёт свой, и он наследуется.
+templ Snippet(m web.Meta, snippetURL string) {
+	{{ site := web.SiteFrom(ctx) }}
+	{{ title, desc := web.TitleTag(m, site.Name), cmp.Or(m.Description, site.Description) }}
+	<div
+		class="seo-snippet"
+		id="seo-snippet"
+		hx-post={ snippetURL }
+		hx-trigger="input delay:500ms from:closest form"
+		hx-include="closest form"
+		hx-target="this"
+		hx-swap="outerHTML"
+		hx-sync="this:replace"
+	>
+		<p class="seo-snippet-label">Превью в поиске</p>
+		<div class="seo-snippet-search">
+			<span class="seo-snippet-url">{ displayURL(site.BaseURL, m.Path) }</span>
+			<span class="seo-snippet-title">{ title }</span>
+			if desc != "" {
+				<span class="seo-snippet-desc">{ desc }</span>
+			}
+		</div>
+		if tooLong(title, searchTitleLen) {
+			<p class="field-hint">Заголовок длиннее { strconv.Itoa(searchTitleLen) } символов: в выдаче его обрежут.</p>
+		}
+		if tooLong(desc, searchDescriptionLen) {
+			<p class="field-hint">Описание длиннее { strconv.Itoa(searchDescriptionLen) } символов: в выдаче его обрежут.</p>
+		}
+		<p class="seo-snippet-label">Превью в соцсетях</p>
+		<div class="seo-snippet-card">
+			if m.Image != nil {
+				@web.Picture(m.Image, "", "20rem")
+			} else {
+				<span class="muted">Без картинки</span>
+			}
+			<span class="seo-snippet-title">{ cmp.Or(m.Title, site.Name) }</span>
+			if desc != "" {
+				<span class="seo-snippet-desc">{ desc }</span>
+			}
+		</div>
+	</div>
+}
+
+templ fieldError(e Env, field string) {
+	if msg := e.Errors[field]; msg != "" {
+		<span class="field-error" id={ field + "-error" }>{ msg }</span>
+	}
+}

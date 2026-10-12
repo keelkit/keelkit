@@ -7,6 +7,7 @@ import (
 
 	"github.com/voffkin/keelkit/reference/internal/admin"
 	"github.com/voffkin/keelkit/reference/internal/blocks"
+	"github.com/voffkin/keelkit/reference/internal/seofields"
 	"github.com/voffkin/keelkit/reference/internal/web"
 )
 
@@ -137,6 +138,7 @@ templ Form(f postForm) {
 			/>
 			@fieldError(f, "title")
 		</label>
+		@textField(f, "lead", "Лид", f.Lead, 2, maxLeadLen, "Необязательно: подзаголовок под заголовком поста, простым текстом.")
 		<label>
 			Slug
 			<input
@@ -187,7 +189,9 @@ templ Form(f postForm) {
 			@fieldError(f, "publish_date")
 		</label>
 		@coverField(f)
+		@textField(f, "excerpt", "Анонс", f.Excerpt, 3, maxExcerptLen, "Для ленты блога, RSS и описания для поисковиков. Пусто — начало текста поста.")
 		@blocks.Editor(f.Blocks, f.Env)
+		@seofields.Section(f.SEO, f.SEOEnv)
 		<div class="form-actions">
 			<button type="submit" name="action" value="save">Сохранить</button>
 			<button type="submit" name="action" value="publish" class="secondary">Опубликовать</button>
@@ -213,7 +217,7 @@ templ coverField(f postForm) {
 			<select
 				name="cover"
 				hx-post={ AdminPath + "/cover" }
-				hx-params="cover"
+				hx-params="cover,cover_alt"
 				hx-trigger="change"
 				hx-target="#cover-field"
 				hx-swap="outerHTML"
@@ -234,7 +238,45 @@ templ coverField(f postForm) {
 			</span>
 			@fieldError(f, "cover")
 		</label>
+		<label>
+			Описание обложки (alt)
+			<input
+				type="text"
+				name="cover_alt"
+				value={ f.CoverAlt }
+				maxlength={ strconv.Itoa(maxAltLen) }
+				if f.Errors["cover_alt"] != "" {
+					aria-invalid="true"
+					aria-describedby="cover_alt-hint cover_alt-error"
+				} else {
+					aria-describedby="cover_alt-hint"
+				}
+			/>
+			<span class="field-hint" id="cover_alt-hint">Что изображено — для тех, кто не видит картинку. Пусто — обложка считается украшением.</span>
+			@fieldError(f, "cover_alt")
+		</label>
 	</div>
+}
+
+// textField — необязательное поле простого текста (лид, анонс) с подсказкой.
+templ textField(f postForm, name, label, value string, rows, maxLen int, hint string) {
+	<label>
+		{ label }
+		<textarea
+			class="plain"
+			name={ name }
+			rows={ strconv.Itoa(rows) }
+			maxlength={ strconv.Itoa(maxLen) }
+			if f.Errors[name] != "" {
+				aria-invalid="true"
+				aria-describedby={ name + "-hint " + name + "-error" }
+			} else {
+				aria-describedby={ name + "-hint" }
+			}
+		>{ value }</textarea>
+		<span class="field-hint" id={ name + "-hint" }>{ hint }</span>
+		@fieldError(f, name)
+	</label>
 }
 
 templ fieldError(f postForm, field string) {

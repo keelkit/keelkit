@@ -17,6 +17,7 @@ import (
 	"github.com/voffkin/keelkit/reference/internal/admin"
 	"github.com/voffkin/keelkit/reference/internal/blocks"
 	"github.com/voffkin/keelkit/reference/internal/database"
+	"github.com/voffkin/keelkit/reference/internal/seofields"
 	"github.com/voffkin/keelkit/reference/internal/slug"
 	"github.com/voffkin/keelkit/reference/internal/web"
 )
@@ -75,6 +76,7 @@ type pageForm struct {
 	Title  string
 	Slug   string
 	Blocks []blocks.Block
+	SEO    seofields.Fields
 
 	// Сохранённое состояние (от него зависят ссылки, статус и кнопки).
 	Published     bool   // есть опубликованная копия
@@ -83,6 +85,7 @@ type pageForm struct {
 
 	Errors  map[string]string // поле → сообщение; поля блоков — blocks.FieldName
 	Env     blocks.FormEnv
+	SEOEnv  seofields.Env
 	Flash   string // «Сохранено» и т. п. после редиректа
 	Unsaved bool   // форму изменила кнопка блока (↑, ↓, «Скрыть»…), но не сохранила
 }
@@ -132,7 +135,7 @@ func (a *Admin) Update(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	saved.Title, saved.Slug, saved.Blocks = "", "", nil
+	saved.Title, saved.Slug, saved.Blocks, saved.SEO = "", "", nil, seofields.Fields{}
 	a.submit(w, r, saved)
 }
 
@@ -161,7 +164,12 @@ func (a *Admin) submit(w http.ResponseWriter, r *http.Request, f pageForm) {
 		return
 	}
 	f.Env.Resolved = res
-	if a.validate(&f) {
+	seoImage, err := f.SEO.Resolve(r.Context(), a.media)
+	if err != nil {
+		admin.ServerError(w, r, err)
+		return
+	}
+	if a.validate(&f, seoImage != nil) {
 		publish := action == "publish"
 		id, err := a.save(r.Context(), f, publish)
 		switch {
@@ -171,6 +179,9 @@ func (a *Admin) submit(w http.ResponseWriter, r *http.Request, f pageForm) {
 		case database.IsUniqueViolation(err):
 			f.Errors = map[string]string{"slug": fmt.Sprintf(
 				"Страница с адресом «%s» уже есть (опубликованная или черновик): выберите другой slug.", f.Slug)}
+		case database.IsForeignKeyViolation(err):
+			// Картинку удалили, пока форма была открыта.
+			f.Errors = map[string]string{seofields.FieldImage: "Изображение только что удалено: выберите заново."}
 		case err != nil:
 			admin.ServerError(w, r, err)
 			return
@@ -210,10 +221,18 @@ func (a *Admin) save(ctx context.Context, f pageForm, publish bool) (int64, erro
 	} else if n == 0 {
 		return 0, sql.ErrNoRows
 	}
-	if err := q.SaveDraft(ctx, SaveDraftParams{PageID: id, Title: f.Title, Slug: f.Slug, Blocks: data}); err != nil {
+	err = q.SaveDraft(ctx, SaveDraftParams{
+		PageID: id, Title: f.Title, Slug: f.Slug, Blocks: data,
+		SeoTitle: f.SEO.Title, SeoDescription: f.SEO.Description, SeoImage: f.SEO.DBImage(),
+	})
+	if err != nil {
 		return 0, err
 	}
-	if err := replaceImages(ctx, q, id, kindDraft, blocks.ImageIDs(f.Blocks)); err != nil {
+	ids := blocks.ImageIDs(f.Blocks)
+	if f.SEO.Image != "" && !slices.Contains(ids, f.SEO.Image) {
+		ids = append(ids, f.SEO.Image)
+	}
+	if err := replaceImages(ctx, q, id, kindDraft, ids); err != nil {
 		return 0, err
 	}
 	if publish {
@@ -336,14 +355,46 @@ func (a *Admin) View(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	res, err := blocks.Resolve(r.Context(), a.media, f.Blocks)
+	v, err := a.viewData(r.Context(), f)
 	if err != nil {
 		admin.ServerError(w, r, err)
 		return
 	}
-	web.Render(w, r, http.StatusOK, View(viewData{
-		ID: f.ID, Title: f.Title, Slug: f.Slug, Blocks: f.Blocks, Resolved: res, Preview: true,
-	}))
+	v.Preview = true
+	web.Render(w, r, http.StatusOK, View(v))
+}
+
+// SEO — POST /admin/pages/seo (htmx): превью сниппета из присланной формы страницы.
+func (a *Admin) SEO(w http.ResponseWriter, r *http.Request) {
+	var f pageForm
+	if !a.parseForm(w, r, &f) {
+		return
+	}
+	v, err := a.viewData(r.Context(), f)
+	if err != nil {
+		admin.ServerError(w, r, err)
+		return
+	}
+	web.Render(w, r, http.StatusOK, seofields.Snippet(viewMeta(v), AdminPath+"/seo"))
+}
+
+// viewData — страница из формы так, как её покажет сайт: изображения загружены, пустой slug составлен из заголовка
+// (как при сохранении). Нужна предпросмотру и превью сниппета.
+func (a *Admin) viewData(ctx context.Context, f pageForm) (viewData, error) {
+	res, err := blocks.Resolve(ctx, a.media, f.Blocks)
+	if err != nil {
+		return viewData{}, err
+	}
+	img, err := f.SEO.Resolve(ctx, a.media)
+	if err != nil {
+		return viewData{}, err
+	}
+	title := strings.TrimSpace(f.Title)
+	s := slug.Make(strings.TrimSpace(f.Slug))
+	if s == "" {
+		s = slug.Make(title)
+	}
+	return viewData{ID: f.ID, Title: title, Slug: s, Blocks: f.Blocks, Resolved: res, SEO: f.SEO, SEOImage: img}, nil
 }
 
 // Preview — POST /admin/pages/preview?field=<имя поля> (htmx): фрагмент с отрисованным Markdown поля.
@@ -412,12 +463,16 @@ func (a *Admin) load(w http.ResponseWriter, r *http.Request) (pageForm, bool) {
 		admin.ServerError(w, r, err)
 		return pageForm{}, false
 	}
-	f := pageForm{ID: id, Title: draft.Title, Slug: draft.Slug, Blocks: list}
+	f := pageForm{
+		ID: id, Title: draft.Title, Slug: draft.Slug, Blocks: list,
+		SEO: seofields.FromDB(draft.SeoTitle, draft.SeoDescription, draft.SeoImage),
+	}
 	pub, err := a.q.GetPageContent(ctx, GetPageContentParams{PageID: id, Kind: kindPublished})
 	switch {
 	case err == nil:
 		f.Published, f.PublishedSlug = true, pub.Slug
-		f.Changed = pub.Title != draft.Title || pub.Slug != draft.Slug || pub.Blocks != draft.Blocks
+		pub.Kind = draft.Kind
+		f.Changed = pub != draft
 	case !errors.Is(err, sql.ErrNoRows):
 		admin.ServerError(w, r, err)
 		return pageForm{}, false
@@ -437,13 +492,14 @@ func (a *Admin) parseForm(w http.ResponseWriter, r *http.Request, f *pageForm) b
 		return false
 	}
 	f.Title, f.Slug, f.Blocks = r.PostFormValue("title"), r.PostFormValue("slug"), list
+	f.SEO = seofields.Parse(r.PostForm)
 	return true
 }
 
 // validate нормализует поля и проверяет их; ошибки — в f.Errors. Уникальность slug проверяет БД при сохранении.
 // Пустой slug составляется из заголовка; введённый вручную приводится к тому же виду (slug.Make).
-// Изображения блоков должны быть уже загружены в f.Env.Resolved.
-func (a *Admin) validate(f *pageForm) bool {
+// Изображения блоков должны быть уже загружены в f.Env.Resolved; seoImageFound — картинка SEO есть в медиатеке.
+func (a *Admin) validate(f *pageForm, seoImageFound bool) bool {
 	errs := blocks.Validate(f.Blocks, f.Env.Resolved)
 	f.Title = strings.TrimSpace(f.Title)
 
@@ -470,6 +526,7 @@ func (a *Admin) validate(f *pageForm) bool {
 	if f.PublishedSlug == HomeSlug && f.Slug != HomeSlug && errs["slug"] == "" {
 		errs["slug"] = fmt.Sprintf("Это главная страница: её адрес — «%s».", HomeSlug)
 	}
+	f.SEO.Validate(errs, seoImageFound)
 
 	if len(errs) > 0 {
 		f.Errors = errs
@@ -502,6 +559,15 @@ func (a *Admin) renderForm(w http.ResponseWriter, r *http.Request, status int, f
 		return
 	}
 	f.Env = env
+	v, err := a.viewData(r.Context(), f)
+	if err != nil {
+		admin.ServerError(w, r, err)
+		return
+	}
+	f.SEOEnv = seofields.Env{
+		Errors: f.Errors, Library: env.Library, Image: v.SEOImage, Meta: viewMeta(v),
+		Snippet: AdminPath + "/seo", MediaURL: a.mediaURL,
+	}
 	c := FormPage(f)
 	if admin.IsHTMX(r) {
 		c = Form(f)

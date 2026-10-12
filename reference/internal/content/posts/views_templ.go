@@ -377,8 +377,8 @@ func meta(e entry) templ.Component {
 	})
 }
 
-// View — страница поста. Обложка декоративная (alt пуст): рядом заголовок поста. Описание — начало текста блоков,
-// картинка для соцсетей — обложка, без неё — первое изображение блоков. Предпросмотр черновика видит только
+// View — страница поста: заголовок, лид, дата и категория, обложка (alt пуст — декоративная: рядом заголовок),
+// блоки. Данные для поисковиков — viewMeta. Предпросмотр черновика видит только
 // админка — с плашкой и ссылкой в редактор, без canonical и с noindex.
 func View(p viewData) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -462,20 +462,39 @@ func View(p viewData) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+			if p.Lead != "" {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<p class=\"post-lead\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var22 string
+				templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(p.Lead)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/posts/views.templ`, Line: 88, Col: 33}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "</p>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
 			templ_7745c5c3_Err = meta(p.entry).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if p.Cover != nil {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<div class=\"post-cover\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<div class=\"post-cover\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = web.Picture(p.Cover, "", sizesCover).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = web.Picture(p.Cover, p.CoverAlt, sizesCover).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -484,7 +503,7 @@ func View(p viewData) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "</article>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "</article>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -505,18 +524,22 @@ func listTitle(v listView) string {
 	return v.Title
 }
 
+// viewMeta — данные для поисковиков: SEO, заданное вручную, поверх подстановки — заголовок поста, анонс (summary),
+// обложка с её alt, без обложки — первое изображение блоков.
 func viewMeta(p viewData) web.Meta {
 	m := web.Meta{
 		Title:       p.Title,
-		Description: blocks.Summary(p.List, descriptionLen),
+		Description: summary(p.entry, p.List, descriptionLen),
 		Path:        PublicPath(p.Slug),
 		Article:     true,
 		Published:   p.PublishDate,
 		Image:       p.Cover,
+		ImageAlt:    p.CoverAlt,
 	}
 	if m.Image == nil {
-		m.Image = blocks.FirstImage(p.List, p.Resolved)
+		m.Image, m.ImageAlt = blocks.FirstImage(p.List, p.Resolved), ""
 	}
+	m = p.seo().Apply(m, p.SEOImage)
 	if p.Preview {
 		m.Path, m.NoIndex = "", true
 	}
