@@ -2,7 +2,7 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — semver (теги `spec/vX.Y.Z`).
 
-## [Unreleased]
+## [0.3.0] — 2026-10-12
 
 ### Added
 - `settings: { fields: {…} }` — настройки сайта: одна запись, поля как у типа контента, кроме `slug` и `blocks`;
