@@ -546,8 +546,8 @@ make e2e
       конкретного элемента, картинки элементов — в таблице ссылок `*_images`. Образец в `reference/` — блок «Галерея»
       (`gallery`, `internal/blocks/items.go`)
 - [x] Схема спецификации `spec v0.3.0`: `settings`, `menus`, тип поля `list` с `fields`, feature `seo`
-      (код и примеры готовы; осталось: push, `make release MODULE=spec VERSION=v0.3.0`, `SPEC_VERSION=v0.3.0`
-      в `reference/Makefile` — до этого `make spec-validate` в `reference/` на v0.2.0 отвергает feature `seo`)
+      (релиз `spec v0.3.0`, `SPEC_VERSION=v0.3.0` в `reference/Makefile`; на v0.2.0 `make spec-validate` в `reference/`
+      отвергал feature `seo`)
 - [ ] Список элементов в поле записи (не блока): `type: list` в эталоне
 - [x] Блок `image_text`: подпись под картинкой (сейчас есть только alt)
 - [x] Посты: лид (подзаголовок статьи), ручной анонс (пусто — начало текста, как сейчас), alt обложки
