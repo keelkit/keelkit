@@ -1270,6 +1270,8 @@ func markdownField(b Block, field, label, value string, e FormEnv) templ.Compone
 }
 
 // markdownToolbar — панель оформления для textarea с id target. data-md — действие в static/editor.js.
+// Надписи — классические английские (B, I, S, H2…), подсказка (title) — по-русски; aria-label начинается
+// с видимой надписи, чтобы голосовое управление находило кнопку по ней.
 // Подчёркивания нет: в Markdown его нет, а сырой HTML (<u>) не пропускается.
 func markdownToolbar(target string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -1299,13 +1301,13 @@ func markdownToolbar(target string) templ.Component {
 		var templ_7745c5c3_Var67 string
 		templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.ResolveAttributeValue(target)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 222, Col: 109}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 224, Col: 109}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var67)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 99, "\"><button type=\"button\" data-md=\"bold\" title=\"Жирный (Ctrl+B)\" aria-label=\"Жирный\"><b>Ж</b></button> <button type=\"button\" data-md=\"italic\" title=\"Курсив (Ctrl+I)\" aria-label=\"Курсив\"><i>К</i></button> <button type=\"button\" data-md=\"strike\" title=\"Зачёркнутый\" aria-label=\"Зачёркнутый\"><s>З</s></button> <button type=\"button\" data-md=\"link\" title=\"Ссылка (Ctrl+K)\" aria-label=\"Ссылка\">Ссылка</button> <button type=\"button\" data-md=\"heading\" title=\"Подзаголовок\" aria-label=\"Подзаголовок\">H2</button> <button type=\"button\" data-md=\"ul\" title=\"Маркированный список\" aria-label=\"Маркированный список\">•&nbsp;Список</button> <button type=\"button\" data-md=\"ol\" title=\"Нумерованный список\" aria-label=\"Нумерованный список\">1.&nbsp;Список</button> <button type=\"button\" data-md=\"quote\" title=\"Цитата\" aria-label=\"Цитата\">«&nbsp;»</button> <button type=\"button\" data-md=\"code\" title=\"Код\" aria-label=\"Код\"><code>&lt;/&gt;</code></button></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 99, "\"><button type=\"button\" data-md=\"bold\" title=\"Жирный (Ctrl+B)\" aria-label=\"B — жирный\"><b>B</b></button> <button type=\"button\" data-md=\"italic\" title=\"Курсив (Ctrl+I)\" aria-label=\"I — курсив\"><i>I</i></button> <button type=\"button\" data-md=\"strike\" title=\"Зачёркнутый\" aria-label=\"S — зачёркнутый\"><s>S</s></button> <button type=\"button\" data-md=\"link\" title=\"Ссылка (Ctrl+K)\" aria-label=\"Link — ссылка\">Link</button> <button type=\"button\" data-md=\"heading\" title=\"Подзаголовок\" aria-label=\"H2 — подзаголовок\">H2</button> <button type=\"button\" data-md=\"ul\" title=\"Маркированный список\" aria-label=\"UL — маркированный список\">UL</button> <button type=\"button\" data-md=\"ol\" title=\"Нумерованный список\" aria-label=\"OL — нумерованный список\">OL</button> <button type=\"button\" data-md=\"quote\" title=\"Цитата\" aria-label=\"Quote — цитата\">Quote</button> <button type=\"button\" data-md=\"code\" title=\"Код\" aria-label=\"Code — код\"><code>&lt;/&gt;</code></button></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1397,7 +1399,7 @@ func imageField(b Block, field, id string, e FormEnv) templ.Component {
 		var templ_7745c5c3_Var70 string
 		templ_7745c5c3_Var70, templ_7745c5c3_Err = templ.ResolveAttributeValue(name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 260, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 262, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var70)
 		if templ_7745c5c3_Err != nil {
@@ -1410,7 +1412,7 @@ func imageField(b Block, field, id string, e FormEnv) templ.Component {
 		var templ_7745c5c3_Var71 string
 		templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.ResolveAttributeValue(e.BlockURL + "?id=" + b.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 261, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 263, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var71)
 		if templ_7745c5c3_Err != nil {
@@ -1423,7 +1425,7 @@ func imageField(b Block, field, id string, e FormEnv) templ.Component {
 		var templ_7745c5c3_Var72 string
 		templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.ResolveAttributeValue("#block-" + b.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 263, Col: 32}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 265, Col: 32}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var72)
 		if templ_7745c5c3_Err != nil {
@@ -1441,7 +1443,7 @@ func imageField(b Block, field, id string, e FormEnv) templ.Component {
 			var templ_7745c5c3_Var73 string
 			templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.ResolveAttributeValue(name + "-hint " + name + "-error")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 267, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 269, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var73)
 			if templ_7745c5c3_Err != nil {
@@ -1459,7 +1461,7 @@ func imageField(b Block, field, id string, e FormEnv) templ.Component {
 			var templ_7745c5c3_Var74 string
 			templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.ResolveAttributeValue(name + "-hint")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 269, Col: 38}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 271, Col: 38}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var74)
 			if templ_7745c5c3_Err != nil {
@@ -1482,7 +1484,7 @@ func imageField(b Block, field, id string, e FormEnv) templ.Component {
 			var templ_7745c5c3_Var75 string
 			templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.ResolveAttributeValue(img.ID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 274, Col: 27}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 276, Col: 27}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var75)
 			if templ_7745c5c3_Err != nil {
@@ -1505,7 +1507,7 @@ func imageField(b Block, field, id string, e FormEnv) templ.Component {
 			var templ_7745c5c3_Var76 string
 			templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.JoinStringErrs(optionLabel(img))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 274, Col: 75}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 276, Col: 75}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var76))
 			if templ_7745c5c3_Err != nil {
@@ -1523,7 +1525,7 @@ func imageField(b Block, field, id string, e FormEnv) templ.Component {
 		var templ_7745c5c3_Var77 string
 		templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.ResolveAttributeValue(name + "-hint")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 277, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 279, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var77)
 		if templ_7745c5c3_Err != nil {
@@ -1536,7 +1538,7 @@ func imageField(b Block, field, id string, e FormEnv) templ.Component {
 		var templ_7745c5c3_Var78 templ.SafeURL
 		templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(e.MediaURL))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 278, Col: 110}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 280, Col: 110}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var78))
 		if templ_7745c5c3_Err != nil {
@@ -1587,7 +1589,7 @@ func fieldError(b Block, field string, e FormEnv) templ.Component {
 			var templ_7745c5c3_Var80 string
 			templ_7745c5c3_Var80, templ_7745c5c3_Err = templ.ResolveAttributeValue(FieldName(b.ID, field) + "-error")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 287, Col: 66}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 289, Col: 66}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var80)
 			if templ_7745c5c3_Err != nil {
@@ -1600,7 +1602,7 @@ func fieldError(b Block, field string, e FormEnv) templ.Component {
 			var templ_7745c5c3_Var81 string
 			templ_7745c5c3_Var81, templ_7745c5c3_Err = templ.JoinStringErrs(msg)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 287, Col: 74}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/blocks/form.templ`, Line: 289, Col: 74}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var81))
 			if templ_7745c5c3_Err != nil {
