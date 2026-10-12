@@ -16,6 +16,7 @@ import (
 	"github.com/voffkin/keelkit/reference/internal/content/categories"
 	"github.com/voffkin/keelkit/reference/internal/content/pages"
 	"github.com/voffkin/keelkit/reference/internal/content/posts"
+	"github.com/voffkin/keelkit/reference/internal/listfield"
 	"github.com/voffkin/keelkit/reference/internal/settings"
 )
 
@@ -49,12 +50,20 @@ func seed(ctx context.Context, cfg config) error {
 // файла; блоки с изображением, которого там нет, пропускаются. Отдельно от seedImages: обработка изображений
 // занимает около секунды, поэтому тестам, которым картинки не нужны, хватает seedContent(ctx, db, nil).
 func seedContent(ctx context.Context, db *sql.DB, imgs map[string]string) error {
-	err := settings.New(db).InsertSiteSettingsIfMissing(ctx, settings.InsertSiteSettingsIfMissingParams{
+	social, err := listfield.Encode([]settings.Social{
+		{ID: listfield.NewID(), Name: "Telegram", URL: "https://t.me/example"},
+		{ID: listfield.NewID(), Name: "ВКонтакте", URL: "https://vk.com/example"},
+	})
+	if err != nil {
+		return err
+	}
+	err = settings.New(db).InsertSiteSettingsIfMissing(ctx, settings.InsertSiteSettingsIfMissingParams{
 		Name:        "Keelkit — эталонный сайт",
 		Description: "Образец устройства сайтов Keelkit",
 		Address:     "Москва, ул. Примерная, д. 1\nофис 101",
 		Phone:       "+7 (495) 000-00-00",
 		Email:       "hello@example.com",
+		Social:      social,
 		CookieText:  "Сайт использует файлы cookie, чтобы работать удобнее.",
 		CookieLink:  "/about",
 	})

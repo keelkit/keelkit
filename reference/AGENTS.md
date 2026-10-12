@@ -85,14 +85,15 @@
 - Раздел постов `/admin/posts` — те же маршруты, что у страниц, и `POST /admin/posts/cover` (htmx: поле обложки с превью).
 - Раздел категорий: `GET /admin/categories` (список), `GET /admin/categories/new`, `POST /admin/categories`,
   `GET|POST /admin/categories/{id}` (форма), `GET|POST /admin/categories/{id}/delete` (подтверждение, удалить).
-- Настройки: `GET|POST /admin/settings` (форма, сохранить), `POST /admin/settings/image` (htmx: поле картинки для соцсетей с превью).
+- Настройки: `GET|POST /admin/settings` (форма; «Сохранить» или кнопка списка соцсетей — поле `action`),
+  `POST /admin/settings/image` (htmx: поле картинки для соцсетей с превью).
 - Медиатека: `GET /admin/media` (загрузка и сетка, `?page=N`), `POST /admin/media` (загрузка), `GET /admin/media/{id}`
   (карточка), `GET|POST /admin/media/{id}/delete` (подтверждение, удалить).
 - Зарезервированные slug — `reservedSlugs` в `cmd/site/server.go` (`admin`, `static`, `media`, `healthz`, `blog`): их маршруты перекрывают
   страницу, админка такие slug не принимает. Маршрут-поддерево (`/static/`) занимает и путь без слеша (`GET /static` → 404),
   иначе его забрал бы `GET /{slug}`; e2e `TestE2EReservedSlugsShadowPages` проверяет каждый slug из списка.
 - Всё остальное — оформленная 404 (`web.NotFound`).
-- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"site":{"version":10,"pending":0}}}`.
+- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"site":{"version":11,"pending":0}}}`.
 
 ## Бинарник
 
@@ -309,7 +310,8 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
   (`blocks.ItemField`). Кнопки — те же submit с `action`: `item-up:<блок>:<элемент>`, `item-down:…`, `item-remove:…`,
   `item-add:<блок>` (не больше `blocks.MaxItems`). Ошибка — у поля элемента (`#block-<id>-i-<элемент>-<поле>-error`);
   испорченные id элементов в форме — 400. Тип со списком реализует `itemList` (`itemIDs`, `fixItemIDs`, `applyItem`)
-  через общие `applyTo` и `fixIDs`; картинки элементов — в `imageIDs`, поэтому они попадают в `<type>_images`.
+  через общие с полем-списком записи `listfield.Apply` и `listfield.FixIDs` (см. «Поле-список»); картинки элементов —
+  в `imageIDs`, поэтому они попадают в `<type>_images`.
 - Проверка — `blocks.Validate` (все блоки, и скрытые); ошибки — у поля блока (`#block-<id>-<поле>-error`), 422 как у
   обычных полей. Изображения загружает `blocks.Resolve` (интерфейс `blocks.Images` — `Get` модуля).
 - `blocks.ImageIDs` — для `<type>_images` (скрытые блоки тоже держат изображение), `blocks.PlainText` и `blocks.Summary` —
@@ -323,6 +325,24 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 (корень — элемент с классом `block block-<тип>` и `id="block-<id>"`) и фрагмент формы в `form.templ`; стили; тест в
 `blocks_test.go`; имя — в `allow` нужного поля `site.yaml` и в списке блоков типа контента.
 
+### Поле-список (`internal/listfield/`)
+
+Поле записи `{ type: list, fields: {…} }` из `site.yaml` (не блока; образец — `social` в настройках): элементы по
+порядку, поля элемента задаёт спецификация. Хранение — JSON-массив в колонке `TEXT NOT NULL DEFAULT '[]'
+CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `listfield.Decode` — элементу без id или с
+повторным даёт новый). Картинки элементов (поле `image`) — ещё и в `<type>_images`, как у блоков.
+- В пакете типа — структура элемента с полем `ID` (JSON-теги — имена полей из `site.yaml`, `id` служебный), чтение
+  формы, проверка и вывод. Общее — `internal/listfield`: id (`NewID`, `ValidIDs`), действия (`Apply`), имена формы,
+  кнопки (`listfield.Controls`, `listfield.Add`).
+- Форма поля `<field>`: id элементов по порядку — скрытые `<field>-item` (`listfield.Order`; испорченные или повторные —
+  400, `listfield.IDs`), поле элемента — `<field>-i-<элемент>-<поле>` (`listfield.Name`; это же ключ ошибки,
+  `#<имя>-error`). Кнопки — submit с `action`: `list-up:<field>:<элемент>`, `list-down:…`, `list-remove:…`,
+  `list-add:<field>` (`listfield.ActionValue`, `ParseAction`; не больше `listfield.MaxItems`). Сервер возвращает форму
+  изменённой (200, плашка «Изменения ещё не сохранены»), ничего не сохраняя; без JavaScript — обычный POST, с htmx —
+  подмена формы. Первая кнопка формы — скрытая «Сохранить» (Enter в поле). Чужое поле, элемент или действие — 400.
+- Новый элемент — пустой в конец; элемент, где все поля пустые, при сохранении отбрасывается молча, у заполненного
+  частично — ошибки у полей.
+
 ## Настройки сайта (`internal/settings/`)
 
 Поля — `settings.fields` в `site.yaml` (с `spec v0.3.0`); одна запись `site_settings` (`id = 1`), колонки — имена полей
@@ -330,8 +350,9 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 Строки нет (прод до первого сохранения) — `settings.Get` отдаёт только `settings.DefaultName`; сохранение создаёт строку
 (`INSERT … ON CONFLICT DO UPDATE`).
 - Поля эталона: название (обязательно), описание, картинка для соцсетей по умолчанию (`share_image`), адрес (в несколько
-  строк), телефон, email, текст и ссылка баннера cookies, коды Яндекс.Вебмастера и Google Search Console. Пустое — не
-  выводится. Другой сайт меняет набор полей: колонка в миграции, поле в `site.yaml`, форма, `web.Site`, вывод в layout.
+  строк), телефон, email, текст и ссылка баннера cookies, коды Яндекс.Вебмастера и Google Search Console, ссылки на
+  соцсети (`social`, поле-список: название до 50 символов и адрес `http(s)://` с хостом; миграция `00011`). Пустое — не
+  выводится. Колонки идут в порядке полей `site.yaml`: новое поле — в конец. Другой сайт меняет набор полей: колонка в миграции, поле в `site.yaml`, форма, `web.Site`, вывод в layout.
 - Раздел админки — одна форма (`/admin/settings`, группа «Сайт» в меню), группы полей — `fieldset.settings-group`;
   ошибки — 422 у поля, как у типов контента (с htmx — только форма). Нормализация: однострочные поля — пробелы в один,
   адрес — CRLF → LF, без пустых строк. Телефон — с цифрами; email — один адрес без имени (идёт в `mailto:`); ссылка
@@ -342,7 +363,8 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 - На сайте (`siteLoader` → `web.Site`, `internal/web/layout.templ`): мета-теги `yandex-verification` и
   `google-site-verification` на каждой странице (файлы в корне не нужны); `og:image` страницы без своей картинки —
   картинка из настроек, без `og:image:alt` (`web.Defaults`; им же пользуется превью сниппета в админке); контакты —
-  `<address>` в подвале, телефон — ссылка `tel:` из цифр (`web.TelURL`).
+  `<address>` в подвале, телефон — ссылка `tel:` из цифр (`web.TelURL`); соцсети — `ul.social-links` в подвале
+  (`web.Site.Social`, `rel="me noopener"`).
 - Баннер cookies (`web.CookieNotice`): внизу страницы (`position: sticky`), пока нет cookie `cookie_notice=1`. «Понятно» —
   форма `POST /cookie-notice` со скрытым `back` (путь текущей страницы): без JavaScript — 303 обратно (только путь на этом
   сайте, иначе `/`), с htmx — пустой ответ заменяет баннер. Cookie на год, `HttpOnly`, `SameSite=Lax`, `Secure` по
@@ -390,7 +412,8 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 
 ## Тесты
 
-- Unit-тесты — рядом с пакетом (`internal/richtext`, `internal/database`, `internal/admin`, `internal/slug`, `internal/blocks`).
+- Unit-тесты — рядом с пакетом (`internal/richtext`, `internal/database`, `internal/admin`, `internal/slug`, `internal/blocks`,
+  `internal/listfield`).
 - e2e — `cmd/site/e2e_test.go`, функции `TestE2E*`: `httptest.NewServer(newMux(db, config{}))` над БД после `migrate` и `seed`,
   HTML разбирается goquery. Хелперы `fetch` (тело уже прочитано и закрыто) и `page` (статус, `Content-Type`, документ).
 - e2e админки — `cmd/site/e2e_admin_test.go`: `adminClient` (cookie jar, редиректы не выполняются), `post`, `login`, `loginOK`
@@ -412,7 +435,7 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
   `TestSpecFeaturesMatchCode` — типы с feature `sitemap`, `rss` и `seo` совпадают с `sitemapSources`, `feedTypes` и `seoTypes`;
   `TestSpecSettingsMatchCode` — поля `settings` совпадают с колонками `site_settings`.
 - e2e настроек — `cmd/site/e2e_settings_test.go`: сохранение и вывод на сайте (подвал, мета-теги, баннер), каждая ошибка
-  поля (форма и htmx), картинка по умолчанию в `og:image` и в превью сниппета, 409 медиатеки, согласие с cookies
+  поля (форма и htmx), соцсети (кнопки списка формой и htmx, порядок после сохранения, ошибки у элемента, 400), картинка по умолчанию в `og:image` и в превью сниппета, 409 медиатеки, согласие с cookies
   (форма, htmx, `back` только на этот сайт, запрос с чужого сайта — 403).
 - e2e SEO записи — `cmd/site/e2e_seo_admin_test.go`: превью сниппета (форма и htmx), `<title>`, описание и `og:image`
   поста и страницы (и главной), очистка — снова подстановка, ошибки полей, `seo_image` держит изображение.
@@ -422,7 +445,7 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 - Браузерные тесты — `cmd/site/browser_test.go` (`//go:build browser`, `TestBrowser*`, chromedp, headless Chrome):
   только критичные htmx-взаимодействия — превью при наборе, сохранение через `HX-Redirect`, подмена формы с ошибкой
   без перезагрузки, «Добавить блок», «↑», «Скрыть» и выбор изображения у блока, выбор обложки поста, превью сниппета SEO, загрузка файла (`hx-encoding="multipart/form-data"`),
-  выбор картинки в настройках и «Понятно» в баннере cookies (`TestBrowserSettingsAndCookieBanner`),
+  выбор картинки и «Добавить ссылку» в настройках, «Понятно» в баннере cookies (`TestBrowserSettingsAndCookieBanner`),
   панель оформления Markdown (`TestBrowserMarkdownToolbar`: кнопка, повторное нажатие, Ctrl+B, отмена, ссылка, список).
   После каждого htmx-действия — `htmxSettled()`: обработчики на новый фрагмент htmx навешивает после фазы settle,
   и клик chromedp раньше этого ушёл бы обычной отправкой формы. Запуск — `make e2e-browser`; `make test` их не собирает, линтер — собирает (`build-tags` в `.golangci.yml`).
@@ -456,6 +479,7 @@ cmd/site/browser_test.go    # браузерные тесты (тег browser, m
 db/migrations/              # миграции сайта (goose) + embed.go
 internal/admin/             # админка: вход, сессии, CSRF, ограничение попыток, оболочка, дашборд
 internal/blocks/            # поля blocks: типы блоков, JSON, форма, вывод на сайте
+internal/listfield/         # поля list: id элементов, действия ↑ ↓ «Убрать» «Добавить», имена формы, JSON
 internal/content/pages/     # тип контента pages: queries.sql, sqlc, handlers.go, views.templ, admin.go, admin.templ
 internal/content/posts/     # посты: то же + dates.go (дата публикации); лента категории — тоже здесь
 internal/content/categories/ # категории: queries.sql, sqlc, admin.go, admin.templ (без публичных шаблонов)

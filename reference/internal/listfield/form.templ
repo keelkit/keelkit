@@ -1,0 +1,20 @@
+package listfield
+
+// Controls — кнопки элемента: ↑ ↓ «Убрать». what — элемент в винительном падеже для подписей («ссылку»).
+// formnovalidate: перестановка не должна упираться в незаполненные обязательные поля.
+templ Controls(field, item, what string) {
+	<div class="block-controls">
+		<button type="submit" name="action" value={ ActionValue("up", field, item) } class="link-button" formnovalidate title="Выше" aria-label={ "Переместить " + what + " выше" }>↑</button>
+		<button type="submit" name="action" value={ ActionValue("down", field, item) } class="link-button" formnovalidate title="Ниже" aria-label={ "Переместить " + what + " ниже" }>↓</button>
+		<button type="submit" name="action" value={ ActionValue("remove", field, item) } class="link-button danger-link" formnovalidate aria-label={ "Убрать " + what }>Убрать</button>
+	</div>
+}
+
+// Add — кнопка «Добавить …» в конец списка; при MaxItems элементах её нет.
+templ Add(field, label string, count int) {
+	if count < MaxItems {
+		<div>
+			<button type="submit" name="action" value={ ActionValue("add", field, "") } class="secondary" formnovalidate>{ label }</button>
+		</div>
+	}
+}

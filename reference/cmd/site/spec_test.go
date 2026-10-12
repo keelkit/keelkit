@@ -117,8 +117,9 @@ func TestSpecFeaturesMatchCode(t *testing.T) {
 	}
 }
 
-// settingsFieldRe — поле настроек в site.yaml: «    <имя>: { type: … }» (отступ в четыре пробела под settings.fields).
-var settingsFieldRe = regexp.MustCompile(`^    (\w+):\s*\{`)
+// settingsFieldRe — поле настроек в site.yaml: «    <имя>: { type: … }» или «    <имя>:» с описанием ниже
+// (поле list); отступ — четыре пробела под settings.fields, поля элемента списка глубже и не совпадают.
+var settingsFieldRe = regexp.MustCompile(`^    (\w+):`)
 
 // Поля settings в site.yaml — ровно колонки site_settings (кроме служебной id) после миграций.
 func TestSpecSettingsMatchCode(t *testing.T) {

@@ -284,6 +284,7 @@ internal/content/<type>/   # модель, sqlc-запросы, хендлеры
 internal/admin/            # оболочка админки и авторизация (пока здесь)
 internal/media/            # медиатека в админке поверх модуля images
 internal/blocks/           # поля blocks: типы блоков (структура, проверка, вывод, форма), JSON
+internal/listfield/        # поля list: id и порядок элементов, кнопки «↑ ↓ Убрать / Добавить», JSON
 internal/web/              # layout, общие компоненты templ
 internal/richtext/         # richtext (Markdown) → очищенный HTML: goldmark + bluemonday
 internal/seo/              # sitemap.xml, rss.xml, robots.txt (адреса и записи отдают типы контента)

@@ -143,6 +143,13 @@ templ footer(site Site) {
 					}
 				</address>
 			}
+			if len(site.Social) > 0 {
+				<ul class="social-links" aria-label="Мы в соцсетях">
+					for _, l := range site.Social {
+						<li><a href={ templ.URL(l.URL) } rel="me noopener">{ l.Title }</a></li>
+					}
+				</ul>
+			}
 			<p>© { strconv.Itoa(time.Now().Year()) } { site.Name }</p>
 		</div>
 	</footer>

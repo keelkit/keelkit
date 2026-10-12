@@ -21,6 +21,8 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/voffkin/keelkit/modules/images"
+
+	"github.com/voffkin/keelkit/reference/internal/listfield"
 )
 
 // MaxBlocks — предел числа блоков в одном поле.
@@ -196,7 +198,7 @@ func Parse(form url.Values) ([]Block, error) {
 			return nil, fmt.Errorf("%w: block %s: unknown type %q", ErrForm, id, typ)
 		}
 		b.Content.readForm(fields{form: form, id: id})
-		if l, ok := b.Content.(itemList); ok && !validItemIDs(l.itemIDs()) {
+		if l, ok := b.Content.(itemList); ok && !listfield.ValidIDs(l.itemIDs()) {
 			return nil, fmt.Errorf("%w: block %s: item ids", ErrForm, id)
 		}
 		list = append(list, b)

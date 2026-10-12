@@ -406,8 +406,8 @@ func TestBrowserMarkdownToolbar(t *testing.T) {
 	check("list", "- Привет [мир](https://go.dev)")
 }
 
-// Настройки: выбор картинки для соцсетей перерисовывает поле с превью через htmx, не сбивая ввод; сохранение —
-// через HX-Redirect. Баннер cookies: «Понятно» убирает его без перезагрузки, после обновления страницы его нет.
+// Настройки: выбор картинки для соцсетей перерисовывает поле с превью через htmx, не сбивая ввод; «Добавить
+// ссылку» на соцсеть подменяет форму, введённое остаётся; сохранение — через HX-Redirect. Баннер cookies: «Понятно» убирает его без перезагрузки, после обновления страницы его нет.
 func TestBrowserSettingsAndCookieBanner(t *testing.T) {
 	site, _ := migratedSiteWithImages(t)
 	srv := httptest.NewServer(site.handler(config{}))
@@ -433,21 +433,38 @@ func TestBrowserSettingsAndCookieBanner(t *testing.T) {
 	if phone != "+7 999 000-11-22" || !marker {
 		t.Errorf("after picking: phone %q, no reload %v", phone, marker)
 	}
+	// «Добавить ссылку» (поле-список): htmx подменяет форму, введённое остаётся; новую ссылку заполняем.
+	var items int
+	run(t, ctx, "add social link",
+		chromedp.Click(`#social-field button[value="list-add:social"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`#social-field .block-item:nth-child(3)`, chromedp.ByQuery),
+		htmxSettled(),
+		chromedp.SendKeys(`#social-field .block-item:nth-child(3) input[name$="-name"]`, "YouTube", chromedp.ByQuery),
+		chromedp.SendKeys(`#social-field .block-item:nth-child(3) input[name$="-url"]`, "https://youtube.com/@example", chromedp.ByQuery),
+		chromedp.Value(`input[name="phone"]`, &phone, chromedp.ByQuery),
+		chromedp.Evaluate(`document.querySelectorAll('#social-field .block-item').length`, &items),
+		chromedp.Evaluate(`window.keelkitMarker === true`, &marker),
+	)
+	if items != 3 || phone != "+7 999 000-11-22" || !marker {
+		t.Errorf("after add: items %d, phone %q, no reload %v", items, phone, marker)
+	}
 	run(t, ctx, "save",
 		chromedp.Click(`#settings-form .form-actions button[type="submit"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`.flash[role="status"]`, chromedp.ByQuery),
+		// После «Добавить ссылку» на форме плашка «не сохранены» (.flash-warning): ждём «Сохранено» после перехода.
+		chromedp.WaitVisible(`.flash[role="status"]:not(.flash-warning)`, chromedp.ByQuery),
 		chromedp.Text(`.flash[role="status"]`, &flash, chromedp.ByQuery),
 	)
 	if flash != "Сохранено. Изменения уже на сайте." {
 		t.Fatalf("save flash = %q", flash)
 	}
 
-	var tel string
+	var tel, social string
 	var banners int
 	run(t, ctx, "accept cookies",
 		chromedp.Navigate(srv.URL+"/blog"),
 		chromedp.WaitVisible(`.cookie-banner`, chromedp.ByQuery),
 		chromedp.AttributeValue(`.site-footer a[href^="tel:"]`, "href", &tel, nil, chromedp.ByQuery),
+		chromedp.Text(`.social-links li:last-child a`, &social, chromedp.ByQuery),
 		chromedp.Evaluate(`window.keelkitMarker = true`, nil),
 		chromedp.Click(`.cookie-banner button`, chromedp.ByQuery),
 		chromedp.WaitNotPresent(`.cookie-banner`, chromedp.ByQuery),
@@ -458,6 +475,9 @@ func TestBrowserSettingsAndCookieBanner(t *testing.T) {
 	)
 	if tel != "tel:+79990001122" {
 		t.Errorf("footer tel = %q", tel)
+	}
+	if social != "YouTube" {
+		t.Errorf("last social link = %q", social)
 	}
 	if !marker {
 		t.Error("page reloaded on cookie consent")

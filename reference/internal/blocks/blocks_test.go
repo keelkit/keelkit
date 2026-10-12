@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/voffkin/keelkit/modules/images"
+
+	"github.com/voffkin/keelkit/reference/internal/listfield"
 )
 
 func TestMarshalRoundTrip(t *testing.T) {
@@ -323,7 +325,7 @@ func TestGalleryUnmarshalFixesItemIDs(t *testing.T) {
 		t.Fatal(err)
 	}
 	ids := list[0].Content.(*Gallery).itemIDs()
-	if !validItemIDs(ids) || ids[1] != "x" {
+	if !listfield.ValidIDs(ids) || ids[1] != "x" {
 		t.Errorf("item ids = %v", ids)
 	}
 }
@@ -361,7 +363,7 @@ func TestApplyItems(t *testing.T) {
 	}
 	got, ok := Apply(list, "item-add:g", nil)
 	ids := got[1].Content.(*Gallery).itemIDs()
-	if !ok || len(ids) != 4 || !validItemIDs(ids) {
+	if !ok || len(ids) != 4 || !listfield.ValidIDs(ids) {
 		t.Errorf("add: %v, %v", ids, ok)
 	}
 

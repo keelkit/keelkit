@@ -241,6 +241,16 @@ th {
   white-space: pre-line;
 }
 
+/* Ссылки на соцсети в подвале (настройки сайта): в строку, переносятся на узком экране. */
+.social-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
 /* Баннер cookies: прижат к низу окна, пока посетитель не нажмёт «Понятно». */
 .cookie-banner {
   position: sticky;

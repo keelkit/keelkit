@@ -144,6 +144,15 @@ func maxBody(n int64, next http.Handler) http.Handler {
 	})
 }
 
+// socialLinks — ссылки на соцсети из настроек для подвала.
+func socialLinks(list []settings.Social) []web.Link {
+	links := make([]web.Link, 0, len(list))
+	for _, s := range list {
+		links = append(links, web.Link{Title: s.Name, URL: s.URL})
+	}
+	return links
+}
+
 // siteLoader собирает данные для layout: настройки сайта (название, описание, картинка для соцсетей, контакты,
 // баннер cookies, коды подтверждения), меню из страниц (кроме главной) и блог, адрес сайта и ленты.
 func siteLoader(db *sql.DB, imgs *images.Service, baseURL string) func(context.Context) (web.Site, error) {
@@ -157,6 +166,7 @@ func siteLoader(db *sql.DB, imgs *images.Service, baseURL string) func(context.C
 		site := web.Site{
 			Name: s.Name, Description: s.Description, BaseURL: baseURL, Feed: seo.FeedPath,
 			Contacts:     web.Contacts{Address: s.Address, Phone: s.Phone, Email: s.Email},
+			Social:       socialLinks(s.Social),
 			Cookie:       web.CookieNotice{Text: s.CookieText, Link: s.CookieLink},
 			Verification: web.Verification{Yandex: s.Yandex, Google: s.Google},
 		}

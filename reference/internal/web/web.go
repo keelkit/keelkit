@@ -26,6 +26,7 @@ type Site struct {
 	// ShareImage — картинка для соцсетей по умолчанию: og:image страниц, у которых нет своей; nil — без неё.
 	ShareImage   *images.Image
 	Contacts     Contacts
+	Social       []Link // ссылки на соцсети в подвале по порядку; адреса — абсолютные http(s), проверены при сохранении
 	Cookie       CookieNotice
 	Verification Verification
 	// Path — путь текущего запроса с параметрами (WithSite): куда вернуться после согласия с cookie без JavaScript.

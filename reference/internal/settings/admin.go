@@ -17,6 +17,7 @@ import (
 	"github.com/voffkin/keelkit/modules/images"
 
 	"github.com/voffkin/keelkit/reference/internal/admin"
+	"github.com/voffkin/keelkit/reference/internal/listfield"
 	"github.com/voffkin/keelkit/reference/internal/web"
 )
 
@@ -32,6 +33,7 @@ const (
 	maxAddressLen     = 300
 	maxCookieTextLen  = 1000
 	maxLinkLen        = 500
+	maxSocialNameLen  = 50
 	maxFormSize       = 64 << 10 // байт
 	libraryLimit      = 200      // изображений в выборе картинки: последние загруженные
 )
@@ -60,6 +62,7 @@ type settingsForm struct {
 	Settings
 	Errors   map[string]string
 	Flash    string
+	Unsaved  bool            // форму изменила кнопка списка (↑, ↓, «Убрать», «Добавить»), но не сохранила
 	Image    *images.Image   // выбранная картинка для соцсетей (превью и пункт в выборе); nil — не выбрана или её нет
 	Library  []*images.Image // выбор картинки: последние загруженные
 	MediaURL string
@@ -83,8 +86,9 @@ func (a *Admin) Edit(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, http.StatusOK, FormPage(f))
 }
 
-// Update — POST /admin/settings. Ошибки — 422 (с htmx — только форма), успех — 303 на форму с ?saved=1
-// (с htmx — HX-Redirect).
+// Update — POST /admin/settings. Кнопка — поле action: пусто или "save" сохраняет, действие над списком
+// (listfield.ParseAction) возвращает форму изменённой без сохранения (200). Ошибки — 422 (с htmx — только форма),
+// успех — 303 на форму с ?saved=1 (с htmx — HX-Redirect).
 func (a *Admin) Update(w http.ResponseWriter, r *http.Request) {
 	f, ok := a.parse(w, r)
 	if !ok {
@@ -92,6 +96,22 @@ func (a *Admin) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := a.env(r.Context(), &f); err != nil {
 		admin.ServerError(w, r, err)
+		return
+	}
+	if action := r.PostFormValue("action"); action != "" && action != "save" {
+		act, ok := listfield.ParseAction(action)
+		if ok && act.Field == SocialField {
+			f.Social, ok = listfield.Apply(f.Social, func(s Social) string { return s.ID }, act.Op, act.Item,
+				func() Social { return Social{ID: listfield.NewID()} })
+		} else {
+			ok = false
+		}
+		if !ok {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			return
+		}
+		f.Unsaved = true
+		a.render(w, r, http.StatusOK, f)
 		return
 	}
 	if validate(&f) {
@@ -102,11 +122,16 @@ func (a *Admin) Update(w http.ResponseWriter, r *http.Request) {
 		admin.Redirect(w, r, AdminPath+"?saved=1")
 		return
 	}
+	a.render(w, r, http.StatusUnprocessableEntity, f)
+}
+
+// render — форма с ошибками или изменённая кнопкой списка: с htmx — только форма, без него — страница.
+func (a *Admin) render(w http.ResponseWriter, r *http.Request, status int, f settingsForm) {
 	c := FormPage(f)
 	if admin.IsHTMX(r) {
 		c = Form(f)
 	}
-	web.Render(w, r, http.StatusUnprocessableEntity, c)
+	web.Render(w, r, status, c)
 }
 
 // Image — POST /admin/settings/image (htmx): поле картинки для соцсетей с превью выбранной (поле share_image).
@@ -122,17 +147,28 @@ func (a *Admin) Image(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, http.StatusOK, imageField(f))
 }
 
-// parse — поля из присланной формы (без проверки); тело больше лимита или не форма — 400.
+// parse — поля из присланной формы (без проверки); тело больше лимита, не форма или испорченные id элементов
+// списка — 400.
 func (a *Admin) parse(w http.ResponseWriter, r *http.Request) (settingsForm, bool) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxFormSize)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return settingsForm{}, false
 	}
+	ids, err := listfield.IDs(r.PostForm, SocialField)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return settingsForm{}, false
+	}
 	v := r.PostFormValue
+	social := make([]Social, 0, len(ids))
+	for _, id := range ids {
+		social = append(social, Social{ID: id,
+			Name: v(listfield.Name(SocialField, id, "name")), URL: v(listfield.Name(SocialField, id, "url"))})
+	}
 	return settingsForm{Settings: Settings{
 		Name: v("name"), Description: v("description"), ShareImage: strings.TrimSpace(v("share_image")),
-		Phone: v("phone"), Email: v("email"), Address: v("address"),
+		Phone: v("phone"), Email: v("email"), Address: v("address"), Social: social,
 		CookieText: v("cookie_text"), CookieLink: v("cookie_link"),
 		Yandex: v("yandex_verification"), Google: v("google_verification"),
 	}}, true
@@ -198,6 +234,8 @@ func validate(f *settingsForm) bool {
 		errs["address"] = fmt.Sprintf("Адрес длиннее %d символов.", maxAddressLen)
 	}
 
+	validateSocial(s, errs)
+
 	if s.CookieText = oneLine(s.CookieText); utf8.RuneCountInString(s.CookieText) > maxCookieTextLen {
 		errs["cookie_text"] = fmt.Sprintf("Текст длиннее %d символов.", maxCookieTextLen)
 	}
@@ -220,6 +258,36 @@ func validate(f *settingsForm) bool {
 		return false
 	}
 	return true
+}
+
+// validateSocial нормализует ссылки на соцсети и проверяет их. Элемент без названия и адреса (добавили и не
+// заполнили) отбрасывается молча; ошибки — у поля элемента (listfield.Name), общая — под ключом SocialField.
+func validateSocial(s *Settings, errs map[string]string) {
+	list := s.Social[:0]
+	for _, it := range s.Social {
+		it.Name, it.URL = oneLine(it.Name), strings.TrimSpace(it.URL)
+		if it.Name == "" && it.URL == "" {
+			continue
+		}
+		name := func(field string) string { return listfield.Name(SocialField, it.ID, field) }
+		switch {
+		case it.Name == "":
+			errs[name("name")] = "Укажите название: как подписать ссылку."
+		case utf8.RuneCountInString(it.Name) > maxSocialNameLen:
+			errs[name("name")] = fmt.Sprintf("Название длиннее %d символов.", maxSocialNameLen)
+		}
+		switch {
+		case it.URL == "":
+			errs[name("url")] = "Укажите адрес страницы."
+		case !validAbsURL(it.URL):
+			errs[name("url")] = "Нужен адрес, начинающийся с https://."
+		}
+		list = append(list, it)
+	}
+	s.Social = list
+	if len(list) > listfield.MaxItems {
+		errs[SocialField] = fmt.Sprintf("Ссылок больше %d.", listfield.MaxItems)
+	}
 }
 
 // verification — код подтверждения из поля: вставленный целиком мета-тег сводится к значению content.
@@ -249,6 +317,14 @@ func validLink(s string) bool {
 	}
 	if strings.HasPrefix(s, "/") {
 		return !strings.HasPrefix(s, "//") && !strings.HasPrefix(s, "/\\")
+	}
+	return validAbsURL(s)
+}
+
+// validAbsURL — абсолютный адрес http(s) с хостом, без пробелов, не длиннее maxLinkLen.
+func validAbsURL(s string) bool {
+	if utf8.RuneCountInString(s) > maxLinkLen || strings.ContainsAny(s, " \t\r\n") {
+		return false
 	}
 	u, err := url.Parse(s)
 	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Host != ""

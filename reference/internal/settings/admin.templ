@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/voffkin/keelkit/reference/internal/admin"
+	"github.com/voffkin/keelkit/reference/internal/listfield"
 	"github.com/voffkin/keelkit/reference/internal/web"
 )
 
@@ -21,7 +22,8 @@ templ FormPage(f settingsForm) {
 }
 
 // Form — форма настроек: обычный POST и htmx (с ошибками сервер возвращает только этот фрагмент, 422).
-// Поля сгруппированы: сайт, контакты, баннер cookies, подтверждение сайта.
+// Поля сгруппированы: сайт, контакты, соцсети, баннер cookies, подтверждение сайта. Кнопки списка соцсетей —
+// submit с полем action (listfield): форма возвращается изменённой, без сохранения.
 templ Form(f settingsForm) {
 	<form
 		id="settings-form"
@@ -33,8 +35,13 @@ templ Form(f settingsForm) {
 		hx-swap="outerHTML"
 	>
 		@admin.CSRFInput()
+		// Enter в поле нажимает первую кнопку формы: пусть это будет «Сохранить», а не «↑» первой ссылки.
+		<button type="submit" name="action" value="save" class="visually-hidden" tabindex="-1" aria-hidden="true">Сохранить</button>
 		if len(f.Errors) > 0 {
 			<p class="form-error" role="alert">Исправьте ошибки в форме.</p>
+		}
+		if f.Unsaved {
+			<p class="flash flash-warning" role="status">Изменения ещё не сохранены: нажмите «Сохранить».</p>
 		}
 		<fieldset class="settings-group">
 			<legend>Сайт</legend>
@@ -52,6 +59,7 @@ templ Form(f settingsForm) {
 				Hint: "Как показывать на сайте: +7 (495) 123-45-67. Ссылка для звонка составится из цифр."})
 			@input(f, inputField{Name: "email", Label: "Email", Type: "email", Value: f.Email, Max: maxEmailLen})
 		</fieldset>
+		@socialFields(f)
 		<fieldset class="settings-group">
 			<legend>Баннер cookies</legend>
 			@textarea(f, "cookie_text", "Текст", f.CookieText, 3, maxCookieTextLen,
@@ -159,6 +167,35 @@ templ imageField(f settingsForm) {
 			@fieldError(f, "share_image")
 		</label>
 	</div>
+}
+
+// socialFields — ссылки на соцсети (поле-список, listfield): по порядку, у каждой название, адрес и кнопки
+// ↑ ↓ «Убрать»; «Добавить ссылку» — пустой элемент в конец.
+templ socialFields(f settingsForm) {
+	<fieldset class="settings-group" id={ SocialField + "-field" }>
+		<legend>Соцсети</legend>
+		<p class="field-hint">Ссылки в подвале каждой страницы, в этом порядке. Пустая строка при сохранении отбрасывается.</p>
+		@fieldError(f, SocialField)
+		if len(f.Social) > 0 {
+			<ol class="block-items">
+				for i, it := range f.Social {
+					{{ anchor := listfield.Anchor(SocialField, it.ID) }}
+					<li class="block-item" id={ anchor } aria-labelledby={ anchor + "-title" }>
+						<input type="hidden" name={ listfield.Order(SocialField) } value={ it.ID }/>
+						<div class="block-head">
+							<h4 id={ anchor + "-title" }>Ссылка { strconv.Itoa(i + 1) }</h4>
+							@listfield.Controls(SocialField, it.ID, "ссылку")
+						</div>
+						@input(f, inputField{Name: listfield.Name(SocialField, it.ID, "name"), Label: "Название", Value: it.Name,
+							Max: maxSocialNameLen, Placeholder: "Telegram"})
+						@input(f, inputField{Name: listfield.Name(SocialField, it.ID, "url"), Label: "Адрес", Type: "url",
+							Value: it.URL, Max: maxLinkLen, Placeholder: "https://t.me/…"})
+					</li>
+				}
+			</ol>
+		}
+		@listfield.Add(SocialField, "Добавить ссылку", len(f.Social))
+	</fieldset>
 }
 
 templ fieldError(f settingsForm, name string) {

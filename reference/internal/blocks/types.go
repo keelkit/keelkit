@@ -8,6 +8,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/voffkin/keelkit/reference/internal/listfield"
 	"github.com/voffkin/keelkit/reference/internal/richtext"
 )
 
@@ -205,10 +206,12 @@ func (g *Gallery) itemIDs() []string {
 	return ids
 }
 
-func (g *Gallery) fixItemIDs() { fixIDs(g.Items, func(it *GalleryItem) *string { return &it.ID }) }
+func (g *Gallery) fixItemIDs() {
+	listfield.FixIDs(g.Items, func(it *GalleryItem) *string { return &it.ID })
+}
 
 func (g *Gallery) applyItem(op, item string) (Content, bool) {
-	items, ok := applyTo(g.Items, func(it GalleryItem) string { return it.ID }, op, item,
+	items, ok := listfield.Apply(g.Items, func(it GalleryItem) string { return it.ID }, op, item,
 		func() GalleryItem { return GalleryItem{ID: NewID()} })
 	return &Gallery{Items: items}, ok
 }

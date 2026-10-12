@@ -11,7 +11,7 @@ import (
 )
 
 const getSiteSettings = `-- name: GetSiteSettings :one
-SELECT name, description, share_image, phone, email, address, cookie_text, cookie_link,
+SELECT name, description, share_image, phone, email, address, social, cookie_text, cookie_link,
        yandex_verification, google_verification
 FROM site_settings WHERE id = 1
 `
@@ -23,6 +23,7 @@ type GetSiteSettingsRow struct {
 	Phone              string
 	Email              string
 	Address            string
+	Social             string
 	CookieText         string
 	CookieLink         string
 	YandexVerification string
@@ -39,6 +40,7 @@ func (q *Queries) GetSiteSettings(ctx context.Context) (GetSiteSettingsRow, erro
 		&i.Phone,
 		&i.Email,
 		&i.Address,
+		&i.Social,
 		&i.CookieText,
 		&i.CookieLink,
 		&i.YandexVerification,
@@ -48,8 +50,8 @@ func (q *Queries) GetSiteSettings(ctx context.Context) (GetSiteSettingsRow, erro
 }
 
 const insertSiteSettingsIfMissing = `-- name: InsertSiteSettingsIfMissing :exec
-INSERT INTO site_settings (id, name, description, phone, email, address, cookie_text, cookie_link)
-VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO site_settings (id, name, description, phone, email, address, social, cookie_text, cookie_link)
+VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO NOTHING
 `
 
@@ -59,6 +61,7 @@ type InsertSiteSettingsIfMissingParams struct {
 	Phone       string
 	Email       string
 	Address     string
+	Social      string
 	CookieText  string
 	CookieLink  string
 }
@@ -70,6 +73,7 @@ func (q *Queries) InsertSiteSettingsIfMissing(ctx context.Context, arg InsertSit
 		arg.Phone,
 		arg.Email,
 		arg.Address,
+		arg.Social,
 		arg.CookieText,
 		arg.CookieLink,
 	)
@@ -77,9 +81,9 @@ func (q *Queries) InsertSiteSettingsIfMissing(ctx context.Context, arg InsertSit
 }
 
 const saveSiteSettings = `-- name: SaveSiteSettings :exec
-INSERT INTO site_settings (id, name, description, share_image, phone, email, address, cookie_text, cookie_link,
-                           yandex_verification, google_verification)
-VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO site_settings (id, name, description, share_image, phone, email, address, social, cookie_text,
+                           cookie_link, yandex_verification, google_verification)
+VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO UPDATE SET
     name = excluded.name,
     description = excluded.description,
@@ -87,6 +91,7 @@ ON CONFLICT (id) DO UPDATE SET
     phone = excluded.phone,
     email = excluded.email,
     address = excluded.address,
+    social = excluded.social,
     cookie_text = excluded.cookie_text,
     cookie_link = excluded.cookie_link,
     yandex_verification = excluded.yandex_verification,
@@ -100,6 +105,7 @@ type SaveSiteSettingsParams struct {
 	Phone              string
 	Email              string
 	Address            string
+	Social             string
 	CookieText         string
 	CookieLink         string
 	YandexVerification string
@@ -114,6 +120,7 @@ func (q *Queries) SaveSiteSettings(ctx context.Context, arg SaveSiteSettingsPara
 		arg.Phone,
 		arg.Email,
 		arg.Address,
+		arg.Social,
 		arg.CookieText,
 		arg.CookieLink,
 		arg.YandexVerification,
