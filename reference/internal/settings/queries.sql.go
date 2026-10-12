@@ -7,35 +7,128 @@ package settings
 
 import (
 	"context"
+	"database/sql"
 )
 
 const getSiteSettings = `-- name: GetSiteSettings :one
-SELECT name, description FROM site_settings WHERE id = 1
+SELECT name, description, share_image, phone, email, address, cookie_text, cookie_link,
+       yandex_verification, google_verification
+FROM site_settings WHERE id = 1
 `
 
 type GetSiteSettingsRow struct {
-	Name        string
-	Description string
+	Name               string
+	Description        string
+	ShareImage         sql.NullString
+	Phone              string
+	Email              string
+	Address            string
+	CookieText         string
+	CookieLink         string
+	YandexVerification string
+	GoogleVerification string
 }
 
 func (q *Queries) GetSiteSettings(ctx context.Context) (GetSiteSettingsRow, error) {
 	row := q.db.QueryRowContext(ctx, getSiteSettings)
 	var i GetSiteSettingsRow
-	err := row.Scan(&i.Name, &i.Description)
+	err := row.Scan(
+		&i.Name,
+		&i.Description,
+		&i.ShareImage,
+		&i.Phone,
+		&i.Email,
+		&i.Address,
+		&i.CookieText,
+		&i.CookieLink,
+		&i.YandexVerification,
+		&i.GoogleVerification,
+	)
 	return i, err
 }
 
 const insertSiteSettingsIfMissing = `-- name: InsertSiteSettingsIfMissing :exec
-INSERT INTO site_settings (id, name, description) VALUES (1, ?, ?)
+INSERT INTO site_settings (id, name, description, phone, email, address, cookie_text, cookie_link)
+VALUES (1, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO NOTHING
 `
 
 type InsertSiteSettingsIfMissingParams struct {
 	Name        string
 	Description string
+	Phone       string
+	Email       string
+	Address     string
+	CookieText  string
+	CookieLink  string
 }
 
 func (q *Queries) InsertSiteSettingsIfMissing(ctx context.Context, arg InsertSiteSettingsIfMissingParams) error {
-	_, err := q.db.ExecContext(ctx, insertSiteSettingsIfMissing, arg.Name, arg.Description)
+	_, err := q.db.ExecContext(ctx, insertSiteSettingsIfMissing,
+		arg.Name,
+		arg.Description,
+		arg.Phone,
+		arg.Email,
+		arg.Address,
+		arg.CookieText,
+		arg.CookieLink,
+	)
 	return err
+}
+
+const saveSiteSettings = `-- name: SaveSiteSettings :exec
+INSERT INTO site_settings (id, name, description, share_image, phone, email, address, cookie_text, cookie_link,
+                           yandex_verification, google_verification)
+VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (id) DO UPDATE SET
+    name = excluded.name,
+    description = excluded.description,
+    share_image = excluded.share_image,
+    phone = excluded.phone,
+    email = excluded.email,
+    address = excluded.address,
+    cookie_text = excluded.cookie_text,
+    cookie_link = excluded.cookie_link,
+    yandex_verification = excluded.yandex_verification,
+    google_verification = excluded.google_verification
+`
+
+type SaveSiteSettingsParams struct {
+	Name               string
+	Description        string
+	ShareImage         sql.NullString
+	Phone              string
+	Email              string
+	Address            string
+	CookieText         string
+	CookieLink         string
+	YandexVerification string
+	GoogleVerification string
+}
+
+func (q *Queries) SaveSiteSettings(ctx context.Context, arg SaveSiteSettingsParams) error {
+	_, err := q.db.ExecContext(ctx, saveSiteSettings,
+		arg.Name,
+		arg.Description,
+		arg.ShareImage,
+		arg.Phone,
+		arg.Email,
+		arg.Address,
+		arg.CookieText,
+		arg.CookieLink,
+		arg.YandexVerification,
+		arg.GoogleVerification,
+	)
+	return err
+}
+
+const settingsUseImage = `-- name: SettingsUseImage :one
+SELECT EXISTS (SELECT 1 FROM site_settings WHERE id = 1 AND share_image = ?)
+`
+
+func (q *Queries) SettingsUseImage(ctx context.Context, shareImage sql.NullString) (bool, error) {
+	row := q.db.QueryRowContext(ctx, settingsUseImage, shareImage)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }

@@ -82,7 +82,8 @@ templ Section(f Fields, e Env) {
 // без JavaScript — после отправки формы. hx-target задан явно: форма записи задаёт свой, и он наследуется.
 templ Snippet(m web.Meta, snippetURL string) {
 	{{ site := web.SiteFrom(ctx) }}
-	{{ title, desc := web.TitleTag(m, site.Name), cmp.Or(m.Description, site.Description) }}
+	{{ m = web.Defaults(m, site) }}
+	{{ title, desc := web.TitleTag(m, site.Name), m.Description }}
 	<div
 		class="seo-snippet"
 		id="seo-snippet"

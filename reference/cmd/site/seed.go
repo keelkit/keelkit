@@ -52,6 +52,11 @@ func seedContent(ctx context.Context, db *sql.DB, imgs map[string]string) error 
 	err := settings.New(db).InsertSiteSettingsIfMissing(ctx, settings.InsertSiteSettingsIfMissingParams{
 		Name:        "Keelkit — эталонный сайт",
 		Description: "Образец устройства сайтов Keelkit",
+		Address:     "Москва, ул. Примерная, д. 1\nофис 101",
+		Phone:       "+7 (495) 000-00-00",
+		Email:       "hello@example.com",
+		CookieText:  "Сайт использует файлы cookie, чтобы работать удобнее.",
+		CookieLink:  "/about",
 	})
 	if err != nil {
 		return err

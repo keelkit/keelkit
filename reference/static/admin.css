@@ -724,6 +724,18 @@ body.admin {
   margin-bottom: 0;
 }
 
+/* Группы полей формы настроек */
+
+.admin .settings-group {
+  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.admin .settings-group > legend {
+  font-size: 1rem;
+}
+
 /* Блоки, SEO и редактор Markdown внутри формы */
 
 .admin .blocks-editor > legend {

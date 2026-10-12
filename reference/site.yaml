@@ -6,6 +6,20 @@ site:
 # Модули в порядке применения миграций (migrationSources в cmd/site/main.go): images, затем сайт.
 modules:
   images: v0
+# Настройки сайта — одна запись (site_settings, раздел «Настройки» в админке, пакет internal/settings);
+# правки сразу на сайте. TestSpecSettingsMatchCode сверяет поля с колонками таблицы.
+settings:
+  fields:
+    name:                { type: string, required: true }
+    description:         { type: text }
+    share_image:         { type: image }   # картинка для соцсетей по умолчанию
+    phone:               { type: string }
+    email:               { type: string }
+    address:             { type: text }
+    cookie_text:         { type: text }    # пусто — баннера cookies нет
+    cookie_link:         { type: string }
+    yandex_verification: { type: string }
+    google_verification: { type: string }
 content:
   pages:
     fields:

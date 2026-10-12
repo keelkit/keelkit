@@ -9,6 +9,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/a-h/templ"
 
@@ -22,6 +23,37 @@ type Site struct {
 	Nav         []Link // пункты меню в шапке
 	BaseURL     string // схема и хост сайта без слеша в конце (BASE_URL): из него строятся абсолютные адреса
 	Feed        string // путь RSS-ленты для <link rel="alternate">; пусто — без ленты
+	// ShareImage — картинка для соцсетей по умолчанию: og:image страниц, у которых нет своей; nil — без неё.
+	ShareImage   *images.Image
+	Contacts     Contacts
+	Cookie       CookieNotice
+	Verification Verification
+	// Path — путь текущего запроса с параметрами (WithSite): куда вернуться после согласия с cookie без JavaScript.
+	Path string
+}
+
+// Contacts — контакты в подвале; пустое поле не выводится.
+type Contacts struct {
+	Address string // может быть в несколько строк
+	Phone   string // как показывать; ссылка tel: — только цифры (TelURL)
+	Email   string
+}
+
+// CookieNotice — баннер о cookie: показывается, пока посетитель не нажал «Понятно» (cookie CookieNoticeName).
+type CookieNotice struct {
+	Text     string // пусто — баннера нет
+	Link     string // «Подробнее»: путь на сайте или адрес http(s); пусто — без ссылки
+	Accepted bool   // посетитель уже согласился (WithSite)
+}
+
+// Show — баннер выводится: текст задан, и посетитель ещё не согласился.
+func (c CookieNotice) Show() bool { return c.Text != "" && !c.Accepted }
+
+// Verification — коды подтверждения прав на сайт: мета-теги yandex-verification и google-site-verification
+// на каждой странице (файлы в корне сайта не нужны); пусто — без тега.
+type Verification struct {
+	Yandex string
+	Google string
 }
 
 // Meta — заголовок страницы и данные для поисковиков и соцсетей (<head>).
@@ -71,6 +103,8 @@ func WithSite(load func(context.Context) (Site, error)) func(http.Handler) http.
 				nav[i] = l
 			}
 			site.Nav = nav
+			site.Path = r.URL.RequestURI()
+			site.Cookie.Accepted = cookieAccepted(r)
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), siteKey{}, site)))
 		})
 	}
@@ -121,6 +155,19 @@ func pageTitle(title, siteName string) string {
 	return title + " — " + siteName
 }
 
+// Defaults — данные страницы с подстановками сайта: пустое описание — описание сайта, нет своей картинки —
+// картинка для соцсетей из настроек (без alt: он описывал бы картинку страницы). Так их выводит LayoutMeta
+// и показывает превью сниппета в админке.
+func Defaults(m Meta, site Site) Meta {
+	if m.Description == "" {
+		m.Description = site.Description
+	}
+	if m.Image == nil && site.ShareImage != nil {
+		m.Image, m.ImageAlt = site.ShareImage, ""
+	}
+	return m
+}
+
 // shareWidth — ширина варианта для соцсетей и RSS: превью показывают до ~1200 px.
 const shareWidth = 1600
 
@@ -139,4 +186,22 @@ func ShareImage(img *images.Image) (images.StoredVariant, bool) {
 		}
 	}
 	return best, found
+}
+
+// TelURL — ссылка tel: из телефона в любом виде: «+7 (495) 123-45-67» → «tel:+74951234567».
+// Без цифр — пусто (телефон выводится без ссылки).
+func TelURL(phone string) string {
+	var b strings.Builder
+	for i, r := range strings.TrimSpace(phone) {
+		switch {
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '+' && i == 0:
+			b.WriteRune(r)
+		}
+	}
+	if s := b.String(); strings.Trim(s, "+") != "" {
+		return "tel:" + s
+	}
+	return ""
 }

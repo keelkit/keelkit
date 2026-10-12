@@ -23,9 +23,6 @@ import (
 	"github.com/voffkin/keelkit/reference/static"
 )
 
-// defaultSiteName — название, пока в site_settings нет строки (до seed или настройки в админке).
-const defaultSiteName = "Keelkit reference"
-
 // reservedSlugs — первые сегменты путей, занятые маршрутами newMux. Страница с таким slug была бы не видна,
 // поэтому админка их не принимает. Новый маршрут верхнего уровня — новая запись здесь; если маршрут — поддерево
 // (/static/), сам путь без слеша тоже нужно занять, иначе его заберёт GET /{slug} (проверяет e2e).
@@ -36,12 +33,13 @@ var reservedSlugs = []string{"admin", "static", "media", "healthz", "blog"}
 // а всё, кроме входа, — в adminH.RequireUser (сессия и CSRF-токен).
 // Изображения (images.Service) отдаются под web.MediaPrefix обработчиком модуля.
 func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
-	html := web.WithSite(siteLoader(db, cfg.BaseURL))
+	html := web.WithSite(siteLoader(db, imgs, cfg.BaseURL))
 	pagesH := pages.NewHandler(db, imgs)
 	pagesAdmin := pages.NewAdmin(db, imgs, media.AdminPath, reservedSlugs)
 	postsH := posts.NewHandler(db, imgs)
 	postsAdmin := posts.NewAdmin(db, imgs, media.AdminPath)
 	categoriesAdmin := categories.NewAdmin(db, posts.CategoryPath, posts.EditPath)
+	settingsAdmin := settings.NewAdmin(db, imgs, media.AdminPath)
 	mediaAdmin := media.NewAdmin(imgs, imageUsage(db))
 	adminH := admin.NewHandler(db, admin.Options{
 		SecureCookies: cfg.CookieSecure,
@@ -51,6 +49,9 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 			{Title: "Посты", URL: posts.AdminPath, Icon: "posts"},
 			{Title: "Категории", URL: categories.AdminPath, Icon: "tags"},
 			{Title: "Медиатека", URL: media.AdminPath, Icon: "image"},
+		},
+		SiteSections: []admin.Section{
+			{Title: "Настройки", URL: settings.AdminPath, Icon: "settings"},
 		},
 	})
 	crossOrigin := http.NewCrossOriginProtection()
@@ -72,6 +73,8 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 	mux.Handle("GET "+seo.FeedPath, seo.Feed(cfg.BaseURL, feedSource(db, postsH)))
 	mux.Handle("GET "+seo.RobotsPath, seo.Robots(cfg.BaseURL, "/admin/"))
 
+	// Согласие с баннером cookies: только POST, GET /cookie-notice — обычный /{slug}.
+	mux.Handle("POST "+web.CookieNoticePath, crossOrigin.Handler(web.AcceptCookies(cfg.CookieSecure)))
 	mux.Handle("GET /{$}", html(http.HandlerFunc(pagesH.Home)))
 	mux.Handle("GET /{slug}", html(http.HandlerFunc(pagesH.Show)))
 	mux.Handle("GET "+posts.BlogPath, html(http.HandlerFunc(postsH.Blog)))
@@ -116,6 +119,9 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 	mux.Handle("POST /admin/categories/{id}", signedIn(categoriesAdmin.Update))
 	mux.Handle("GET /admin/categories/{id}/delete", signedIn(categoriesAdmin.ConfirmDelete))
 	mux.Handle("POST /admin/categories/{id}/delete", signedIn(categoriesAdmin.Delete))
+	mux.Handle("GET "+settings.AdminPath, signedIn(settingsAdmin.Edit))
+	mux.Handle("POST "+settings.AdminPath, signedIn(settingsAdmin.Update))
+	mux.Handle("POST "+settings.AdminPath+"/image", signedIn(settingsAdmin.Image))
 	mux.Handle("GET /admin/media", signedIn(mediaAdmin.List))
 	// Лимит тела — снаружи signedIn: форма без JavaScript передаёт CSRF-токен в multipart, RequireUser читает его первым.
 	mux.Handle("POST /admin/media", maxBody(media.MaxUploadRequest, signedIn(mediaAdmin.Upload)))
@@ -138,17 +144,32 @@ func maxBody(n int64, next http.Handler) http.Handler {
 	})
 }
 
-// siteLoader собирает данные для layout: название и описание сайта, меню из страниц (кроме главной) и блог,
-// адрес сайта и ленты.
-func siteLoader(db *sql.DB, baseURL string) func(context.Context) (web.Site, error) {
+// siteLoader собирает данные для layout: настройки сайта (название, описание, картинка для соцсетей, контакты,
+// баннер cookies, коды подтверждения), меню из страниц (кроме главной) и блог, адрес сайта и ленты.
+func siteLoader(db *sql.DB, imgs *images.Service, baseURL string) func(context.Context) (web.Site, error) {
 	sq := settings.New(db)
 	pq := pages.New(db)
 	return func(ctx context.Context) (web.Site, error) {
-		name, description, err := siteInfo(ctx, sq)
+		s, err := settings.Get(ctx, sq)
 		if err != nil {
 			return web.Site{}, err
 		}
-		site := web.Site{Name: name, Description: description, BaseURL: baseURL, Feed: seo.FeedPath}
+		site := web.Site{
+			Name: s.Name, Description: s.Description, BaseURL: baseURL, Feed: seo.FeedPath,
+			Contacts:     web.Contacts{Address: s.Address, Phone: s.Phone, Email: s.Email},
+			Cookie:       web.CookieNotice{Text: s.CookieText, Link: s.CookieLink},
+			Verification: web.Verification{Yandex: s.Yandex, Google: s.Google},
+		}
+		if s.ShareImage != "" {
+			img, err := imgs.Get(ctx, s.ShareImage)
+			switch {
+			case errors.Is(err, images.ErrNotFound):
+			case err != nil:
+				return web.Site{}, fmt.Errorf("share image: %w", err)
+			default:
+				site.ShareImage = img
+			}
+		}
 
 		links, err := pq.ListPageLinks(ctx, pages.HomeSlug)
 		if err != nil {
@@ -159,19 +180,6 @@ func siteLoader(db *sql.DB, baseURL string) func(context.Context) (web.Site, err
 		}
 		site.Nav = append(site.Nav, web.Link{Title: "Блог", URL: posts.BlogPath})
 		return site, nil
-	}
-}
-
-// siteInfo — название и описание сайта из site_settings; строки ещё нет — defaultSiteName.
-func siteInfo(ctx context.Context, sq *settings.Queries) (name, description string, err error) {
-	s, err := sq.GetSiteSettings(ctx)
-	switch {
-	case err == nil:
-		return s.Name, s.Description, nil
-	case errors.Is(err, sql.ErrNoRows):
-		return defaultSiteName, "", nil
-	default:
-		return "", "", fmt.Errorf("site settings: %w", err)
 	}
 }
 
@@ -198,7 +206,7 @@ var feedTypes = []string{"posts"}
 func feedSource(db *sql.DB, postsH *posts.Handler) seo.FeedSource {
 	sq := settings.New(db)
 	return func(ctx context.Context) (seo.Channel, []seo.Item, error) {
-		name, description, err := siteInfo(ctx, sq)
+		s, err := settings.Get(ctx, sq)
 		if err != nil {
 			return seo.Channel{}, nil, err
 		}
@@ -206,20 +214,27 @@ func feedSource(db *sql.DB, postsH *posts.Handler) seo.FeedSource {
 		if err != nil {
 			return seo.Channel{}, nil, fmt.Errorf("feed items: %w", err)
 		}
-		return seo.Channel{Title: name, Description: description, Language: "ru"}, items, nil
+		return seo.Channel{Title: s.Name, Description: s.Description, Language: "ru"}, items, nil
 	}
 }
 
 // imageUsage — где используется изображение (медиатека показывает список и не даёт удалить используемое).
 // Новый тип контента со ссылками на изображения добавляет сюда свой запрос.
 func imageUsage(db *sql.DB) media.UsageFunc {
-	pq, sq := pages.New(db), posts.New(db)
+	pq, sq, setq := pages.New(db), posts.New(db), settings.New(db)
 	return func(ctx context.Context, imageID string) ([]media.Usage, error) {
+		var used []media.Usage
+		inSettings, err := settings.UseImage(ctx, setq, imageID)
+		if err != nil {
+			return nil, fmt.Errorf("settings using image: %w", err)
+		}
+		if inSettings {
+			used = append(used, media.Usage{Title: "Настройки: картинка для соцсетей", URL: settings.AdminPath})
+		}
 		rows, err := pq.PagesUsingImage(ctx, imageID)
 		if err != nil {
 			return nil, fmt.Errorf("pages using image: %w", err)
 		}
-		used := make([]media.Usage, 0, len(rows))
 		for _, p := range rows {
 			used = append(used, media.Usage{Title: "Страница «" + p.Title + "»", URL: pages.EditPath(p.ID)})
 		}

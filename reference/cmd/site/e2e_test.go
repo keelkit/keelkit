@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/PuerkitoBio/goquery"
+
+	"github.com/voffkin/keelkit/reference/internal/settings"
 )
 
 // e2eServer — сайт на случайном порту; withSeed — с dev-данными.
@@ -113,8 +115,8 @@ func TestE2EHome(t *testing.T) {
 
 func TestE2EHomeWithoutContent(t *testing.T) {
 	doc := page(t, e2eServer(t, false), "/", http.StatusOK)
-	if got := text(doc.Find("main h1")); got != defaultSiteName {
-		t.Errorf("h1 = %q, want %q", got, defaultSiteName)
+	if got := text(doc.Find("main h1")); got != settings.DefaultName {
+		t.Errorf("h1 = %q, want %q", got, settings.DefaultName)
 	}
 	// Без страниц в меню только блог.
 	if got := text(doc.Find(".site-nav")); got != "Блог" {

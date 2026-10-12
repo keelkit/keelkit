@@ -229,6 +229,61 @@ th {
   margin: 0;
 }
 
+/* Контакты в подвале (настройки сайта): адрес — в несколько строк, как введён. */
+.contacts {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  font-style: normal;
+}
+
+.contacts-address {
+  white-space: pre-line;
+}
+
+/* Баннер cookies: прижат к низу окна, пока посетитель не нажмёт «Понятно». */
+.cookie-banner {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.9rem;
+}
+
+.cookie-banner .container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  align-items: center;
+  justify-content: space-between;
+  padding-block: 0.9rem;
+}
+
+.cookie-banner p {
+  flex: 1 1 20rem;
+  margin: 0;
+}
+
+.cookie-banner form {
+  margin: 0;
+}
+
+.cookie-banner button {
+  padding: 0.45rem 1.25rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cookie-banner button:hover {
+  background: var(--accent-hover);
+}
+
 /* Страницы ошибок */
 
 .error-page {
@@ -813,6 +868,26 @@ figure.block {
 
 .block-quote figcaption::before {
   content: "— ";
+}
+
+/* Группы полей формы настроек (internal/settings/admin.templ). */
+.settings-group {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+.settings-group > legend {
+  padding-inline: 0.25rem;
+  font-weight: 600;
+}
+
+.settings-group > .field-hint {
+  margin: 0;
 }
 
 /* Блоки в админке (internal/blocks/form.templ). */

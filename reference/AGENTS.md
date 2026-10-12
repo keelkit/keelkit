@@ -56,7 +56,7 @@
 | `ADDR` | `:8080` (в `make run`/`dev` — `:9090`) | адрес HTTP-сервера |
 | `DATA_DIR` | `data` | каталог с БД (`site.db`) и загрузками (`uploads/`: оригиналы и варианты изображений) |
 | `BACKUP_DIR` | `backups` | каталог снимков БД перед миграциями |
-| `COOKIE_SECURE` | `true` | флаг `Secure` у cookie админки; `false` — только для разработки по http (`make run`/`make dev` передают `false`) |
+| `COOKIE_SECURE` | `true` | флаг `Secure` у cookie админки и согласия с баннером cookies; `false` — только для разработки по http (`make run`/`make dev` передают `false`) |
 | `TZ` | часовой пояс системы | в нём показываются и вводятся даты публикации постов (в БД — UTC) |
 | `BASE_URL` | — (в `make run`/`dev` — `http://localhost:<порт из ADDR>`) | адрес сайта (`https://example.com`, без пути) для canonical, Open Graph, sitemap, RSS и robots.txt. **Обязателен для `serve`**: без него сайт не стартует (адрес из заголовка `Host` подделывается). Слеш в конце отбрасывается |
 
@@ -68,6 +68,8 @@
 - Блог: `GET /blog` (лента, `?page=N`, по 10 постов), `GET /blog/{slug}` (пост), `GET /blog/category/{slug}` (лента
   категории, `?page=N`). Только опубликованные копии с наступившей датой публикации; несуществующая или пустая
   страница ленты (кроме первой), неверный `?page` — 404. В меню сайта блог — последним пунктом после страниц.
+- `POST /cookie-notice` — согласие с баннером cookies (`web.AcceptCookies`, см. «Настройки сайта»); `GET /cookie-notice` —
+  обычный `GET /{slug}`, поэтому в `reservedSlugs` его нет.
 - `GET /sitemap.xml`, `GET /rss.xml`, `GET /robots.txt` — пакет `internal/seo` (см. «SEO»); без данных шапки.
 - `GET /static/…` — файлы из `static/` (embed); ссылки с `?v=<хеш>` кэшируются на год, список каталога не отдаётся.
 - `GET /media/…` — варианты изображений, обработчик модуля `images` (`web.MediaPrefix`); кэш `immutable`, оригиналы
@@ -83,13 +85,14 @@
 - Раздел постов `/admin/posts` — те же маршруты, что у страниц, и `POST /admin/posts/cover` (htmx: поле обложки с превью).
 - Раздел категорий: `GET /admin/categories` (список), `GET /admin/categories/new`, `POST /admin/categories`,
   `GET|POST /admin/categories/{id}` (форма), `GET|POST /admin/categories/{id}/delete` (подтверждение, удалить).
+- Настройки: `GET|POST /admin/settings` (форма, сохранить), `POST /admin/settings/image` (htmx: поле картинки для соцсетей с превью).
 - Медиатека: `GET /admin/media` (загрузка и сетка, `?page=N`), `POST /admin/media` (загрузка), `GET /admin/media/{id}`
   (карточка), `GET|POST /admin/media/{id}/delete` (подтверждение, удалить).
 - Зарезервированные slug — `reservedSlugs` в `cmd/site/server.go` (`admin`, `static`, `media`, `healthz`, `blog`): их маршруты перекрывают
   страницу, админка такие slug не принимает. Маршрут-поддерево (`/static/`) занимает и путь без слеша (`GET /static` → 404),
   иначе его забрал бы `GET /{slug}`; e2e `TestE2EReservedSlugsShadowPages` проверяет каждый slug из списка.
 - Всё остальное — оформленная 404 (`web.NotFound`).
-- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"site":{"version":9,"pending":0}}}`.
+- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"site":{"version":10,"pending":0}}}`.
 
 ## Бинарник
 
@@ -145,7 +148,7 @@
   ссылки — в `page_images` (`<type>_images` для других типов, у постов — и обложка), перезаписываются в той же
   транзакции, что и копия. Медиатека не знает о типах
   контента: «где используется» ей передаёт `imageUsage` в `cmd/site/server.go` (`media.UsageFunc`) — новый тип
-  со ссылками на изображения добавляет туда свой запрос (страницы, затем посты). Используемое изображение: на карточке — список страниц и постов,
+  со ссылками на изображения добавляет туда свой запрос (настройки, страницы, затем посты). Используемое изображение: на карточке — список,
   подтверждение удаления и `POST` — 409 со списком.
 
 ## Шаблоны и HTML
@@ -154,8 +157,8 @@
 - `internal/web`: `LayoutMeta(web.Meta)` — оболочка публичной страницы с данными для поисковиков (см. «SEO»), `Layout(title)` —
   то же без адреса (ошибки, заглушки); `NotFoundPage`, `ErrorPage`; `Render` (рендер в буфер, затем ответ),
   `NotFound`, `ServerError` (логирует, клиенту — страница 500 без подробностей).
-- Данные шапки (`web.Site`: название, описание, меню, `BaseURL`, путь ленты) собирает `siteLoader` в `cmd/site/server.go`; middleware `web.WithSite`
-  кладёт их в контекст, layout читает через `web.SiteFrom(ctx)`. HTML-маршруты оборачиваются в него, `/healthz` и `/static/` — нет.
+- Данные шапки (`web.Site`: настройки сайта — см. «Настройки сайта», меню, `BaseURL`, путь ленты) собирает `siteLoader` в `cmd/site/server.go`; middleware `web.WithSite`
+  кладёт их в контекст (и путь запроса, и согласие с cookies), layout читает через `web.SiteFrom(ctx)`. HTML-маршруты оборачиваются в него, `/healthz` и `/static/` — нет.
   `internal/web` не импортирует типы контента: связывает их только `cmd/site`.
 - `richtext` (Markdown): `richtext.Render` → goldmark (GFM, сырой HTML не пропускается) → bluemonday (UGC; `class="language-*"`
   у `code`; `nofollow` только у внешних ссылок) → типографика (`typography.go`). Результат — тип `richtext.HTML`, в шаблоне выводится как `@body`.
@@ -191,9 +194,10 @@
   Неверный email и неверный пароль дают одно сообщение; для неизвестного email пароль сверяется с фиктивным хешем.
 - `next` после входа — только путь внутри `/admin` (`safeNext`), иначе дашборд.
 - Пакет не знает о типах контента: счётчики дашборда передаёт `adminCounters` в `cmd/site/server.go` через `admin.Options.Counters`
-  (`Counter.URL` — ссылка на раздел), пункты меню — `admin.Options.Sections`. Новый тип контента добавляет туда счётчик и раздел.
+  (`Counter.URL` — ссылка на раздел), пункты меню — `admin.Options.Sections` (группа «Контент»). Новый тип контента добавляет туда
+  счётчик и раздел. Разделы всего сайта (настройки, позже меню) — `admin.Options.SiteSections`, группа «Сайт» ниже.
 - Для разделов типов контента пакет экспортирует: `admin.Layout(title)` (оболочка: верхняя панель и боковое меню `.site-nav`,
-  текущий пункт — по префиксу пути; иконка пункта — `Section.Icon`: `pages`, `posts`, `tags`, `image`, иначе папка),
+  текущий пункт — по префиксу пути; иконка пункта — `Section.Icon`: `pages`, `posts`, `tags`, `image`, `settings`, иначе папка),
   `admin.CSRFInput()` (скрытое поле токена), `admin.NotFound`, `admin.ServerError`, `admin.Redirect` (303 или
   `HX-Redirect` после успешного POST), `admin.IsHTMX`.
 - htmx в админке: `<meta name="htmx-config">` разрешает подмену разметки ответом 422 (по умолчанию htmx не подменяет 4xx).
@@ -319,13 +323,39 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 (корень — элемент с классом `block block-<тип>` и `id="block-<id>"`) и фрагмент формы в `form.templ`; стили; тест в
 `blocks_test.go`; имя — в `allow` нужного поля `site.yaml` и в списке блоков типа контента.
 
+## Настройки сайта (`internal/settings/`)
+
+Поля — `settings.fields` в `site.yaml` (с `spec v0.3.0`); одна запись `site_settings` (`id = 1`), колонки — имена полей
+(`TestSpecSettingsMatchCode` сверяет их с таблицей после миграций). Черновика нет: «Сохранить» — и сразу на сайте.
+Строки нет (прод до первого сохранения) — `settings.Get` отдаёт только `settings.DefaultName`; сохранение создаёт строку
+(`INSERT … ON CONFLICT DO UPDATE`).
+- Поля эталона: название (обязательно), описание, картинка для соцсетей по умолчанию (`share_image`), адрес (в несколько
+  строк), телефон, email, текст и ссылка баннера cookies, коды Яндекс.Вебмастера и Google Search Console. Пустое — не
+  выводится. Другой сайт меняет набор полей: колонка в миграции, поле в `site.yaml`, форма, `web.Site`, вывод в layout.
+- Раздел админки — одна форма (`/admin/settings`, группа «Сайт» в меню), группы полей — `fieldset.settings-group`;
+  ошибки — 422 у поля, как у типов контента (с htmx — только форма). Нормализация: однострочные поля — пробелы в один,
+  адрес — CRLF → LF, без пустых строк. Телефон — с цифрами; email — один адрес без имени (идёт в `mailto:`); ссылка
+  cookies — путь на сайте (`/privacy`, не `//host`) или `http(s)://` с хостом; код подтверждения — `[A-Za-z0-9_-]`,
+  вставленный целиком мета-тег сводится к `content`.
+- `share_image` — как обложка поста: `select` из медиатеки и превью, смена перерисовывает поле (`POST …/image`); ссылка
+  без `ON DELETE`, медиатека показывает «Настройки» среди использующих (`settings.UseImage` в `imageUsage`).
+- На сайте (`siteLoader` → `web.Site`, `internal/web/layout.templ`): мета-теги `yandex-verification` и
+  `google-site-verification` на каждой странице (файлы в корне не нужны); `og:image` страницы без своей картинки —
+  картинка из настроек, без `og:image:alt` (`web.Defaults`; им же пользуется превью сниппета в админке); контакты —
+  `<address>` в подвале, телефон — ссылка `tel:` из цифр (`web.TelURL`).
+- Баннер cookies (`web.CookieNotice`): внизу страницы (`position: sticky`), пока нет cookie `cookie_notice=1`. «Понятно» —
+  форма `POST /cookie-notice` со скрытым `back` (путь текущей страницы): без JavaScript — 303 обратно (только путь на этом
+  сайте, иначе `/`), с htmx — пустой ответ заменяет баннер. Cookie на год, `HttpOnly`, `SameSite=Lax`, `Secure` по
+  `COOKIE_SECURE`; маршрут — под `http.CrossOriginProtection`. Это уведомление, а не выбор категорий cookie: сторонних
+  счётчиков в эталоне нет.
+
 ## SEO (`internal/seo/`, `web.Meta`)
 
 Пишется в коде эталона; вынос в модуль — после второго сайта. Пакет `seo` не знает о типах контента.
 - `<head>` — `web.LayoutMeta(web.Meta{…})`: `Title`, `Description` (пусто — описание сайта; у типов — `blocks.Summary`),
   `Path` — адрес страницы для `canonical` и `og:url` (у ленты — с `?page=N`; лишние параметры запроса не попадают),
   `Article` и `Published` (пост: `og:type article`, `article:published_time`), `Image` (`og:image` — JPEG не шире
-  1600 px, `web.ShareImage`; у поста — обложка, иначе первое изображение блоков), `ImageAlt` (`og:image:alt`; у поста —
+  1600 px, `web.ShareImage`; у поста — обложка, иначе первое изображение блоков, иначе картинка из настроек), `ImageAlt` (`og:image:alt`; у поста —
   alt обложки), `NoIndex`. Описание поста — анонс (ручной или начало текста). Без `Path` — нет canonical
   и Open Graph (404, 500). Предпросмотр черновика — без `Path` и с `NoIndex`. Абсолютные адреса — `web.Site.BaseURL` +
   путь; на каждой странице — `<link rel="alternate">` на RSS.
@@ -379,7 +409,11 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 - e2e блога — `cmd/site/e2e_blog_test.go` (лента, страницы, категория, пост, скрытые черновик и будущий пост) и
   `cmd/site/e2e_posts_admin_test.go` (посты и категории в админке; хелперы `createPost`, `postForm`, `newPostForm`).
 - `TestSpecBlocksMatchCode` (`cmd/site/spec_test.go`) — блоки из `allow` в `site.yaml` есть в коде и совпадают со списком типа;
-  `TestSpecFeaturesMatchCode` — типы с feature `sitemap` и `rss` совпадают с `sitemapSources` и `feedTypes`.
+  `TestSpecFeaturesMatchCode` — типы с feature `sitemap`, `rss` и `seo` совпадают с `sitemapSources`, `feedTypes` и `seoTypes`;
+  `TestSpecSettingsMatchCode` — поля `settings` совпадают с колонками `site_settings`.
+- e2e настроек — `cmd/site/e2e_settings_test.go`: сохранение и вывод на сайте (подвал, мета-теги, баннер), каждая ошибка
+  поля (форма и htmx), картинка по умолчанию в `og:image` и в превью сниппета, 409 медиатеки, согласие с cookies
+  (форма, htmx, `back` только на этот сайт, запрос с чужого сайта — 403).
 - e2e SEO записи — `cmd/site/e2e_seo_admin_test.go`: превью сниппета (форма и htmx), `<title>`, описание и `og:image`
   поста и страницы (и главной), очистка — снова подстановка, ошибки полей, `seo_image` держит изображение.
 - e2e SEO — `cmd/site/e2e_seo_test.go`: sitemap и RSS разбираются `encoding/xml` (без черновиков, будущих постов и
@@ -388,6 +422,7 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 - Браузерные тесты — `cmd/site/browser_test.go` (`//go:build browser`, `TestBrowser*`, chromedp, headless Chrome):
   только критичные htmx-взаимодействия — превью при наборе, сохранение через `HX-Redirect`, подмена формы с ошибкой
   без перезагрузки, «Добавить блок», «↑», «Скрыть» и выбор изображения у блока, выбор обложки поста, превью сниппета SEO, загрузка файла (`hx-encoding="multipart/form-data"`),
+  выбор картинки в настройках и «Понятно» в баннере cookies (`TestBrowserSettingsAndCookieBanner`),
   панель оформления Markdown (`TestBrowserMarkdownToolbar`: кнопка, повторное нажатие, Ctrl+B, отмена, ссылка, список).
   После каждого htmx-действия — `htmxSettled()`: обработчики на новый фрагмент htmx навешивает после фазы settle,
   и клик chromedp раньше этого ушёл бы обычной отправкой формы. Запуск — `make e2e-browser`; `make test` их не собирает, линтер — собирает (`build-tags` в `.golangci.yml`).
@@ -413,8 +448,9 @@ cmd/site/e2e_blog_test.go         # e2e блога на сайте
 cmd/site/e2e_posts_admin_test.go  # e2e разделов «Посты» и «Категории»
 cmd/site/e2e_seo_test.go          # e2e sitemap, RSS, robots.txt, <head>, редиректов
 cmd/site/e2e_seo_admin_test.go    # e2e SEO записи (internal/seofields) в админке и на сайте
+cmd/site/e2e_settings_test.go     # e2e настроек сайта: раздел админки, подвал, мета-теги, баннер cookies
 cmd/site/migrations_test.go # миграции, меняющие данные, на копии реалистичных данных
-cmd/site/spec_test.go       # site.yaml ↔ код (блоки, features sitemap и rss)
+cmd/site/spec_test.go       # site.yaml ↔ код (блоки, features, поля настроек)
 cmd/site/images_test.go     # контрактные тесты модуля images (testkit)
 cmd/site/browser_test.go    # браузерные тесты (тег browser, make e2e-browser)
 db/migrations/              # миграции сайта (goose) + embed.go
@@ -429,8 +465,8 @@ internal/richtext/          # Markdown → очищенный HTML
 internal/seo/               # sitemap.xml, rss.xml, robots.txt
 internal/seofields/         # SEO записи вручную: поля, проверка, раздел формы с превью сниппета, наложение на web.Meta
 internal/slug/              # slug: Make (транслитерация), Valid
-internal/settings/          # site_settings: queries.sql и код sqlc
-internal/web/               # layout (Layout, LayoutMeta, Meta), страницы ошибок, рендер, Picture
+internal/settings/          # настройки сайта (site_settings): запросы, Get, раздел админки (admin.go, admin.templ)
+internal/web/               # layout (Layout, LayoutMeta, Meta, Site), баннер cookies, страницы ошибок, рендер, Picture
 static/                     # CSS (style.css, admin.css), htmx, editor.js (панель Markdown в админке), иконка + static.go (embed, Path, Handler)
 site.yaml, sqlc.yaml        # спецификация сайта, конфиг sqlc
 ```

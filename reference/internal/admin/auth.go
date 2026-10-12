@@ -43,6 +43,7 @@ type session struct {
 	user     User
 	csrf     string
 	sections []Section // разделы меню (Options.Sections)
+	site     []Section // разделы группы «Сайт» (Options.SiteSections)
 	path     string    // путь запроса: текущий пункт меню
 }
 
@@ -244,7 +245,7 @@ func (h *Handler) RequireUser(next http.Handler) http.Handler {
 			h.render(w, r, http.StatusForbidden, ForbiddenPage())
 			return
 		}
-		s.sections, s.path = h.opts.Sections, r.URL.Path
+		s.sections, s.site, s.path = h.opts.Sections, h.opts.SiteSections, r.URL.Path
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), sessionKey{}, s)))
 	})
 }

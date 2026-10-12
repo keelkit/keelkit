@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"os"
 	"regexp"
 	"slices"
@@ -113,5 +114,52 @@ func TestSpecFeaturesMatchCode(t *testing.T) {
 	}
 	if !slices.Equal(spec["seo"], seoTypes) {
 		t.Errorf("site.yaml types with feature seo = %v, seoTypes = %v", spec["seo"], seoTypes)
+	}
+}
+
+// settingsFieldRe — поле настроек в site.yaml: «    <имя>: { type: … }» (отступ в четыре пробела под settings.fields).
+var settingsFieldRe = regexp.MustCompile(`^    (\w+):\s*\{`)
+
+// Поля settings в site.yaml — ровно колонки site_settings (кроме служебной id) после миграций.
+func TestSpecSettingsMatchCode(t *testing.T) {
+	_, lines := specLines(t)
+	var spec []string
+	in := false
+	for _, line := range lines {
+		switch {
+		case line == "settings:":
+			in = true
+		case line != "" && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "#"):
+			in = false
+		case in:
+			if m := settingsFieldRe.FindStringSubmatch(line); m != nil {
+				spec = append(spec, m[1])
+			}
+		}
+	}
+	if len(spec) == 0 {
+		t.Fatal("site.yaml: no settings fields")
+	}
+
+	rows, err := migratedSite(t, false).db.QueryContext(context.Background(), `SELECT name FROM pragma_table_info('site_settings') ORDER BY cid`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = rows.Close() }()
+	var columns []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatal(err)
+		}
+		if name != "id" {
+			columns = append(columns, name)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(spec, columns) {
+		t.Errorf("site.yaml settings fields = %v, site_settings columns = %v", spec, columns)
 	}
 }

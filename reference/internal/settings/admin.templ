@@ -1,0 +1,168 @@
+package settings
+
+import (
+	"strconv"
+
+	"github.com/voffkin/keelkit/reference/internal/admin"
+	"github.com/voffkin/keelkit/reference/internal/web"
+)
+
+// FormPage — страница настроек сайта.
+templ FormPage(f settingsForm) {
+	@admin.Layout("Настройки") {
+		<div class="admin-title">
+			<h1>Настройки</h1>
+		</div>
+		if f.Flash != "" {
+			<p class="flash" role="status">{ f.Flash }</p>
+		}
+		@Form(f)
+	}
+}
+
+// Form — форма настроек: обычный POST и htmx (с ошибками сервер возвращает только этот фрагмент, 422).
+// Поля сгруппированы: сайт, контакты, баннер cookies, подтверждение сайта.
+templ Form(f settingsForm) {
+	<form
+		id="settings-form"
+		class="form"
+		method="post"
+		action={ templ.SafeURL(AdminPath) }
+		hx-post={ AdminPath }
+		hx-target="this"
+		hx-swap="outerHTML"
+	>
+		@admin.CSRFInput()
+		if len(f.Errors) > 0 {
+			<p class="form-error" role="alert">Исправьте ошибки в форме.</p>
+		}
+		<fieldset class="settings-group">
+			<legend>Сайт</legend>
+			@input(f, inputField{Name: "name", Label: "Название", Value: f.Name, Max: maxNameLen, Required: true,
+				Hint: "В шапке, в заголовке вкладки после названия страницы и в RSS."})
+			@textarea(f, "description", "Описание", f.Description, 2, maxDescriptionLen,
+				"Для поисковиков и соцсетей — у страниц, где описание не составилось само. Одна-две фразы.")
+			@imageField(f)
+		</fieldset>
+		<fieldset class="settings-group">
+			<legend>Контакты</legend>
+			<p class="field-hint">В подвале каждой страницы. Пустое поле не выводится.</p>
+			@textarea(f, "address", "Адрес", f.Address, 2, maxAddressLen, "Можно в несколько строк.")
+			@input(f, inputField{Name: "phone", Label: "Телефон", Type: "tel", Value: f.Phone, Max: maxPhoneLen,
+				Hint: "Как показывать на сайте: +7 (495) 123-45-67. Ссылка для звонка составится из цифр."})
+			@input(f, inputField{Name: "email", Label: "Email", Type: "email", Value: f.Email, Max: maxEmailLen})
+		</fieldset>
+		<fieldset class="settings-group">
+			<legend>Баннер cookies</legend>
+			@textarea(f, "cookie_text", "Текст", f.CookieText, 3, maxCookieTextLen,
+				"Внизу страницы, пока посетитель не нажмёт «Понятно». Пусто — баннера нет.")
+			@input(f, inputField{Name: "cookie_link", Label: "Ссылка «Подробнее»", Value: f.CookieLink, Max: maxLinkLen,
+				Placeholder: "/privacy или https://…", Hint: "Необязательно: страница с политикой обработки данных."})
+		</fieldset>
+		<fieldset class="settings-group">
+			<legend>Подтверждение сайта</legend>
+			<p class="field-hint">Код из мета-тега — он выводится на каждой странице, файлы в корне сайта не нужны. Можно вставить мета-тег целиком.</p>
+			@input(f, inputField{Name: "yandex_verification", Label: "Яндекс.Вебмастер", Value: f.Yandex, Max: 0,
+				Hint: "Вебмастер → Права доступа → Мета-тег: значение content."})
+			@input(f, inputField{Name: "google_verification", Label: "Google Search Console", Value: f.Google, Max: 0,
+				Hint: "Search Console → Подтверждение → HTML-тег: значение content."})
+		</fieldset>
+		<div class="form-actions">
+			<button type="submit">Сохранить</button>
+			<a href={ templ.SafeURL(AdminPath) }>Отмена</a>
+		</div>
+	</form>
+}
+
+// inputField — однострочное поле формы. Max == 0 — без maxlength (поле, куда вставляют мета-тег целиком).
+type inputField struct {
+	Name, Label, Type, Value, Placeholder, Hint string
+	Max                                         int
+	Required                                    bool
+}
+
+templ input(f settingsForm, in inputField) {
+	<label>
+		{ in.Label }
+		<input
+			if in.Type != "" {
+				type={ in.Type }
+			} else {
+				type="text"
+			}
+			name={ in.Name }
+			value={ in.Value }
+			if in.Placeholder != "" {
+				placeholder={ in.Placeholder }
+			}
+			if in.Max > 0 {
+				maxlength={ strconv.Itoa(in.Max) }
+			}
+			required?={ in.Required }
+			{ describedBy(f, in.Name, in.Hint != "")... }
+		/>
+		if in.Hint != "" {
+			<span class="field-hint" id={ in.Name + "-hint" }>{ in.Hint }</span>
+		}
+		@fieldError(f, in.Name)
+	</label>
+}
+
+templ textarea(f settingsForm, name, label, value string, rows, maxLen int, hint string) {
+	<label>
+		{ label }
+		<textarea
+			class="plain"
+			name={ name }
+			rows={ strconv.Itoa(rows) }
+			maxlength={ strconv.Itoa(maxLen) }
+			{ describedBy(f, name, hint != "")... }
+		>{ value }</textarea>
+		if hint != "" {
+			<span class="field-hint" id={ name + "-hint" }>{ hint }</span>
+		}
+		@fieldError(f, name)
+	</label>
+}
+
+// imageField — картинка для соцсетей по умолчанию: выбор из медиатеки и превью. Смена выбора через htmx
+// перерисовывает только это поле (POST …/image).
+templ imageField(f settingsForm) {
+	<div class="block-image-pick" id="share_image-field">
+		<div class="block-thumb">
+			if f.Image != nil {
+				@web.Picture(f.Image, "", "8rem")
+			} else {
+				<span class="muted">Без картинки</span>
+			}
+		</div>
+		<label>
+			Картинка для соцсетей
+			<select
+				name="share_image"
+				hx-post={ AdminPath + "/image" }
+				hx-params="share_image"
+				hx-trigger="change"
+				hx-target="#share_image-field"
+				hx-swap="outerHTML"
+				{ describedBy(f, "share_image", true)... }
+			>
+				<option value="">— без картинки —</option>
+				for _, img := range options(f) {
+					<option value={ img.ID } selected?={ img.ID == f.ShareImage }>{ optionLabel(img) }</option>
+				}
+			</select>
+			<span class="field-hint" id="share_image-hint">
+				Превью ссылки в соцсетях и мессенджерах для страниц без своей картинки (обложки, изображения в тексте).
+				Лучше 1200×630. Новое изображение сначала загрузите в <a href={ templ.SafeURL(f.MediaURL) } target="_blank">медиатеку</a>.
+			</span>
+			@fieldError(f, "share_image")
+		</label>
+	</div>
+}
+
+templ fieldError(f settingsForm, name string) {
+	if msg := f.Errors[name]; msg != "" {
+		<span class="field-error" id={ name + "-error" }>{ msg }</span>
+	}
+}

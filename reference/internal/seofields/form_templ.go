@@ -451,7 +451,8 @@ func Snippet(m web.Meta, snippetURL string) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		site := web.SiteFrom(ctx)
-		title, desc := web.TitleTag(m, site.Name), cmp.Or(m.Description, site.Description)
+		m = web.Defaults(m, site)
+		title, desc := web.TitleTag(m, site.Name), m.Description
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "<div class=\"seo-snippet\" id=\"seo-snippet\" hx-post=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -459,7 +460,7 @@ func Snippet(m web.Meta, snippetURL string) templ.Component {
 		var templ_7745c5c3_Var24 string
 		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.ResolveAttributeValue(snippetURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 89, Col: 22}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 90, Col: 22}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var24)
 		if templ_7745c5c3_Err != nil {
@@ -472,7 +473,7 @@ func Snippet(m web.Meta, snippetURL string) templ.Component {
 		var templ_7745c5c3_Var25 string
 		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(displayURL(site.BaseURL, m.Path))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 98, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 99, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 		if templ_7745c5c3_Err != nil {
@@ -485,7 +486,7 @@ func Snippet(m web.Meta, snippetURL string) templ.Component {
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 99, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 100, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 		if templ_7745c5c3_Err != nil {
@@ -503,7 +504,7 @@ func Snippet(m web.Meta, snippetURL string) templ.Component {
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(desc)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 101, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 102, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {
@@ -526,7 +527,7 @@ func Snippet(m web.Meta, snippetURL string) templ.Component {
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(searchTitleLen))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 105, Col: 89}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 106, Col: 89}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 			if templ_7745c5c3_Err != nil {
@@ -545,7 +546,7 @@ func Snippet(m web.Meta, snippetURL string) templ.Component {
 			var templ_7745c5c3_Var29 string
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(searchDescriptionLen))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 108, Col: 93}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 109, Col: 93}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {
@@ -578,7 +579,7 @@ func Snippet(m web.Meta, snippetURL string) templ.Component {
 		var templ_7745c5c3_Var30 string
 		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(cmp.Or(m.Title, site.Name))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 117, Col: 63}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 118, Col: 63}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 		if templ_7745c5c3_Err != nil {
@@ -596,7 +597,7 @@ func Snippet(m web.Meta, snippetURL string) templ.Component {
 			var templ_7745c5c3_Var31 string
 			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(desc)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 119, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 120, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 			if templ_7745c5c3_Err != nil {
@@ -644,7 +645,7 @@ func fieldError(e Env, field string) templ.Component {
 			var templ_7745c5c3_Var33 string
 			templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.ResolveAttributeValue(field + "-error")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 127, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 128, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var33)
 			if templ_7745c5c3_Err != nil {
@@ -657,7 +658,7 @@ func fieldError(e Env, field string) templ.Component {
 			var templ_7745c5c3_Var34 string
 			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(msg)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 127, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/seofields/form.templ`, Line: 128, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 			if templ_7745c5c3_Err != nil {

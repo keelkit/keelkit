@@ -43,7 +43,7 @@ type Counter struct {
 }
 
 // Section — раздел админки в меню: «Страницы» → /admin/pages. Пункт подсвечивается на URL и вложенных путях.
-// Icon — иконка пункта: "pages", "posts", "tags", "image"; пусто или неизвестное имя — общая иконка папки.
+// Icon — иконка пункта: "pages", "posts", "tags", "image", "settings"; пусто или неизвестное имя — общая иконка папки.
 type Section struct {
 	Title string
 	URL   string
@@ -58,6 +58,8 @@ type Options struct {
 	Counters func(context.Context) ([]Counter, error)
 	// Sections — разделы типов контента в меню, по порядку.
 	Sections []Section
+	// SiteSections — разделы всего сайта (настройки, позже меню) в группе «Сайт» под контентом.
+	SiteSections []Section
 }
 
 // Handler — хендлеры и middleware админки.

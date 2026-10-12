@@ -405,3 +405,64 @@ func TestBrowserMarkdownToolbar(t *testing.T) {
 	run(t, ctx, "list", sel(0, 0), click("ul"))
 	check("list", "- Привет [мир](https://go.dev)")
 }
+
+// Настройки: выбор картинки для соцсетей перерисовывает поле с превью через htmx, не сбивая ввод; сохранение —
+// через HX-Redirect. Баннер cookies: «Понятно» убирает его без перезагрузки, после обновления страницы его нет.
+func TestBrowserSettingsAndCookieBanner(t *testing.T) {
+	site, _ := migratedSiteWithImages(t)
+	srv := httptest.NewServer(site.handler(config{}))
+	t.Cleanup(srv.Close)
+	ctx := browser(t)
+	browserLogin(t, ctx, srv.URL)
+
+	var marker bool
+	var phone, flash string
+	run(t, ctx, "pick share image",
+		chromedp.Navigate(srv.URL+"/admin/settings"),
+		chromedp.WaitVisible(`#settings-form`, chromedp.ByQuery),
+		chromedp.Evaluate(`window.keelkitMarker = true`, nil),
+		chromedp.Evaluate(`document.querySelector('input[name="phone"]').value = ''`, nil),
+		chromedp.SendKeys(`input[name="phone"]`, "+7 999 000-11-22", chromedp.ByQuery),
+		chromedp.Evaluate(`(() => { const s = document.querySelector('select[name="share_image"]');
+			s.value = s.options[1].value; s.dispatchEvent(new Event('change', {bubbles: true})); })()`, nil),
+		chromedp.WaitReady(`#share_image-field .block-thumb picture`, chromedp.ByQuery),
+		htmxSettled(),
+		chromedp.Value(`input[name="phone"]`, &phone, chromedp.ByQuery),
+		chromedp.Evaluate(`window.keelkitMarker === true`, &marker),
+	)
+	if phone != "+7 999 000-11-22" || !marker {
+		t.Errorf("after picking: phone %q, no reload %v", phone, marker)
+	}
+	run(t, ctx, "save",
+		chromedp.Click(`#settings-form .form-actions button[type="submit"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`.flash[role="status"]`, chromedp.ByQuery),
+		chromedp.Text(`.flash[role="status"]`, &flash, chromedp.ByQuery),
+	)
+	if flash != "Сохранено. Изменения уже на сайте." {
+		t.Fatalf("save flash = %q", flash)
+	}
+
+	var tel string
+	var banners int
+	run(t, ctx, "accept cookies",
+		chromedp.Navigate(srv.URL+"/blog"),
+		chromedp.WaitVisible(`.cookie-banner`, chromedp.ByQuery),
+		chromedp.AttributeValue(`.site-footer a[href^="tel:"]`, "href", &tel, nil, chromedp.ByQuery),
+		chromedp.Evaluate(`window.keelkitMarker = true`, nil),
+		chromedp.Click(`.cookie-banner button`, chromedp.ByQuery),
+		chromedp.WaitNotPresent(`.cookie-banner`, chromedp.ByQuery),
+		chromedp.Evaluate(`window.keelkitMarker === true`, &marker),
+		chromedp.Reload(),
+		chromedp.WaitVisible(`.post-list`, chromedp.ByQuery),
+		chromedp.Evaluate(`document.querySelectorAll('.cookie-banner').length`, &banners),
+	)
+	if tel != "tel:+79990001122" {
+		t.Errorf("footer tel = %q", tel)
+	}
+	if !marker {
+		t.Error("page reloaded on cookie consent")
+	}
+	if banners != 0 {
+		t.Errorf("banners after reload = %d", banners)
+	}
+}

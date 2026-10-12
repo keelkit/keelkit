@@ -288,6 +288,7 @@ internal/web/              # layout, общие компоненты templ
 internal/richtext/         # richtext (Markdown) → очищенный HTML: goldmark + bluemonday
 internal/seo/              # sitemap.xml, rss.xml, robots.txt (адреса и записи отдают типы контента)
 internal/seofields/        # SEO записи вручную (заголовок, описание, картинка): поля, форма с превью сниппета
+internal/settings/         # настройки сайта (одна запись: контакты, картинка для соцсетей, баннер cookies, коды вебмастеров) и их раздел в админке
 internal/slug/             # slug из заголовка (транслитерация кириллицы) и проверка формата
 db/migrations/             # миграции сайта (goose, своя таблица версий) + embed.go
 static/                    # CSS, htmx.min.js — через embed

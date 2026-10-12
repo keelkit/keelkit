@@ -17,15 +17,12 @@ templ Layout(title string) {
 }
 
 // LayoutMeta — оболочка любой публичной страницы с данными для поисковиков и соцсетей: описание (пустое —
-// описание сайта), canonical и Open Graph (если задан m.Path), og:image, ссылка на RSS-ленту.
+// описание сайта), canonical и Open Graph (если задан m.Path), og:image (нет своей — картинка из настроек),
+// ссылка на RSS-ленту, коды подтверждения сайта; в подвале — контакты, внизу — баннер cookies.
 // Язык страницы — из site.yaml (languages: [ru]).
 templ LayoutMeta(m Meta) {
 	{{ site := SiteFrom(ctx) }}
-	{{
-	if m.Description == "" {
-		m.Description = site.Description
-	}
-	}}
+	{{ m = Defaults(m, site) }}
 	<!DOCTYPE html>
 	<html lang="ru">
 		<head>
@@ -37,6 +34,12 @@ templ LayoutMeta(m Meta) {
 			}
 			if m.NoIndex {
 				<meta name="robots" content="noindex"/>
+			}
+			if site.Verification.Yandex != "" {
+				<meta name="yandex-verification" content={ site.Verification.Yandex }/>
+			}
+			if site.Verification.Google != "" {
+				<meta name="google-site-verification" content={ site.Verification.Google }/>
 			}
 			if m.Path != "" {
 				@openGraph(site, m)
@@ -54,6 +57,9 @@ templ LayoutMeta(m Meta) {
 				{ children... }
 			</main>
 			@footer(site)
+			if site.Cookie.Show() {
+				@cookieBanner(site)
+			}
 		</body>
 	</html>
 }
@@ -115,11 +121,57 @@ templ header(site Site) {
 }
 
 templ footer(site Site) {
+	{{ c := site.Contacts }}
 	<footer class="site-footer">
 		<div class="container">
+			if c != (Contacts{}) {
+				<address class="contacts">
+					if c.Address != "" {
+						<p class="contacts-address">{ c.Address }</p>
+					}
+					if c.Phone != "" {
+						<p>
+							if tel := TelURL(c.Phone); tel != "" {
+								<a href={ templ.SafeURL(tel) }>{ c.Phone }</a>
+							} else {
+								{ c.Phone }
+							}
+						</p>
+					}
+					if c.Email != "" {
+						<p><a href={ templ.SafeURL("mailto:" + c.Email) }>{ c.Email }</a></p>
+					}
+				</address>
+			}
 			<p>© { strconv.Itoa(time.Now().Year()) } { site.Name }</p>
 		</div>
 	</footer>
+}
+
+// cookieBanner — уведомление о cookie. «Понятно» — обычная форма (без JavaScript — 303 обратно на страницу),
+// с htmx баннер заменяется пустым ответом.
+templ cookieBanner(site Site) {
+	<div class="cookie-banner" role="region" aria-label="Уведомление о cookie">
+		<div class="container">
+			<p>
+				{ site.Cookie.Text }
+				if site.Cookie.Link != "" {
+					{ " " }
+					<a href={ templ.SafeURL(site.Cookie.Link) }>Подробнее</a>
+				}
+			</p>
+			<form
+				method="post"
+				action={ templ.SafeURL(CookieNoticePath) }
+				hx-post={ CookieNoticePath }
+				hx-target="closest .cookie-banner"
+				hx-swap="outerHTML"
+			>
+				<input type="hidden" name="back" value={ site.Path }/>
+				<button type="submit">Понятно</button>
+			</form>
+		</div>
+	</div>
 }
 
 // NotFoundPage — страница 404.
