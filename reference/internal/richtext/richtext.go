@@ -42,13 +42,13 @@ func newPolicy() *bluemonday.Policy {
 	return p
 }
 
-// Render преобразует Markdown в очищенный HTML.
+// Render преобразует Markdown в очищенный HTML с неразрывными пробелами (см. typography).
 func Render(src string) (HTML, error) {
 	var buf bytes.Buffer
 	if err := markdown.Convert([]byte(src), &buf); err != nil {
 		return "", fmt.Errorf("render markdown: %w", err)
 	}
-	return HTML(policy.SanitizeBytes(buf.Bytes())), nil
+	return HTML(typography(policy.SanitizeBytes(buf.Bytes()))), nil
 }
 
 // strict убирает все теги: для PlainText.

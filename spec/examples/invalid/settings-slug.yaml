@@ -1,0 +1,13 @@
+# expect: /settings/fields/home/type: field type slug is not allowed in settings
+spec_version: 1
+site:
+  name: my-site
+  languages: [ru]
+settings:
+  fields:
+    phone: { type: string }
+    home:  { type: slug }
+content:
+  pages:
+    fields:
+      title: { type: string }

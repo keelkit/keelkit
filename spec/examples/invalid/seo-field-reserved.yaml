@@ -1,0 +1,10 @@
+# expect: /content/pages/fields/seo_title: field name "seo_title" is reserved
+spec_version: 1
+site:
+  name: my-site
+  languages: [ru]
+content:
+  pages:
+    fields:
+      slug: { type: slug }
+      seo_title: { type: string }

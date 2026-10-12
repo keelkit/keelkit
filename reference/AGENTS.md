@@ -13,7 +13,8 @@
   на любой машине, бинарник не зависит от библиотек хоста. Сборка и тесты без `make` — с `-tags nodynamic`.
 - Зависимости: `modernc.org/sqlite` v1.60.1, `github.com/pressly/goose/v3` v3.28.0 (только библиотека, CLI goose не используется),
   `github.com/a-h/templ` v0.3.1020, `github.com/yuin/goldmark` v1.8.6, `github.com/microcosm-cc/bluemonday` v1.0.27,
-  `golang.org/x/crypto` v0.57.0 (argon2id), `golang.org/x/term` v0.46.0 (ввод пароля без эха); в тестах — `github.com/PuerkitoBio/goquery` v1.13.0,
+  `golang.org/x/crypto` v0.57.0 (argon2id), `golang.org/x/term` v0.46.0 (ввод пароля без эха),
+  `golang.org/x/net` v0.60.0 (токенизатор HTML для типографики `richtext`; уже был в графе через bluemonday); в тестах — `github.com/PuerkitoBio/goquery` v1.13.0,
   `github.com/chromedp/chromedp` v0.16.0 (только браузерные тесты с тегом `browser`; его `cdproto` — псевдоверсия, теги у неё не ставятся).
 - Инструменты (версии закреплены в `Makefile`): sqlc v1.31.1; CLI templ — `TEMPL_VERSION`, обязан совпадать с библиотекой
   в `go.mod` (`make generate` проверяет это и откажется запускаться при расхождении).
@@ -156,10 +157,16 @@
   кладёт их в контекст, layout читает через `web.SiteFrom(ctx)`. HTML-маршруты оборачиваются в него, `/healthz` и `/static/` — нет.
   `internal/web` не импортирует типы контента: связывает их только `cmd/site`.
 - `richtext` (Markdown): `richtext.Render` → goldmark (GFM, сырой HTML не пропускается) → bluemonday (UGC; `class="language-*"`
-  у `code`; `nofollow` только у внешних ссылок). Результат — тип `richtext.HTML`, в шаблоне выводится как `@body`.
+  у `code`; `nofollow` только у внешних ссылок) → типографика (`typography.go`). Результат — тип `richtext.HTML`, в шаблоне выводится как `@body`.
+  Типографика: неразрывный пробел (U+00A0) после коротких предлогов, союзов и частиц (`shortWords`, без учёта регистра;
+  цепочка «и в лесу» связывается целиком) и перед тире, отбитым пробелами (« — », « – »; диапазон «2020–2025» не трогается).
+  Работает по тексту уже очищенного HTML (токенизатор `golang.org/x/net/html`): теги и атрибуты не меняются, текст в
+  `pre`/`code`/`kbd`/`samp` — тоже; строчные теги прозрачны («в **лесу**»), блочные разрывают связь. Символы не заменяются
+  (кавычки, дефис → тире): только пробелы. `PlainText` (описания, RSS) типографику не делает.
   `templ.Raw` для пользовательского контента не используем.
 - Статика — `static/` (пакет `static`, embed). В шаблоне ссылка только через `static.Path("имя")`: она добавляет `?v=<хеш>`,
-  а неизвестное имя паникует (ловится e2e). Вендоренные библиотеки — с версией в имени файла.
+  а неизвестное имя паникует (ловится e2e). Вендоренные библиотеки и шрифты — с версией в имени файла, без CDN
+  (правило — в корневом `AGENTS.md`, «Стек сайта»). Шрифтов в эталоне нет: системный стек в `style.css`.
 - Стили — `static/style.css`, чистый CSS с переменными; тёмная тема по `prefers-color-scheme`.
 
 ## Админка и авторизация
@@ -310,8 +317,9 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
   и Open Graph (404, 500). Предпросмотр черновика — без `Path` и с `NoIndex`. Абсолютные адреса — `web.Site.BaseURL` +
   путь; на каждой странице — `<link rel="alternate">` на RSS.
 - SEO записи вручную — общий компонент `internal/seofields` у каждого типа со своим адресом (страницы, в том числе
-  главная, и посты; у справочников без адреса его нет). Поля в `site.yaml`: `seo_title` (`string`), `seo_description`
-  (`text`), `seo_image` (`image`) — `TestSpecSEOFieldsMatchCode` сверяет их с типами, подключившими компонент.
+  главная, и посты; у справочников без адреса его нет). В `site.yaml` — feature `seo` (с `spec v0.3.0`; поля
+  `seo_title`, `seo_description`, `seo_image` она добавляет сама, в `fields` их не пишут); `TestSpecFeaturesMatchCode`
+  сверяет типы с feature `seo` со списком `seoTypes`.
   Колонки — в копии записи (`<type>_contents`, миграция `00009`): правка SEO опубликованной записи видна после
   «Опубликовать» и отмечает «Есть неопубликованные изменения»; `seo_image` — в `<type>_images`, как обложка.
   Пустое поле — подстановка, её задаёт тип в `viewMeta` (у поста — заголовок, анонс, обложка; у страницы — заголовок,
@@ -323,8 +331,8 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
   превью обновляется через htmx при вводе в любое поле формы (`hx-trigger="input delay:500ms from:closest form"`,
   `hx-include="closest form"`, `POST /admin/<type>/seo`: хендлер разбирает форму как при сохранении и собирает
   `viewData` из неё), без JavaScript — после отправки. Лимиты 200/500 символов, превью предупреждает о длине
-  сверх ~60/160. Новый тип со своим адресом: колонки, поля в `site.yaml`, `SEO` в форме, `Apply` в `viewMeta`,
-  маршрут `…/seo`, запись в `TestSpecSEOFieldsMatchCode`.
+  сверх ~60/160. Новый тип со своим адресом: колонки, feature `seo` в `site.yaml`, `SEO` в форме, `Apply` в `viewMeta`,
+  маршрут `…/seo`, запись в `seoTypes` (`cmd/site/spec_test.go`).
 - `/sitemap.xml` — `seo.Sitemap(baseURL, sources…)`: адреса от типов с feature `sitemap` в `site.yaml` —
   `sitemapSources` в `cmd/site/server.go` (метод `SitemapURLs` пакета типа: только видимое на сайте). Страницы — без
   `lastmod` (у копии нет времени публикации), лента `/blog` и посты — `lastmod` по дате публикации. Один файл: лимит

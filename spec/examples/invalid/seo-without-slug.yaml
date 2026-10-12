@@ -1,0 +1,10 @@
+# expect: /content/team/features/0: feature seo needs a slug field
+spec_version: 1
+site:
+  name: my-site
+  languages: [ru]
+content:
+  team:
+    fields:
+      name: { type: string }
+    features: [seo]

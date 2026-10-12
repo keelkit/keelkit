@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"maps"
 	"os"
 	"regexp"
 	"slices"
@@ -14,6 +13,10 @@ import (
 	"github.com/voffkin/keelkit/reference/internal/content/posts"
 )
 
+// seoTypes — типы, подключившие SEO записи (internal/seofields): seofields.Section в форме, Fields.Apply в viewMeta,
+// колонки seo_* в копии записи.
+var seoTypes = []string{"pages", "posts"}
+
 // Строки site.yaml: тип контента («  posts:» — отступ в два пробела) и поле blocks внутри него
 // («<имя>: { type: blocks, allow: [a, b] }»). Полный разбор YAML не нужен: схему проверяет make spec-validate,
 // здесь — только совпадение списков блоков с кодом.
@@ -21,7 +24,6 @@ var (
 	contentTypeRe = regexp.MustCompile(`^  (\w+):\s*$`)
 	allowRe       = regexp.MustCompile(`^\s+(\w+):\s*\{\s*type:\s*blocks,\s*allow:\s*\[([^\]]*)\]`)
 	featuresRe    = regexp.MustCompile(`^\s+features:\s*\[([^\]]*)\]`)
-	seoFieldRe    = regexp.MustCompile(`^\s+(seo_\w+):\s*\{\s*type:\s*(\w+)`)
 )
 
 // specLines — строки site.yaml с типом контента, в котором они стоят (пусто — вне content).
@@ -87,7 +89,7 @@ func TestSpecBlocksMatchCode(t *testing.T) {
 }
 
 // Типы с feature sitemap в site.yaml — ровно те, чьи адреса собирает sitemapSources (в том же порядке),
-// с feature rss — feedTypes.
+// с feature rss — feedTypes, с feature seo — seoTypes.
 func TestSpecFeaturesMatchCode(t *testing.T) {
 	types, lines := specLines(t)
 	spec := map[string][]string{}
@@ -109,32 +111,7 @@ func TestSpecFeaturesMatchCode(t *testing.T) {
 	if !slices.Equal(spec["rss"], feedTypes) {
 		t.Errorf("site.yaml types with feature rss = %v, feedTypes = %v", spec["rss"], feedTypes)
 	}
-}
-
-// SEO записи (internal/seofields): типы с полями seo_* в site.yaml — ровно те, чьи формы и шаблоны подключают
-// компонент, и у каждого — все три поля с типами, которые компонент хранит.
-func TestSpecSEOFieldsMatchCode(t *testing.T) {
-	code := []string{"pages", "posts"} // типы со своим адресом: seofields.Section в форме, Fields.Apply в viewMeta
-	want := map[string]string{"seo_title": "string", "seo_description": "text", "seo_image": "image"}
-
-	types, lines := specLines(t)
-	spec := map[string]map[string]string{}
-	var order []string
-	for i, line := range lines {
-		if m := seoFieldRe.FindStringSubmatch(line); m != nil {
-			if spec[types[i]] == nil {
-				spec[types[i]] = map[string]string{}
-				order = append(order, types[i])
-			}
-			spec[types[i]][m[1]] = m[2]
-		}
-	}
-	if !slices.Equal(order, code) {
-		t.Errorf("site.yaml types with seo_* fields = %v, code = %v", order, code)
-	}
-	for typ, fields := range spec {
-		if !maps.Equal(fields, want) {
-			t.Errorf("site.yaml %s: seo fields %v, want %v", typ, fields, want)
-		}
+	if !slices.Equal(spec["seo"], seoTypes) {
+		t.Errorf("site.yaml types with feature seo = %v, seoTypes = %v", spec["seo"], seoTypes)
 	}
 }

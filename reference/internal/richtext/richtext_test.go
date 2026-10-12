@@ -82,3 +82,40 @@ func TestPlainText(t *testing.T) {
 		t.Errorf("PlainText = %q, want %q", got, want)
 	}
 }
+
+func TestTypography(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+		want string
+	}{
+		{"preposition", "Дом в лесу", "<p>Дом в\u00a0лесу</p>\n"},
+		{"capitalized and chained", "В лесу и в поле", "<p>В\u00a0лесу и\u00a0в\u00a0поле</p>\n"},
+		{"two-letter conjunction", "Тихо, но темно", "<p>Тихо, но\u00a0темно</p>\n"},
+		{"long word untouched", "Дом вдали", "<p>Дом вдали</p>\n"},
+		{"dash", "Кот — зверь", "<p>Кот\u00a0— зверь</p>\n"},
+		{"en dash as dash", "Кот – зверь", "<p>Кот\u00a0– зверь</p>\n"},
+		{"range dash untouched", "2020–2025 годы", "<p>2020–2025 годы</p>\n"},
+		{"hyphenated preposition", "из-за угла", "<p>из-за\u00a0угла</p>\n"},
+		{"soft line break", "дом в\nлесу", "<p>дом в\u00a0лесу</p>\n"},
+		{"across inline tag", "дом в **лесу**", "<p>дом в\u00a0<strong>лесу</strong></p>\n"},
+		{"preposition inside inline tag", "**в** лесу", "<p><strong>в</strong>\u00a0лесу</p>\n"},
+		{"word split by inline tag", "**к**от ест", "<p><strong>к</strong>от ест</p>\n"},
+		{"not across blocks", "- в\n- лес", "<ul>\n<li>в</li>\n<li>лес</li>\n</ul>\n"},
+		{"code span untouched", "код `a в b` и", "<p>код <code>a в b</code> и</p>\n"},
+		{"code block untouched", "```\nв лесу — тихо\n```\n", "<pre><code>в лесу — тихо\n</code></pre>\n"},
+		{"escaping kept", "a & в <лес>", "<p>a &amp; в\u00a0&lt;лес&gt;</p>\n"},
+		{"link text", "[в лес](/forest)", "<p><a href=\"/forest\">в\u00a0лес</a></p>\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Render(tt.src)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got) != tt.want {
+				t.Errorf("Render(%q) =\n%q\nwant\n%q", tt.src, got, tt.want)
+			}
+		})
+	}
+}

@@ -1,0 +1,9 @@
+# expect: /content/team/fields/certificates: missing property 'fields'
+spec_version: 1
+site:
+  name: my-site
+  languages: [ru]
+content:
+  team:
+    fields:
+      certificates: { type: list }

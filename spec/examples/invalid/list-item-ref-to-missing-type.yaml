@@ -1,0 +1,12 @@
+# expect: /content/team/fields/links/fields/page/to: ref target "pages" is not a content type
+spec_version: 1
+site:
+  name: my-site
+  languages: [ru]
+content:
+  team:
+    fields:
+      links:
+        type: list
+        fields:
+          page: { type: ref, to: pages }

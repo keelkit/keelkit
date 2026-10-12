@@ -27,7 +27,13 @@ var schemaJSON []byte
 const schemaURL = "https://raw.githubusercontent.com/voffkin/keelkit/main/spec/schema.json"
 
 // reservedFields — служебные колонки, которые генерируются для каждого типа контента и его features.
-var reservedFields = []string{"id", "created_at", "updated_at", "draft", "publish_date"}
+var reservedFields = []string{"id", "created_at", "updated_at", "draft", "publish_date", "seo_title", "seo_description", "seo_image"}
+
+// reservedSettingsFields — служебные колонки записи настроек.
+var reservedSettingsFields = []string{"id", "updated_at"}
+
+// reservedItemFields — служебные поля элемента списка (type: list): у элемента стабильный id.
+var reservedItemFields = []string{"id"}
 
 // Issue — одна найденная проблема в спецификации.
 type Issue struct {
@@ -275,42 +281,114 @@ func semanticIssues(root *yaml.Node) []Issue {
 	var issues []Issue
 	for _, tkv := range pairs(content) {
 		typeName := tkv[0].Value
-		var slugs []string
-		for _, fkv := range pairs(child(tkv[1], "fields")) {
-			name, field := fkv[0], fkv[1]
-			path := "/content/" + escapePointer(typeName) + "/fields/" + escapePointer(name.Value)
+		path := "/content/" + escapePointer(typeName)
+		issues = append(issues, fieldIssues(path+"/fields", child(tkv[1], "fields"), fieldRules{
+			reserved: reservedFields,
+			why:      "generated for every content type or by features",
+			types:    types,
+			typeName: typeName,
+		})...)
+		if i, seo := featureNode(tkv[1], "seo"); seo != nil && !hasSlug(child(tkv[1], "fields")) {
+			issues = append(issues, issueAt(path+"/features/"+strconv.Itoa(i), seo, fmt.Sprintf(
+				"feature seo needs a slug field: content type %q has no own address", typeName)))
+		}
+	}
+	if settings := child(root, "settings"); settings != nil {
+		issues = append(issues, fieldIssues("/settings/fields", child(settings, "fields"), fieldRules{
+			reserved:  reservedSettingsFields,
+			why:       "generated for the settings record",
+			types:     types,
+			forbidden: []string{"slug", "blocks"},
+			where:     "settings",
+		})...)
+	}
+	return issues
+}
 
-			if slices.Contains(reservedFields, name.Value) {
-				issues = append(issues, issueAt(path, name, fmt.Sprintf(
-					"field name %q is reserved (generated for every content type or by features); reserved: %s",
-					name.Value, strings.Join(reservedFields, ", "))))
-			}
+// fieldRules — правила для набора полей: типа контента, настроек или элемента списка.
+type fieldRules struct {
+	reserved  []string // служебные имена
+	why       string   // откуда служебные имена — для сообщения
+	types     []string // типы контента — цели ref
+	typeName  string   // тип контента: проверяется число полей slug; пусто — не тип
+	forbidden []string // типы полей, недопустимые здесь (схема их пропускает)
+	where     string   // где недопустимы — для сообщения
+}
 
-			fieldType := child(field, "type").Value
-			to := child(field, "to")
-			switch {
-			case fieldType != "ref" && to != nil:
-				issues = append(issues, issueAt(path+"/to", to, fmt.Sprintf(
-					"'to' is allowed only for fields of type ref, got type %s", fieldType)))
-			case fieldType == "ref" && !slices.Contains(types, to.Value):
-				issues = append(issues, issueAt(path+"/to", to, fmt.Sprintf(
-					"ref target %q is not a content type; known types: %s", to.Value, strings.Join(types, ", "))))
-			}
-			if allow := child(field, "allow"); fieldType != "blocks" && allow != nil {
-				issues = append(issues, issueAt(path+"/allow", allow, fmt.Sprintf(
-					"'allow' is allowed only for fields of type blocks, got type %s", fieldType)))
-			}
+func fieldIssues(path string, fields *yaml.Node, r fieldRules) []Issue {
+	var issues []Issue
+	var slugs []string
+	for _, fkv := range pairs(fields) {
+		name, field := fkv[0], fkv[1]
+		fpath := path + "/" + escapePointer(name.Value)
 
-			if fieldType == "slug" {
-				slugs = append(slugs, name.Value)
-				if len(slugs) == 2 {
-					issues = append(issues, issueAt(path, name, fmt.Sprintf(
-						"content type %q has more than one slug field (%s, %s)", typeName, slugs[0], slugs[1])))
-				}
+		if slices.Contains(r.reserved, name.Value) {
+			issues = append(issues, issueAt(fpath, name, fmt.Sprintf(
+				"field name %q is reserved (%s); reserved: %s", name.Value, r.why, strings.Join(r.reserved, ", "))))
+		}
+
+		typeNode := child(field, "type")
+		fieldType := typeNode.Value
+		if slices.Contains(r.forbidden, fieldType) {
+			issues = append(issues, issueAt(fpath+"/type", typeNode, fmt.Sprintf(
+				"field type %s is not allowed in %s", fieldType, r.where)))
+		}
+		to := child(field, "to")
+		switch {
+		case fieldType != "ref" && to != nil:
+			issues = append(issues, issueAt(fpath+"/to", to, fmt.Sprintf(
+				"'to' is allowed only for fields of type ref, got type %s", fieldType)))
+		case fieldType == "ref" && !slices.Contains(r.types, to.Value):
+			issues = append(issues, issueAt(fpath+"/to", to, fmt.Sprintf(
+				"ref target %q is not a content type; known types: %s", to.Value, strings.Join(r.types, ", "))))
+		}
+		if allow := child(field, "allow"); fieldType != "blocks" && allow != nil {
+			issues = append(issues, issueAt(fpath+"/allow", allow, fmt.Sprintf(
+				"'allow' is allowed only for fields of type blocks, got type %s", fieldType)))
+		}
+		if key, items := childPair(field, "fields"); items != nil {
+			if fieldType != "list" {
+				issues = append(issues, issueAt(fpath+"/fields", key, fmt.Sprintf(
+					"'fields' is allowed only for fields of type list, got type %s", fieldType)))
+			} else {
+				issues = append(issues, fieldIssues(fpath+"/fields", items, fieldRules{
+					reserved: reservedItemFields,
+					why:      "every list item has a stable id",
+					types:    r.types,
+				})...)
+			}
+		}
+
+		if r.typeName != "" && fieldType == "slug" {
+			slugs = append(slugs, name.Value)
+			if len(slugs) == 2 {
+				issues = append(issues, issueAt(fpath, name, fmt.Sprintf(
+					"content type %q has more than one slug field (%s, %s)", r.typeName, slugs[0], slugs[1])))
 			}
 		}
 	}
 	return issues
+}
+
+// featureNode — индекс и узел элемента name в списке features типа; nil — feature нет.
+func featureNode(contentType *yaml.Node, name string) (int, *yaml.Node) {
+	if features := child(contentType, "features"); features != nil {
+		for i, f := range features.Content {
+			if f.Value == name {
+				return i, f
+			}
+		}
+	}
+	return 0, nil
+}
+
+func hasSlug(fields *yaml.Node) bool {
+	for _, fkv := range pairs(fields) {
+		if child(fkv[1], "type").Value == "slug" {
+			return true
+		}
+	}
+	return false
 }
 
 func issueAt(path string, n *yaml.Node, msg string) Issue {

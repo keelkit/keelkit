@@ -1,0 +1,49 @@
+# Сайт компании: страницы с SEO, новости, команда списком, настройки и меню.
+spec_version: 1
+site:
+  name: acme-company
+  languages: [ru]
+modules:
+  images: v0
+settings:
+  fields:
+    phone:         { type: string }
+    email:         { type: string }
+    address:       { type: text }
+    share_image:   { type: image }   # картинка для соцсетей по умолчанию
+    cookie_banner: { type: text }
+    socials:
+      type: list
+      fields:
+        network: { type: string, required: true }
+        url:     { type: string, required: true }
+menus: [main, footer]
+content:
+  pages:
+    fields:
+      title: { type: string, required: true }
+      slug:  { type: slug, required: true }
+      body:  { type: blocks, allow: [text, image, gallery] }
+    features: [draft, sitemap, seo]
+  news:
+    fields:
+      title:   { type: string, required: true }
+      slug:    { type: slug, required: true }
+      lead:    { type: text }
+      body:    { type: blocks, allow: [text, image] }
+      related:
+        type: list
+        fields:
+          title: { type: string, required: true }
+          page:  { type: ref, to: pages }
+    features: [draft, publish_date, rss, sitemap, seo]
+  team:
+    fields:
+      name:  { type: string, required: true }
+      photo: { type: image }
+      certificates:
+        type: list
+        fields:
+          title: { type: string, required: true }
+          scan:  { type: image }
+          year:  { type: int }

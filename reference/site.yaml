@@ -13,11 +13,9 @@ content:
       slug:  { type: slug, required: true }
       # Набор блоков — дизайн сайта: поля блоков описаны в internal/blocks, здесь — только имена.
       body:  { type: blocks, allow: [text, image, image_text, quote, gallery] }
-      # SEO записи вручную — у типов со своим адресом; общий компонент internal/seofields, пусто — подстановка.
-      seo_title:       { type: string }
-      seo_description: { type: text }
-      seo_image:       { type: image }
-    features: [draft, sitemap]
+    # seo — SEO записи вручную (заголовок, описание, картинка для соцсетей; пусто — подстановка),
+    # только у типов со своим адресом; общий компонент internal/seofields.
+    features: [draft, sitemap, seo]
   # Посты блога: черновик-копия, как у pages (feature draft); publish_date — пост виден на сайте с этого момента.
   posts:
     fields:
@@ -30,10 +28,7 @@ content:
       cover_alt: { type: string }  # alt обложки; пусто — обложка декоративная
       category:  { type: ref, to: categories }
       body:      { type: blocks, allow: [text, image, image_text, quote, gallery] }
-      seo_title:       { type: string }
-      seo_description: { type: text }
-      seo_image:       { type: image }
-    features: [publish_date, draft, rss, sitemap]
+    features: [publish_date, draft, rss, sitemap, seo]
   categories:
     fields:
       name: { type: string, required: true }

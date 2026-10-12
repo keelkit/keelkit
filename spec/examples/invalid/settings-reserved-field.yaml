@@ -1,0 +1,12 @@
+# expect: /settings/fields/updated_at: field name "updated_at" is reserved
+spec_version: 1
+site:
+  name: my-site
+  languages: [ru]
+settings:
+  fields:
+    updated_at: { type: date }
+content:
+  pages:
+    fields:
+      title: { type: string }

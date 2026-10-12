@@ -1,0 +1,12 @@
+# expect: /content/team/fields/name/fields: 'fields' is allowed only for fields of type list
+spec_version: 1
+site:
+  name: my-site
+  languages: [ru]
+content:
+  team:
+    fields:
+      name:
+        type: string
+        fields:
+          x: { type: string }

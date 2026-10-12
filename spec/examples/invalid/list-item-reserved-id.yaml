@@ -1,0 +1,12 @@
+# expect: /content/team/fields/certificates/fields/id: field name "id" is reserved
+spec_version: 1
+site:
+  name: my-site
+  languages: [ru]
+content:
+  team:
+    fields:
+      certificates:
+        type: list
+        fields:
+          id: { type: int }
