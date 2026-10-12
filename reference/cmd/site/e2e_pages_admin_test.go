@@ -199,7 +199,7 @@ func TestE2EAdminPageCreate(t *testing.T) {
 		v, _ := b.Attr("value")
 		add = append(add, v)
 	})
-	if got := strings.Join(add, ","); got != "add:text,add:image,add:image_text,add:quote" {
+	if got := strings.Join(add, ","); got != "add:text,add:image,add:image_text,add:quote,add:gallery" {
 		t.Errorf("add buttons = %s", got)
 	}
 	if doc.Find(".danger-zone").Length() != 0 {
@@ -494,7 +494,7 @@ func TestE2EAdminPageBlocks(t *testing.T) {
 		action string
 	}{
 		{"unknown action", a.form(edit), "jump:three"},
-		{"add not allowed", a.form(edit), "add:gallery"},
+		{"add not allowed", a.form(edit), "add:carousel"},
 		{"bad block id", url.Values{"title": {"x"}, "block": {"<b>"}, "block-<b>-type": {"text"}}, "save"},
 		{"unknown type", url.Values{"title": {"x"}, "block": {"z"}, "block-z-type": {"script"}}, "save"},
 	} {
@@ -529,7 +529,7 @@ func TestE2EAdminPageBlockFragment(t *testing.T) {
 		t.Errorf("existing block lost fields: %v", v)
 	}
 
-	for _, path := range []string{"/admin/pages/block?type=gallery", "/admin/pages/block?id=nope", "/admin/pages/block"} {
+	for _, path := range []string{"/admin/pages/block?type=carousel", "/admin/pages/block?id=nope", "/admin/pages/block"} {
 		if resp, _ := post(t, a.client, a.srv.URL+path, form, hdr); resp.StatusCode != http.StatusBadRequest {
 			t.Errorf("POST %s: status %d, want 400", path, resp.StatusCode)
 		}
@@ -838,15 +838,18 @@ func TestE2EPageImages(t *testing.T) {
 	site, imgs := migratedSiteWithImages(t)
 	a := newPageAdminOn(t, site)
 
-	// /about: текст, картинка, картинка с текстом справа, цитата — в порядке seed.
+	// /about: текст, картинка, картинка с текстом справа, текст, цитата, галерея — в порядке seed.
 	doc := page(t, a.srv, "/about", http.StatusOK)
 	var kinds []string
 	doc.Find("main article .block").Each(func(_ int, s *goquery.Selection) {
 		class, _ := s.Attr("class")
 		kinds = append(kinds, strings.TrimPrefix(strings.Fields(class)[1], "block-"))
 	})
-	if got := strings.Join(kinds, ","); got != "text,image,image-text,text,quote" {
+	if got := strings.Join(kinds, ","); got != "text,image,image-text,text,quote,gallery" {
 		t.Errorf("about blocks = %s", got)
+	}
+	if got := text(doc.Find("#block-about-side figcaption")); got != "PNG с прозрачностью" {
+		t.Errorf("image_text caption = %q", got)
 	}
 	pic := doc.Find("#block-about-photo picture")
 	srcset, _ := pic.Find(`source[type="image/webp"]`).Attr("srcset")
@@ -973,5 +976,111 @@ func TestE2EPageImages(t *testing.T) {
 	resp, _ = post(t, a.client, a.srv.URL+"/admin/media/"+imgs["small.jpg"]+"/delete", url.Values{"csrf_token": {a.token}}, nil)
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("delete unused image: status %d, want 303", resp.StatusCode)
+	}
+}
+
+// Галерея — блок со списком элементов: добавление, порядок и удаление изображений кнопками, ошибка у поля
+// элемента, публикация (слайды на сайте по порядку), используемое галереей изображение не удаляется из медиатеки.
+func TestE2EAdminPageGallery(t *testing.T) {
+	site, imgs := migratedSiteWithImages(t)
+	a := newPageAdminOn(t, site)
+	photo, small := imgs["photo.jpg"], imgs["small.jpg"]
+
+	form := newPageForm("Галерея фото", "")
+	addBlock(form, "g", "gallery", map[string]string{
+		"i-a-image": photo, "i-a-alt": "Фото", "i-a-caption": "Первое",
+	})
+	form.Add("block-g-item", "a")
+	edit := a.create(form, "save")
+
+	apply := func(form url.Values, action string, header http.Header) url.Values {
+		t.Helper()
+		resp, body := a.submit(edit, form, action, header)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s: status %d, want 200", action, resp.StatusCode)
+		}
+		return formValues(parse(t, body).Find("#page-form"))
+	}
+	items := func(form url.Values) []string { return form["block-g-item"] }
+
+	// «Добавить изображение» — пустой элемент в конец; заполняем его и меняем порядок.
+	form = apply(a.form(edit), "item-add:g", nil)
+	ids := items(form)
+	if len(ids) != 2 || ids[0] != "a" {
+		t.Fatalf("after item-add = %v", ids)
+	}
+	b := ids[1]
+	form.Set("block-g-i-"+b+"-image", small)
+	form.Set("block-g-i-"+b+"-caption", "Второе")
+	form = apply(form, "item-up:g:"+b, htmx)
+	if got := strings.Join(items(form), ","); got != b+",a" {
+		t.Errorf("after item-up = %s", got)
+	}
+	if form.Get("block-g-i-a-caption") != "Первое" || form.Get("block-g-i-"+b+"-caption") != "Второе" {
+		t.Errorf("item fields lost: %v", form)
+	}
+
+	// Пустой alt у элемента — 422 и ошибка у поля этого элемента; введённое на месте.
+	for _, hdr := range []http.Header{nil, htmx} {
+		resp, body := a.submit(edit, form, "publish", hdr)
+		if resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("empty alt: status %d, want 422", resp.StatusCode)
+		}
+		doc := parse(t, body)
+		if got := text(doc.Find("#block-g-i-" + b + "-alt-error")); got == "" {
+			t.Errorf("no error at item alt (htmx=%v)", hdr != nil)
+		}
+		if v, _ := doc.Find(`input[name="block-g-i-` + b + `-alt"]`).Attr("aria-invalid"); v != "true" {
+			t.Errorf("item alt not marked invalid")
+		}
+		if got := formValues(doc.Find("#page-form")).Get("block-g-i-a-caption"); got != "Первое" {
+			t.Errorf("caption lost on error: %q", got)
+		}
+	}
+
+	form.Set("block-g-i-"+b+"-alt", "Маленькое")
+	if resp, _ := a.submit(edit, form, "publish", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("publish: status %d", resp.StatusCode)
+	}
+	captions := func() string {
+		var got []string
+		page(t, a.srv, "/galereya-foto", http.StatusOK).Find("#block-g .gallery-slide figcaption").Each(func(_ int, s *goquery.Selection) {
+			got = append(got, text(s))
+		})
+		return strings.Join(got, ",")
+	}
+	if got := captions(); got != "Второе,Первое" {
+		t.Errorf("slides = %s, want Второе,Первое", got)
+	}
+
+	// Изображение из галереи не удаляется из медиатеки: 409.
+	resp, _ := post(t, a.client, a.srv.URL+"/admin/media/"+small+"/delete", url.Values{"csrf_token": {a.token}}, nil)
+	if resp.StatusCode != http.StatusConflict {
+		t.Errorf("delete image used by gallery: status %d, want 409", resp.StatusCode)
+	}
+
+	// Убрать элемент и опубликовать — слайда больше нет.
+	form = apply(a.form(edit), "item-remove:g:"+b, nil)
+	if resp, _ := a.submit(edit, form, "publish", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("publish after remove: status %d", resp.StatusCode)
+	}
+	if got := captions(); got != "Первое" {
+		t.Errorf("slides after remove = %s", got)
+	}
+
+	// Подделанные id элементов и действие над чужим блоком — 400.
+	for _, tc := range []struct {
+		name   string
+		form   url.Values
+		action string
+	}{
+		{"bad item id", url.Values{"title": {"x"}, "block": {"g"}, "block-g-type": {"gallery"}, "block-g-item": {"<b>"}}, "save"},
+		{"duplicate item", url.Values{"title": {"x"}, "block": {"g"}, "block-g-type": {"gallery"}, "block-g-item": {"a", "a"}}, "save"},
+		{"unknown item", a.form(edit), "item-up:g:zzz"},
+		{"unknown block", a.form(edit), "item-add:zzz"},
+	} {
+		if resp, _ := a.submit(edit, tc.form, tc.action, nil); resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("%s: status %d, want 400", tc.name, resp.StatusCode)
+		}
 	}
 }

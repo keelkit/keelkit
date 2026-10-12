@@ -31,13 +31,13 @@ type Block struct {
 	ID      string  // стабильный id: якорь на сайте (block-<ID>), имена полей формы, тесты
 	Type    string  // имя типа: Kinds, Name
 	Hidden  bool    // остаётся в данных и в админке, на сайт не выводится
-	Content Content // *Text, *Image, *ImageText, *Quote; *Unknown — тип, которого нет в коде
+	Content Content // *Text, *Image, *ImageText, *Quote, *Gallery; *Unknown — тип, которого нет в коде
 }
 
 // Content — содержимое блока одного типа. Методы неэкспортируемые: типы блоков живут только в этом пакете.
 type Content interface {
-	// readForm читает поля блока из формы: get(field) — значение поля block-<id>-<field>.
-	readForm(get func(field string) string)
+	// readForm читает поля блока из формы: f.Get(field) — значение поля block-<id>-<field>.
+	readForm(f fields)
 	// check нормализует поля и проверяет их; ошибки — поле → сообщение.
 	check(res Resolved) map[string]string
 	view(b Block, res Resolved) templ.Component
@@ -60,6 +60,7 @@ var Kinds = []Kind{
 	{Name: "image", Title: "Изображение", new: func() Content { return &Image{} }},
 	{Name: "image_text", Title: "Изображение с текстом", new: func() Content { return &ImageText{} }},
 	{Name: "quote", Title: "Цитата", new: func() Content { return &Quote{} }},
+	{Name: "gallery", Title: "Галерея", new: newGallery},
 }
 
 func kind(name string) (Kind, bool) {
@@ -157,6 +158,9 @@ func Unmarshal(s string) ([]Block, error) {
 			if err := json.Unmarshal(r, b.Content); err != nil {
 				return nil, fmt.Errorf("unmarshal block %d (%s): %w", i, h.Type, err)
 			}
+			if l, ok := b.Content.(itemList); ok {
+				l.fixItemIDs()
+			}
 		} else {
 			b.Content = &Unknown{Raw: string(r)}
 		}
@@ -172,7 +176,7 @@ func FieldName(id, field string) string { return "block-" + id + "-" + field }
 var ErrForm = errors.New("invalid blocks form")
 
 // Parse читает блоки из формы в порядке полей block (каждое — id блока). Поля блока: block-<id>-type,
-// block-<id>-hidden ("1" — скрыт) и поля его типа.
+// block-<id>-hidden ("1" — скрыт) и поля его типа; у блока со списком — ещё элементы (items.go).
 func Parse(form url.Values) ([]Block, error) {
 	ids := form["block"]
 	list := make([]Block, 0, len(ids))
@@ -191,16 +195,23 @@ func Parse(form url.Values) ([]Block, error) {
 		} else {
 			return nil, fmt.Errorf("%w: block %s: unknown type %q", ErrForm, id, typ)
 		}
-		b.Content.readForm(func(field string) string { return form.Get(FieldName(id, field)) })
+		b.Content.readForm(fields{form: form, id: id})
+		if l, ok := b.Content.(itemList); ok && !validItemIDs(l.itemIDs()) {
+			return nil, fmt.Errorf("%w: block %s: item ids", ErrForm, id)
+		}
 		list = append(list, b)
 	}
 	return list, nil
 }
 
 // Apply выполняет действие кнопки блока: "up:<id>", "down:<id>", "hide:<id>" (скрыть или показать),
-// "remove:<id>", "add:<тип>" (тип — из allow). Неизвестное действие — ok == false.
+// "remove:<id>", "add:<тип>" (тип — из allow); действия над элементами списка — "item-…" (items.go).
+// Неизвестное действие — ok == false. Входной список не меняется.
 func Apply(list []Block, action string, allow []string) ([]Block, bool) {
 	op, arg, _ := strings.Cut(action, ":")
+	if itemOp, ok := strings.CutPrefix(op, "item-"); ok {
+		return applyItemAction(list, itemOp, arg)
+	}
 	if op == "add" {
 		if !slices.Contains(allow, arg) {
 			return list, false

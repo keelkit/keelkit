@@ -23,7 +23,7 @@ type Text struct {
 	Body string `json:"body"`
 }
 
-func (t *Text) readForm(get func(string) string) { t.Body = get("body") }
+func (t *Text) readForm(f fields) { t.Body = f.Get("body") }
 
 func (t *Text) check(Resolved) map[string]string {
 	t.Body = normalizeNewlines(t.Body)
@@ -44,8 +44,8 @@ type Image struct {
 	Caption string `json:"caption"`
 }
 
-func (m *Image) readForm(get func(string) string) {
-	m.Image, m.Alt, m.Caption = get("image"), get("alt"), get("caption")
+func (m *Image) readForm(f fields) {
+	m.Image, m.Alt, m.Caption = f.Get("image"), f.Get("alt"), f.Get("caption")
 }
 
 func (m *Image) check(res Resolved) map[string]string {
@@ -62,10 +62,11 @@ func (m *Image) imageIDs() []string                         { return []string{m.
 func (m *Image) plainText() []string                        { return []string{m.Caption} }
 
 // ImageText — блок image_text: изображение и Markdown рядом. Position: "right" — картинка справа,
-// иначе (в том числе пусто в старых данных) — слева.
+// иначе (в том числе пусто в старых данных) — слева. Подпись под картинкой необязательна (в старых данных её нет).
 type ImageText struct {
 	Image    string `json:"image"`
 	Alt      string `json:"alt"`
+	Caption  string `json:"caption"`
 	Body     string `json:"body"`
 	Position string `json:"position"`
 }
@@ -76,13 +77,16 @@ const (
 	PositionRight = "right"
 )
 
-func (m *ImageText) readForm(get func(string) string) {
-	m.Image, m.Alt, m.Body, m.Position = get("image"), get("alt"), get("body"), get("position")
+func (m *ImageText) readForm(f fields) {
+	m.Image, m.Alt, m.Caption = f.Get("image"), f.Get("alt"), f.Get("caption")
+	m.Body, m.Position = f.Get("body"), f.Get("position")
 }
 
 func (m *ImageText) check(res Resolved) map[string]string {
 	errs := map[string]string{}
 	checkImage(errs, &m.Image, &m.Alt, res)
+	m.Caption = strings.TrimSpace(m.Caption)
+	checkShort(errs, "caption", m.Caption, "Подпись")
 	m.Body = normalizeNewlines(m.Body)
 	checkMarkdown(errs, "body", m.Body, true)
 	if m.Position != PositionRight {
@@ -98,7 +102,9 @@ func (m *ImageText) view(b Block, res Resolved) templ.Component {
 }
 func (m *ImageText) form(b Block, e FormEnv) templ.Component { return imageTextForm(b, m, e) }
 func (m *ImageText) imageIDs() []string                      { return []string{m.Image} }
-func (m *ImageText) plainText() []string                     { return []string{richtext.PlainText(m.Body)} }
+func (m *ImageText) plainText() []string {
+	return []string{m.Caption, richtext.PlainText(m.Body)}
+}
 
 // Quote — блок quote: цитата и необязательный автор.
 type Quote struct {
@@ -106,7 +112,7 @@ type Quote struct {
 	Author string `json:"author"`
 }
 
-func (q *Quote) readForm(get func(string) string) { q.Text, q.Author = get("text"), get("author") }
+func (q *Quote) readForm(f fields) { q.Text, q.Author = f.Get("text"), f.Get("author") }
 
 func (q *Quote) check(Resolved) map[string]string {
 	errs := map[string]string{}
@@ -127,6 +133,86 @@ func (q *Quote) form(b Block, e FormEnv) templ.Component  { return quoteForm(b, 
 func (q *Quote) imageIDs() []string                       { return nil }
 func (q *Quote) plainText() []string                      { return []string{q.Text, q.Author} }
 
+// Gallery — блок gallery: несколько изображений по порядку (на сайте — лента с прокруткой). Образец блока
+// со списком элементов (items.go): элементы с id, форма и действия над ними — как у блоков.
+type Gallery struct {
+	Items []GalleryItem `json:"items"`
+}
+
+// GalleryItem — изображение галереи: alt обязателен, подпись — нет.
+type GalleryItem struct {
+	ID      string `json:"id"`
+	Image   string `json:"image"`
+	Alt     string `json:"alt"`
+	Caption string `json:"caption"`
+}
+
+// newGallery — новая галерея сразу с одним пустым элементом: форма показывает, что заполнять.
+func newGallery() Content { return &Gallery{Items: []GalleryItem{{ID: NewID()}}} }
+
+func (g *Gallery) readForm(f fields) {
+	g.Items = nil
+	for _, id := range f.All("item") {
+		g.Items = append(g.Items, GalleryItem{
+			ID: id, Image: f.item(id, "image"), Alt: f.item(id, "alt"), Caption: f.item(id, "caption"),
+		})
+	}
+}
+
+func (g *Gallery) check(res Resolved) map[string]string {
+	errs := map[string]string{}
+	switch {
+	case len(g.Items) == 0:
+		errs["items"] = "Добавьте изображение или удалите блок."
+	case len(g.Items) > MaxItems:
+		errs["items"] = fmt.Sprintf("Изображений больше %d: разделите галерею на две.", MaxItems)
+	}
+	for i := range g.Items {
+		it := &g.Items[i]
+		e := map[string]string{}
+		checkImage(e, &it.Image, &it.Alt, res)
+		it.Caption = strings.TrimSpace(it.Caption)
+		checkShort(e, "caption", it.Caption, "Подпись")
+		prefixErrors(errs, e, it.ID)
+	}
+	return errs
+}
+
+func (g *Gallery) view(b Block, res Resolved) templ.Component { return galleryView(b, g, res) }
+func (g *Gallery) form(b Block, e FormEnv) templ.Component    { return galleryForm(b, g, e) }
+
+func (g *Gallery) imageIDs() []string {
+	ids := make([]string, 0, len(g.Items))
+	for _, it := range g.Items {
+		ids = append(ids, it.Image)
+	}
+	return ids
+}
+
+func (g *Gallery) plainText() []string {
+	var out []string
+	for _, it := range g.Items {
+		out = append(out, it.Caption)
+	}
+	return out
+}
+
+func (g *Gallery) itemIDs() []string {
+	ids := make([]string, 0, len(g.Items))
+	for _, it := range g.Items {
+		ids = append(ids, it.ID)
+	}
+	return ids
+}
+
+func (g *Gallery) fixItemIDs() { fixIDs(g.Items, func(it *GalleryItem) *string { return &it.ID }) }
+
+func (g *Gallery) applyItem(op, item string) (Content, bool) {
+	items, ok := applyTo(g.Items, func(it GalleryItem) string { return it.ID }, op, item,
+		func() GalleryItem { return GalleryItem{ID: NewID()} })
+	return &Gallery{Items: items}, ok
+}
+
 // Unknown — блок типа, которого нет в коде (тип удалили или данные из более новой версии сайта).
 // Сохраняется как есть (Raw — исходный JSON-объект), на сайт не выводится, в админке его можно только
 // переставить, скрыть или удалить.
@@ -136,7 +222,7 @@ type Unknown struct {
 
 func (u *Unknown) MarshalJSON() ([]byte, error) { return []byte(u.Raw), nil }
 
-func (u *Unknown) readForm(get func(string) string) { u.Raw = get("raw") }
+func (u *Unknown) readForm(f fields) { u.Raw = f.Get("raw") }
 
 func (u *Unknown) check(Resolved) map[string]string {
 	var m map[string]json.RawMessage

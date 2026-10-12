@@ -130,7 +130,7 @@ type seedPage struct {
 }
 
 // seedPages — опубликованные страницы в порядке меню. «О проекте» — все типы блоков (text, image, image_text,
-// quote) и Markdown (таблица, код, ссылки); «Контакты» проверяет санитайзер: скрипт, обработчик события
+// quote, gallery) и Markdown (таблица, код, ссылки); «Контакты» проверяет санитайзер: скрипт, обработчик события
 // и javascript:-ссылка не должны попасть в HTML. imgs — id изображений из seedImages по имени файла:
 // без них блоки с изображениями пропускаются.
 func seedPages(imgs map[string]string) []seedPage {
@@ -154,7 +154,7 @@ func seedPages(imgs map[string]string) []seedPage {
 	}
 	if id := imgs["transparent.png"]; id != "" {
 		about = append(about, blocks.Block{ID: "about-side", Type: "image_text", Content: &blocks.ImageText{
-			Image: id, Alt: "Полупрозрачный рисунок", Position: blocks.PositionRight,
+			Image: id, Alt: "Полупрозрачный рисунок", Caption: "PNG с прозрачностью", Position: blocks.PositionRight,
 			Body: `## Как запустить
 
 ` + "```sh" + `
@@ -180,6 +180,9 @@ func (h *Handler) Show(w http.ResponseWriter, r *http.Request) {
 			Text: "Писать код дёшево, проверять дорого.", Author: "Принципы Keelkit",
 		}},
 	)
+	if g := seedGallery(imgs); g != nil {
+		about = append(about, blocks.Block{ID: "about-gallery", Type: "gallery", Content: g})
+	}
 	return []seedPage{
 		{title: "Добро пожаловать", slug: pages.HomeSlug, blocks: []blocks.Block{textBlock("home-intro", `Это эталонный сайт **Keelkit** — образец, по которому собираются все сайты на общих модулях.
 
@@ -201,6 +204,26 @@ func (h *Handler) Show(w http.ResponseWriter, r *http.Request) {
 [Опасная ссылка](javascript:alert(3))
 `)}},
 	}
+}
+
+// seedGallery — галерея из изображений seed (блок со списком элементов); без изображений — nil.
+// small.jpg в seed нигде не используется: на нём тесты проверяют удаление свободного изображения.
+func seedGallery(imgs map[string]string) *blocks.Gallery {
+	items := []blocks.GalleryItem{
+		{ID: "photo", Image: imgs["photo.jpg"], Alt: "Тестовая фотография", Caption: "Фото на все ширины профиля"},
+		{ID: "rotated", Image: imgs["orientation-6.webp"], Alt: "Снимок, повёрнутый по EXIF", Caption: "WebP: ориентация из EXIF применена"},
+		{ID: "transparent", Image: imgs["transparent.png"], Alt: "Полупрозрачный рисунок"},
+	}
+	g := &blocks.Gallery{}
+	for _, it := range items {
+		if it.Image != "" {
+			g.Items = append(g.Items, it)
+		}
+	}
+	if len(g.Items) == 0 {
+		return nil
+	}
+	return g
 }
 
 // textBlock — блок text для seed. id — читаемые и стабильные: по ним e2e находит блоки (block-<id>).

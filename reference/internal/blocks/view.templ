@@ -17,6 +17,8 @@ import (
 const (
 	sizesFull = "(min-width: 46rem) 44rem, calc(100vw - 2rem)"
 	sizesHalf = "(min-width: 46rem) 21rem, calc(100vw - 2rem)"
+	// sizesSlide — слайд галереи: 85% колонки, чтобы был виден край следующего (.gallery-track в style.css).
+	sizesSlide = "(min-width: 46rem) 37.5rem, 85vw"
 )
 
 // View — блоки на сайте по порядку; скрытые и неизвестные не выводятся. Якорь блока — id="block-<ID>".
@@ -52,13 +54,39 @@ templ imageTextView(b Block, m *ImageText, img *images.Image) {
 		if img == nil {
 			@missingImage(b, m.Image)
 		} else {
-			<div class="block-image-text-media">
+			<figure class="block-image-text-media">
 				@web.Picture(img, m.Alt, sizesHalf)
-			</div>
+				if m.Caption != "" {
+					<figcaption>{ m.Caption }</figcaption>
+				}
+			</figure>
 		}
 		<div class="block-image-text-body">
 			@markdown(m.Body)
 		</div>
+	</div>
+}
+
+// galleryView — галерея: лента слайдов с прокруткой и привязкой (CSS scroll-snap, без JavaScript).
+// Лента получает фокус с клавиатуры, чтобы её можно было прокрутить стрелками.
+templ galleryView(b Block, g *Gallery, res Resolved) {
+	<div class="block block-gallery" id={ "block-" + b.ID }>
+		<ul class="gallery-track" tabindex="0" aria-label="Галерея">
+			for _, it := range g.Items {
+				if img := res[it.Image]; img != nil {
+					<li class="gallery-slide">
+						<figure>
+							@web.Picture(img, it.Alt, sizesSlide)
+							if it.Caption != "" {
+								<figcaption>{ it.Caption }</figcaption>
+							}
+						</figure>
+					</li>
+				} else {
+					@missingImage(b, it.Image)
+				}
+			}
+		</ul>
 	</div>
 }
 

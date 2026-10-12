@@ -14,8 +14,11 @@ func TestMarshalRoundTrip(t *testing.T) {
 	list := []Block{
 		{ID: "t1", Type: "text", Content: &Text{Body: "Привет, **мир**"}},
 		{ID: "i1", Type: "image", Hidden: true, Content: &Image{Image: "img1", Alt: "Кот", Caption: "Подпись"}},
-		{ID: "it1", Type: "image_text", Content: &ImageText{Image: "img2", Alt: "Пёс", Body: "Текст", Position: PositionRight}},
+		{ID: "it1", Type: "image_text", Content: &ImageText{Image: "img2", Alt: "Пёс", Caption: "Подпись", Body: "Текст", Position: PositionRight}},
 		{ID: "q1", Type: "quote", Content: &Quote{Text: "Писать код дёшево", Author: "Keelkit"}},
+		{ID: "g1", Type: "gallery", Content: &Gallery{Items: []GalleryItem{
+			{ID: "x", Image: "img1", Alt: "Кот"}, {ID: "y", Image: "img2", Alt: "Пёс", Caption: "Подпись"},
+		}}},
 	}
 	s, err := Marshal(list)
 	if err != nil {
@@ -43,7 +46,7 @@ func TestUnmarshalOldJSON(t *testing.T) {
 		{"type":"text","body":"без id"},
 		{"id":"a1","type":"image_text","image":"img","alt":"x","body":"y"},
 		{"id":"a1","type":"quote","text":"повтор id"},
-		{"id":"u1","type":"gallery","images":["i1","i2"],"hidden":true}
+		{"id":"u1","type":"carousel","images":["i1","i2"],"hidden":true}
 	]`
 	list, err := Unmarshal(old)
 	if err != nil {
@@ -105,6 +108,7 @@ func TestParseAndValidate(t *testing.T) {
 		"block-b4-alt":       {"Описание"},
 		"block-b4-body":      {"Текст"},
 		"block-b4-position":  {"right"},
+		"block-b4-caption":   {"  Подпись  "},
 		"block-zz-type":      {"text"}, // нет в списке block — не блок
 		"block-b3-unrelated": {"x"},
 	}
@@ -131,8 +135,8 @@ func TestParseAndValidate(t *testing.T) {
 	if got := list[1].Content.(*Text).Body; got != "строка\nвторая" {
 		t.Errorf("CRLF not normalized: %q", got)
 	}
-	if !list[3].Content.(*ImageText).right() {
-		t.Error("position right lost")
+	if it := list[3].Content.(*ImageText); !it.right() || it.Caption != "Подпись" {
+		t.Errorf("image_text: position right or caption lost: %+v", it)
 	}
 }
 
@@ -200,14 +204,14 @@ func TestImageIDsAndPlainText(t *testing.T) {
 	list := []Block{
 		{ID: "a", Type: "text", Content: &Text{Body: "Первый **абзац**"}},
 		{ID: "b", Type: "image", Hidden: true, Content: &Image{Image: "i1", Caption: "скрытая подпись"}},
-		{ID: "c", Type: "image_text", Content: &ImageText{Image: "i2", Body: "Рядом"}},
+		{ID: "c", Type: "image_text", Content: &ImageText{Image: "i2", Caption: "Под фото", Body: "Рядом"}},
 		{ID: "d", Type: "image", Content: &Image{Image: "i1", Caption: "Подпись"}},
 		{ID: "e", Type: "quote", Content: &Quote{Text: "Цитата", Author: "Автор"}},
 	}
 	if got := strings.Join(ImageIDs(list), ","); got != "i1,i2" {
 		t.Errorf("ImageIDs = %s, want i1,i2 (hidden blocks included, no duplicates)", got)
 	}
-	if got, want := PlainText(list), "Первый абзац Рядом Подпись Цитата Автор"; got != want {
+	if got, want := PlainText(list), "Первый абзац Под фото Рядом Подпись Цитата Автор"; got != want {
 		t.Errorf("PlainText = %q, want %q", got, want)
 	}
 	if got := Summary(list, 15); got != "Первый абзац…" {
@@ -253,5 +257,140 @@ func TestKindsHaveTitles(t *testing.T) {
 		if err := View([]Block{b}, nil).Render(context.Background(), &buf); err != nil {
 			t.Errorf("view %s: %v", k.Name, err)
 		}
+	}
+}
+
+func TestGalleryParseAndValidate(t *testing.T) {
+	form := url.Values{
+		"block":               {"g"},
+		"block-g-type":        {"gallery"},
+		"block-g-item":        {"b", "a", "c"},
+		"block-g-i-a-image":   {"img"},
+		"block-g-i-a-alt":     {"Первый"},
+		"block-g-i-b-image":   {"img"},
+		"block-g-i-b-alt":     {"  Второй  "},
+		"block-g-i-b-caption": {" Подпись "},
+		"block-g-i-c-image":   {"missing"},
+		"block-g-i-z-image":   {"img"}, // нет в списке item — не элемент
+	}
+	list, err := Parse(form)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := list[0].Content.(*Gallery)
+	if got := strings.Join(g.itemIDs(), ","); got != "b,a,c" {
+		t.Fatalf("item order = %s, want b,a,c", got)
+	}
+	errs := Validate(list, Resolved{"img": &images.Image{ID: "img"}})
+	want := []string{"block-g-i-c-image", "block-g-i-c-alt"}
+	for _, k := range want {
+		if errs[k] == "" {
+			t.Errorf("no error for %s: %v", k, errs)
+		}
+	}
+	if len(errs) != len(want) {
+		t.Errorf("errors = %v, want only %v", errs, want)
+	}
+	if it := g.Items[0]; it.Alt != "Второй" || it.Caption != "Подпись" {
+		t.Errorf("item not normalized: %+v", it)
+	}
+	if got := strings.Join(ImageIDs(list), ","); got != "img,missing" {
+		t.Errorf("ImageIDs = %s", got)
+	}
+
+	empty := []Block{{ID: "e", Type: "gallery", Content: &Gallery{}}}
+	if errs := Validate(empty, nil); errs["block-e-items"] == "" {
+		t.Errorf("empty gallery: %v", errs)
+	}
+}
+
+func TestGalleryRejectsTamperedItems(t *testing.T) {
+	bad := []url.Values{
+		{"block": {"g"}, "block-g-type": {"gallery"}, "block-g-item": {"Bad"}},
+		{"block": {"g"}, "block-g-type": {"gallery"}, "block-g-item": {"a", "a"}},
+	}
+	for _, f := range bad {
+		if _, err := Parse(f); err == nil {
+			t.Errorf("Parse(%v): want error", f)
+		}
+	}
+}
+
+// Сохранённые элементы без id или с повтором получают новые id, как блоки.
+func TestGalleryUnmarshalFixesItemIDs(t *testing.T) {
+	list, err := Unmarshal(`[{"id":"g","type":"gallery","items":[{"image":"a"},{"id":"x","image":"b"},{"id":"x","image":"c"}]}]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := list[0].Content.(*Gallery).itemIDs()
+	if !validItemIDs(ids) || ids[1] != "x" {
+		t.Errorf("item ids = %v", ids)
+	}
+}
+
+func TestApplyItems(t *testing.T) {
+	list := []Block{
+		{ID: "t", Type: "text", Content: &Text{}},
+		{ID: "g", Type: "gallery", Content: &Gallery{Items: []GalleryItem{{ID: "a"}, {ID: "b"}, {ID: "c"}}}},
+	}
+	items := func(l []Block) string { return strings.Join(l[1].Content.(*Gallery).itemIDs(), ",") }
+	tests := []struct {
+		action, want string
+		ok           bool
+	}{
+		{"item-up:g:b", "b,a,c", true},
+		{"item-up:g:a", "a,b,c", true},
+		{"item-down:g:b", "a,c,b", true},
+		{"item-down:g:c", "a,b,c", true},
+		{"item-remove:g:b", "a,c", true},
+		{"item-up:g:zzz", "a,b,c", false},
+		{"item-up:nope:a", "a,b,c", false},
+		{"item-up:t:a", "a,b,c", false},  // у текста нет элементов
+		{"item-add:g:a", "a,b,c", false}, // add — без элемента
+		{"item-up:g", "a,b,c", false},    // up — с элементом
+		{"item-jump:g:a", "a,b,c", false},
+	}
+	for _, tt := range tests {
+		got, ok := Apply(list, tt.action, nil)
+		if items(got) != tt.want || ok != tt.ok {
+			t.Errorf("Apply(%s) = %s, %v; want %s, %v", tt.action, items(got), ok, tt.want, tt.ok)
+		}
+	}
+	if items(list) != "a,b,c" {
+		t.Errorf("Apply changed its input: %s", items(list))
+	}
+	got, ok := Apply(list, "item-add:g", nil)
+	ids := got[1].Content.(*Gallery).itemIDs()
+	if !ok || len(ids) != 4 || !validItemIDs(ids) {
+		t.Errorf("add: %v, %v", ids, ok)
+	}
+
+	full := &Gallery{}
+	for range MaxItems {
+		full.Items = append(full.Items, GalleryItem{ID: NewID()})
+	}
+	got, ok = Apply([]Block{{ID: "g", Type: "gallery", Content: full}}, "item-add:g", nil)
+	if !ok || len(got[0].Content.(*Gallery).Items) != MaxItems {
+		t.Errorf("add beyond MaxItems: %d items", len(got[0].Content.(*Gallery).Items))
+	}
+}
+
+func TestGalleryView(t *testing.T) {
+	list := []Block{{ID: "g", Type: "gallery", Content: &Gallery{Items: []GalleryItem{
+		{ID: "a", Image: "i2", Alt: "x", Caption: "Второе"},
+		{ID: "b", Image: "gone", Alt: "x", Caption: "Нет в медиатеке"},
+		{ID: "c", Image: "i1", Alt: "x", Caption: "Первое"},
+	}}}}
+	res := Resolved{"i1": &images.Image{ID: "i1"}, "i2": &images.Image{ID: "i2"}}
+	var buf bytes.Buffer
+	if err := View(list, res).Render(context.Background(), &buf); err != nil {
+		t.Fatal(err)
+	}
+	html := buf.String()
+	if strings.Count(html, `class="gallery-slide"`) != 2 || strings.Contains(html, "Нет в медиатеке") {
+		t.Errorf("slides (missing image must be skipped):\n%s", html)
+	}
+	if i, j := strings.Index(html, "<figcaption>Второе</figcaption>"), strings.Index(html, "<figcaption>Первое</figcaption>"); i < 0 || j < i {
+		t.Errorf("slide order:\n%s", html)
 	}
 }

@@ -26,7 +26,7 @@ const AdminPath = "/admin/pages"
 
 // BodyBlocks — блоки поля body (site.yaml: pages.body.allow), в порядке кнопок «Добавить блок».
 // Что каждый из них есть в internal/blocks и совпадает с site.yaml, проверяет тест.
-var BodyBlocks = []string{"text", "image", "image_text", "quote"}
+var BodyBlocks = []string{"text", "image", "image_text", "quote", "gallery"}
 
 // Виды копии содержимого (page_contents.kind).
 const (

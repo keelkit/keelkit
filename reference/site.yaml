@@ -12,7 +12,7 @@ content:
       title: { type: string, required: true }
       slug:  { type: slug, required: true }
       # Набор блоков — дизайн сайта: поля блоков описаны в internal/blocks, здесь — только имена.
-      body:  { type: blocks, allow: [text, image, image_text, quote] }
+      body:  { type: blocks, allow: [text, image, image_text, quote, gallery] }
     features: [draft, sitemap]
   # Посты блога: черновик-копия, как у pages (feature draft); publish_date — пост виден на сайте с этого момента.
   posts:
@@ -21,7 +21,7 @@ content:
       slug:     { type: slug, required: true }
       cover:    { type: image }
       category: { type: ref, to: categories }
-      body:     { type: blocks, allow: [text, image, image_text, quote] }
+      body:     { type: blocks, allow: [text, image, image_text, quote, gallery] }
     features: [publish_date, draft, rss, sitemap]
   categories:
     fields:

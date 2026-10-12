@@ -626,6 +626,10 @@ figure.block {
   align-items: start;
 }
 
+.block-image-text-media {
+  margin: 0;
+}
+
 .block-image-text-media img {
   display: block;
   border-radius: var(--radius);
@@ -639,6 +643,38 @@ figure.block {
   .block-image-right .block-image-text-media {
     order: 2;
   }
+}
+
+/* Галерея: лента слайдов с прокруткой и привязкой; слайд — 85% колонки, чтобы был виден край следующего
+   (sizesSlide в view.templ). Один слайд — во всю колонку. */
+.gallery-track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 85%;
+  gap: 1rem;
+  margin: 0;
+  padding: 0 0 0.75rem;
+  list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+}
+
+.gallery-track:has(> :only-child) {
+  grid-auto-columns: 100%;
+}
+
+.gallery-slide {
+  scroll-snap-align: start;
+}
+
+.gallery-slide figure {
+  margin: 0;
+}
+
+.gallery-slide img {
+  display: block;
+  border-radius: var(--radius);
 }
 
 .block-quote blockquote {
@@ -721,6 +757,29 @@ figure.block {
 
 .form .link-button.danger-link {
   color: #b42318;
+}
+
+/* Элементы списка внутри блока (галерея): нумерованные карточки с кнопками, как у блоков. */
+.block-items {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.block-item {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.block-head h4 {
+  margin: 0;
+  font-size: 0.95rem;
 }
 
 .block-add {

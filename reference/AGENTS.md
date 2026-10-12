@@ -262,7 +262,8 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 Поле `{ type: blocks, allow: [...] }` из `site.yaml` — JSON-массив в колонке (`CHECK (json_valid(…) AND json_type(…) = 'array')`).
 Общие поля блока: `id` (стабильный: якорь `block-<id>` на сайте, имена полей формы `block-<id>-<поле>`), `type`, `hidden`
 (остаётся в данных и в админке, на сайт не выводится). Типы: `text` (Markdown), `image` (изображение, alt обязателен,
-подпись), `image_text` (изображение, alt, Markdown, `position` left/right), `quote` (цитата, автор).
+подпись), `image_text` (изображение, alt, подпись, Markdown, `position` left/right), `quote` (цитата, автор),
+`gallery` (список изображений с alt и подписью; на сайте — лента с прокруткой на CSS scroll-snap, без JavaScript).
 - Чтение (`blocks.Unmarshal`): нет поля — нулевое значение (смысл по умолчанию задаёт тип); нет или повторный id — новый;
   неизвестный тип — `*blocks.Unknown`: на сайт не выводится (предупреждение в лог), в админке сохраняется как есть.
   Ломающее изменение полей блока — миграция данных по строгим правилам.
@@ -271,6 +272,12 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
   возвращает форму изменённой (200, плашка «Изменения ещё не сохранены»), ничего не сохраняя. Без JavaScript — обычный
   POST всей формы, с htmx — подмена формы. «Добавить блок» через htmx запрашивает только фрагмент блока
   (`hx-post …/block?type=`, `hx-params="none"`, `hx-swap="beforeend"`); смена изображения перерисовывает блок (`?id=`).
+- Списки элементов внутри блока (`items.go`, образец — `gallery`): у элемента стабильный id (как у блока; нет или
+  повторный в старых данных — новый), порядок — поля `block-<id>-item`, поля элемента — `block-<id>-i-<элемент>-<поле>`
+  (`blocks.ItemField`). Кнопки — те же submit с `action`: `item-up:<блок>:<элемент>`, `item-down:…`, `item-remove:…`,
+  `item-add:<блок>` (не больше `blocks.MaxItems`). Ошибка — у поля элемента (`#block-<id>-i-<элемент>-<поле>-error`);
+  испорченные id элементов в форме — 400. Тип со списком реализует `itemList` (`itemIDs`, `fixItemIDs`, `applyItem`)
+  через общие `applyTo` и `fixIDs`; картинки элементов — в `imageIDs`, поэтому они попадают в `<type>_images`.
 - Проверка — `blocks.Validate` (все блоки, и скрытые); ошибки — у поля блока (`#block-<id>-<поле>-error`), 422 как у
   обычных полей. Изображения загружает `blocks.Resolve` (интерфейс `blocks.Images` — `Get` модуля).
 - `blocks.ImageIDs` — для `<type>_images` (скрытые блоки тоже держат изображение), `blocks.PlainText` и `blocks.Summary` —
@@ -279,7 +286,8 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
   поле `blocks` из `site.yaml` со списком своего типа (новое поле `blocks` — запись в карте `code` теста).
 
 Как добавить тип блока: запись в `blocks.Kinds`; структура с JSON-тегами и методами `Content` в `types.go`
-(`readForm`, `check` — нормализация и ошибки, `view`, `form`, `imageIDs`, `plainText`); templ-вывод в `view.templ`
+(`readForm`, `check` — нормализация и ошибки, `view`, `form`, `imageIDs`, `plainText`; со списком элементов — ещё
+методы `itemList`, см. `Gallery`); templ-вывод в `view.templ`
 (корень — элемент с классом `block block-<тип>` и `id="block-<id>"`) и фрагмент формы в `form.templ`; стили; тест в
 `blocks_test.go`; имя — в `allow` нужного поля `site.yaml` и в списке блоков типа контента.
 
