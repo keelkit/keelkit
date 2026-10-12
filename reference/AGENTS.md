@@ -168,7 +168,9 @@
 - Статика — `static/` (пакет `static`, embed). В шаблоне ссылка только через `static.Path("имя")`: она добавляет `?v=<хеш>`,
   а неизвестное имя паникует (ловится e2e). Вендоренные библиотеки и шрифты — с версией в имени файла, без CDN
   (правило — в корневом `AGENTS.md`, «Стек сайта»). Шрифтов в эталоне нет: системный стек в `style.css`.
-- Стили — `static/style.css`, чистый CSS с переменными; тёмная тема по `prefers-color-scheme`.
+- Стили — `static/style.css`, чистый CSS с переменными; тёмная тема по `prefers-color-scheme`. Админка дополнительно
+  подключает `static/admin.css` (после `style.css`, правила внутри `body.admin`): своя палитра, верхняя панель, боковое
+  меню, формы и таблицы — карточками.
 
 ## Админка и авторизация
 
@@ -190,7 +192,8 @@
 - `next` после входа — только путь внутри `/admin` (`safeNext`), иначе дашборд.
 - Пакет не знает о типах контента: счётчики дашборда передаёт `adminCounters` в `cmd/site/server.go` через `admin.Options.Counters`
   (`Counter.URL` — ссылка на раздел), пункты меню — `admin.Options.Sections`. Новый тип контента добавляет туда счётчик и раздел.
-- Для разделов типов контента пакет экспортирует: `admin.Layout(title)` (оболочка с меню, текущий пункт — по префиксу пути),
+- Для разделов типов контента пакет экспортирует: `admin.Layout(title)` (оболочка: верхняя панель и боковое меню `.site-nav`,
+  текущий пункт — по префиксу пути; иконка пункта — `Section.Icon`: `pages`, `posts`, `tags`, `image`, иначе папка),
   `admin.CSRFInput()` (скрытое поле токена), `admin.NotFound`, `admin.ServerError`, `admin.Redirect` (303 или
   `HX-Redirect` после успешного POST), `admin.IsHTMX`.
 - htmx в админке: `<meta name="htmx-config">` разрешает подмену разметки ответом 422 (по умолчанию htmx не подменяет 4xx).
@@ -428,7 +431,7 @@ internal/seofields/         # SEO записи вручную: поля, про�
 internal/slug/              # slug: Make (транслитерация), Valid
 internal/settings/          # site_settings: queries.sql и код sqlc
 internal/web/               # layout (Layout, LayoutMeta, Meta), страницы ошибок, рендер, Picture
-static/                     # CSS, htmx, editor.js (панель Markdown в админке), иконка + static.go (embed, Path, Handler)
+static/                     # CSS (style.css, admin.css), htmx, editor.js (панель Markdown в админке), иконка + static.go (embed, Path, Handler)
 site.yaml, sqlc.yaml        # спецификация сайта, конфиг sqlc
 ```
 

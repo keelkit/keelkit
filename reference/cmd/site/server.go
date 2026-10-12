@@ -47,10 +47,10 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 		SecureCookies: cfg.CookieSecure,
 		Counters:      adminCounters(db),
 		Sections: []admin.Section{
-			{Title: "Страницы", URL: pages.AdminPath},
-			{Title: "Посты", URL: posts.AdminPath},
-			{Title: "Категории", URL: categories.AdminPath},
-			{Title: "Медиатека", URL: media.AdminPath},
+			{Title: "Страницы", URL: pages.AdminPath, Icon: "pages"},
+			{Title: "Посты", URL: posts.AdminPath, Icon: "posts"},
+			{Title: "Категории", URL: categories.AdminPath, Icon: "tags"},
+			{Title: "Медиатека", URL: media.AdminPath, Icon: "image"},
 		},
 	})
 	crossOrigin := http.NewCrossOriginProtection()

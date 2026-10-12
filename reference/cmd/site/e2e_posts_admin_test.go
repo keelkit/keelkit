@@ -72,7 +72,7 @@ func TestE2EAdminPostPublish(t *testing.T) {
 	// Раздел в меню и счётчик на дашборде; статусы seed в списке.
 	_, body := a.get("/admin")
 	doc := parse(t, body)
-	if href, _ := doc.Find(`.admin-header a:contains("Посты")`).Attr("href"); href != "/admin/posts" {
+	if href, _ := doc.Find(`.site-nav a:contains("Посты")`).Attr("href"); href != "/admin/posts" {
 		t.Errorf("menu link = %q", href)
 	}
 	if got := text(doc.Find(`.counter:contains("Постов")`)); got != "Постов: 15" {

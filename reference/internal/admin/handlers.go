@@ -43,9 +43,11 @@ type Counter struct {
 }
 
 // Section — раздел админки в меню: «Страницы» → /admin/pages. Пункт подсвечивается на URL и вложенных путях.
+// Icon — иконка пункта: "pages", "posts", "tags", "image"; пусто или неизвестное имя — общая иконка папки.
 type Section struct {
 	Title string
 	URL   string
+	Icon  string
 }
 
 // Options — настройки админки.

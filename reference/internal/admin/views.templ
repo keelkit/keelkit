@@ -9,9 +9,10 @@ import (
 	"github.com/voffkin/keelkit/reference/static"
 )
 
-// Layout — оболочка страниц админки, в том числе разделов типов контента. Вошедшему пользователю — меню
-// (дашборд, разделы из Options.Sections, сайт) и кнопка «Выйти»; CSRF-токен сессии передаётся в htmx-запросы
-// заголовком через hx-headers. htmx-config разрешает подменять разметку ответом 422: так приходят ошибки валидации форм.
+// Layout — оболочка страниц админки, в том числе разделов типов контента. Вошедшему пользователю — верхняя панель
+// (ссылка на сайт, пользователь, «Выйти») и боковое меню (дашборд, разделы из Options.Sections); на узком экране
+// меню становится строкой под панелью. CSRF-токен сессии передаётся в htmx-запросы заголовком через hx-headers.
+// htmx-config разрешает подменять разметку ответом 422: так приходят ошибки валидации форм.
 templ Layout(title string) {
 	{{ site := web.SiteFrom(ctx) }}
 	{{ s, signedIn := sessionFrom(ctx) }}
@@ -25,6 +26,7 @@ templ Layout(title string) {
 			<title>{ title } — Админка — { site.Name }</title>
 			<link rel="icon" type="image/svg+xml" href={ static.Path("favicon.svg") }/>
 			<link rel="stylesheet" href={ static.Path("style.css") }/>
+			<link rel="stylesheet" href={ static.Path("admin.css") }/>
 			<meta name="htmx-config" content={ htmxConfig }/>
 			<script src={ static.Path("htmx-2.0.11.min.js") } defer></script>
 			<script src={ static.Path("editor.js") } defer></script>
@@ -36,31 +38,56 @@ templ Layout(title string) {
 			}
 		>
 			<header class="site-header admin-header">
-				<div class="container">
-					<a class="site-name" href={ templ.SafeURL(dashboardPath) }>{ site.Name } · Админка</a>
-					if signedIn {
-						<nav class="site-nav" aria-label="Меню админки">
-							<ul>
-								@navLink(dashboardPath, "Дашборд", path == dashboardPath)
-								for _, sec := range s.sections {
-									@navLink(sec.URL, sec.Title, path == sec.URL || strings.HasPrefix(path, sec.URL+"/"))
-								}
-								<li><a href="/">На сайт</a></li>
-								<li>
-									<form class="logout" method="post" action={ templ.SafeURL(logoutPath) }>
-										<input type="hidden" name={ csrfField } value={ s.csrf }/>
-										<span class="admin-user">{ s.user.Email }</span>
-										<button type="submit" class="link-button">Выйти</button>
-									</form>
-								</li>
-							</ul>
-						</nav>
-					}
-				</div>
+				<a class="site-name admin-brand" href={ templ.SafeURL(dashboardPath) }>
+					<span class="admin-logo" aria-hidden="true">{ initial(site.Name) }</span>
+					<span class="admin-brand-text">
+						<span class="admin-brand-name">{ site.Name }</span>
+						<span class="admin-brand-sub">Админка</span>
+					</span>
+				</a>
+				if signedIn {
+					<div class="admin-topbar">
+						<a class="admin-chip" href="/">
+							@icon("external")
+							<span>На сайт</span>
+						</a>
+						<form class="logout" method="post" action={ templ.SafeURL(logoutPath) }>
+							<input type="hidden" name={ csrfField } value={ s.csrf }/>
+							<span class="admin-avatar" aria-hidden="true">{ initial(s.user.Email) }</span>
+							<span class="admin-user">{ s.user.Email }</span>
+							<button type="submit" class="admin-chip">
+								@icon("logout")
+								<span>Выйти</span>
+							</button>
+						</form>
+					</div>
+				}
 			</header>
-			<main class="container">
-				{ children... }
-			</main>
+			if signedIn {
+				<div class="admin-shell">
+					<nav class="site-nav admin-sidebar" aria-label="Меню админки">
+						<p class="admin-nav-label">Главное</p>
+						<ul>
+							@navLink(dashboardPath, "Дашборд", "dashboard", path == dashboardPath)
+						</ul>
+						if len(s.sections) > 0 {
+							<p class="admin-nav-label">Контент</p>
+							<ul>
+								for _, sec := range s.sections {
+									@navLink(sec.URL, sec.Title, sec.Icon, path == sec.URL || strings.HasPrefix(path, sec.URL+"/"))
+								}
+							</ul>
+						}
+					</nav>
+					<main class="admin-main">
+						{ children... }
+					</main>
+				</div>
+			} else {
+				<main class="admin-main admin-guest">
+					{ children... }
+				</main>
+			}
 		</body>
 	</html>
 }
@@ -145,14 +172,51 @@ templ ErrorPage() {
 	}
 }
 
-templ navLink(url, title string, current bool) {
+templ navLink(url, title, iconName string, current bool) {
 	<li>
-		if current {
-			<a href={ templ.SafeURL(url) } aria-current="page">{ title }</a>
-		} else {
-			<a href={ templ.SafeURL(url) }>{ title }</a>
-		}
+		<a
+			href={ templ.SafeURL(url) }
+			if current {
+				aria-current="page"
+			}
+		>
+			@icon(iconName)
+			<span>{ title }</span>
+		</a>
 	</li>
+}
+
+// icon — иконка меню и кнопок панели: контурная, 24×24, цвет — currentColor. Неизвестное имя — папка.
+templ icon(name string) {
+	<svg class="icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		switch name {
+			case "dashboard":
+				<rect x="3" y="3" width="7" height="9" rx="1.5"></rect>
+				<rect x="14" y="3" width="7" height="5" rx="1.5"></rect>
+				<rect x="14" y="12" width="7" height="9" rx="1.5"></rect>
+				<rect x="3" y="16" width="7" height="5" rx="1.5"></rect>
+			case "pages":
+				<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path>
+				<path d="M14 3v5h5M9 13h6M9 17h6"></path>
+			case "posts":
+				<path d="M12 20h9"></path>
+				<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path>
+			case "tags":
+				<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path>
+				<circle cx="7.5" cy="7.5" r="1.5"></circle>
+			case "image":
+				<rect x="3" y="3" width="18" height="18" rx="2"></rect>
+				<circle cx="9" cy="9" r="2"></circle>
+				<path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"></path>
+			case "external":
+				<path d="M15 3h6v6M10 14 21 3"></path>
+				<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+			case "logout":
+				<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"></path>
+			default:
+				<path d="M4 20h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-8l-2-3H4a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1z"></path>
+		}
+	</svg>
 }
 
 // CSRFInput — скрытое поле с CSRF-токеном сессии для форм админки (только внутри RequireUser).
@@ -163,6 +227,14 @@ templ CSRFInput() {
 // htmxConfig — настройки htmx админки: ответ 422 (ошибки валидации) подменяет разметку, как 2xx;
 // остальные коды — по умолчанию htmx (204 не трогает страницу, 4xx/5xx — ошибка без подмены).
 const htmxConfig = `{"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"422","swap":true},{"code":"[45]..","swap":false,"error":true}]}`
+
+// initial — первая буква строки заглавной: знак сайта в панели и аватар пользователя.
+func initial(s string) string {
+	for _, r := range s {
+		return strings.ToUpper(string(r))
+	}
+	return ""
+}
 
 // csrfHeaders — значение hx-headers: JSON с CSRF-токеном.
 func csrfHeaders(token string) string {

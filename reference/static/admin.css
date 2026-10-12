@@ -1,0 +1,859 @@
+/* Оформление админки: подключается после style.css только в admin.Layout и переопределяет его правила внутри
+   body.admin. Оболочка — верхняя панель и боковое меню; формы, таблицы и счётчики — карточки на сером фоне.
+   Палитра: нейтральные холодные серые и глубокий бирюзовый акцент; тёмная тема — по prefers-color-scheme. */
+
+body.admin {
+  --page: #f3f5f8;
+  --card: #ffffff;
+  --bg: #ffffff;
+  --surface: #f6f8fa;
+  --text: #1b2430;
+  --muted: #667085;
+  --border: #e2e6eb;
+  --border-strong: #cfd5dd;
+  --accent: #0f766e;
+  --accent-hover: #0b5f58;
+  --accent-soft: #e5f4f2;
+  --accent-ink: #ffffff;
+  --danger: #c4320a;
+  --danger-hover: #9c2a0b;
+  --danger-soft: #fef1ec;
+  --warning: #a15c07;
+  --warning-soft: #fef6e7;
+  --success: #067647;
+  --success-soft: #ecfdf3;
+  --shadow: 0 1px 2px rgb(16 24 40 / 0.05);
+  --radius: 8px;
+  --radius-lg: 12px;
+  --header-h: 4rem;
+  --sidebar-w: 15.5rem;
+
+  display: block;
+  background: var(--page);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+@media (prefers-color-scheme: dark) {
+  body.admin {
+    --page: #0f1317;
+    --card: #161b21;
+    --bg: #11161b;
+    --surface: #1c232a;
+    --text: #e6e9ed;
+    --muted: #98a2b0;
+    --border: #262e37;
+    --border-strong: #36404b;
+    --accent: #3cc4ac;
+    --accent-hover: #6ed7c4;
+    --accent-soft: rgb(60 196 172 / 0.12);
+    --accent-ink: #0b1f1c;
+    --danger: #f97066;
+    --danger-hover: #fda29b;
+    --danger-soft: rgb(249 112 102 / 0.1);
+    --warning: #fdb022;
+    --warning-soft: rgb(253 176 34 / 0.1);
+    --success: #47cd89;
+    --success-soft: rgb(71 205 137 / 0.1);
+    --shadow: none;
+  }
+}
+
+.admin .icon {
+  flex: none;
+}
+
+/* Верхняя панель */
+
+.admin .admin-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: var(--header-h);
+  padding: 0.5rem 1.5rem 0.5rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+.admin .admin-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  font-size: 1rem;
+}
+
+.admin-logo {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), #0e5a7e);
+  color: #fff;
+  font-weight: 700;
+}
+
+.admin-brand-text {
+  display: grid;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.admin-brand-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-brand-sub {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.admin-topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin .logout {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--border);
+}
+
+.admin-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.admin .admin-user {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.admin-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.admin-chip:hover {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Оболочка: боковое меню и содержимое */
+
+.admin-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  min-height: calc(100vh - var(--header-h));
+}
+
+.admin .admin-sidebar {
+  position: sticky;
+  top: var(--header-h);
+  align-self: start;
+  height: calc(100vh - var(--header-h));
+  overflow-y: auto;
+  padding: 1.25rem 0.875rem;
+  border-right: 1px solid var(--border);
+  background: var(--card);
+}
+
+.admin-nav-label {
+  margin: 0 0 0.4rem;
+  padding-inline: 0.75rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin .admin-sidebar ul {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0 0 1.25rem;
+}
+
+.admin .admin-sidebar a {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius);
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.admin .admin-sidebar a .icon {
+  color: var(--muted);
+}
+
+.admin .admin-sidebar a:hover {
+  background: var(--surface);
+  text-decoration: none;
+}
+
+.admin .admin-sidebar a[aria-current="page"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.admin .admin-sidebar a[aria-current="page"] .icon {
+  color: var(--accent);
+}
+
+.admin .admin-main {
+  width: 100%;
+  max-width: 78rem;
+  padding: 2rem 2.25rem 4rem;
+}
+
+.admin .admin-guest {
+  max-width: 28rem;
+  margin-inline: auto;
+  padding-top: 4rem;
+}
+
+@media (max-width: 56rem) {
+  .admin .admin-header {
+    padding-inline: 1rem;
+  }
+
+  .admin .admin-user {
+    display: none;
+  }
+
+  .admin-shell {
+    display: block;
+  }
+
+  .admin .admin-sidebar {
+    position: static;
+    display: flex;
+    height: auto;
+    overflow-x: auto;
+    padding: 0.5rem 0.75rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .admin-nav-label {
+    display: none;
+  }
+
+  .admin .admin-sidebar ul {
+    display: flex;
+    gap: 0.25rem;
+    margin: 0;
+  }
+
+  .admin .admin-sidebar a {
+    white-space: nowrap;
+  }
+
+  .admin .admin-main {
+    padding: 1.5rem 1rem 3rem;
+  }
+}
+
+@media (max-width: 30rem) {
+  .admin-brand-sub,
+  .admin-chip span {
+    display: none;
+  }
+}
+
+/* Заголовок страницы */
+
+.admin h1 {
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+}
+
+.admin h2 {
+  font-size: 1.2rem;
+}
+
+.admin .admin-title {
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin .admin-title h1 {
+  margin-right: auto;
+}
+
+.admin .admin-title > a:not(.button) {
+  font-size: 0.875rem;
+}
+
+.admin .breadcrumbs {
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.admin .breadcrumbs a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.admin .breadcrumbs a::before {
+  content: "← ";
+}
+
+.admin .breadcrumbs a:hover {
+  color: var(--accent);
+}
+
+/* Карточки: формы, таблицы, медиатека, дашборд */
+
+.admin .admin-main > .form,
+.admin .admin-main > form.form,
+.admin .table-wrap,
+.admin .login,
+.admin .danger-zone,
+.admin .media-preview,
+.admin .media-meta {
+  padding: 1.5rem 1.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.admin .admin-main > * + .form,
+.admin .admin-main > * + .danger-zone {
+  margin-top: 1.5rem;
+}
+
+.admin .login {
+  max-width: none;
+  padding: 2rem;
+}
+
+.admin .login h1 {
+  margin-bottom: 1.5rem;
+}
+
+.admin .login .form button {
+  justify-self: stretch;
+}
+
+.admin .form {
+  gap: 1.25rem;
+}
+
+.admin .form label {
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* Поля ввода */
+
+.admin .form input:not([type="checkbox"], [type="radio"], [type="file"]),
+.admin .form select,
+.admin .form textarea {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.9375rem;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.admin .form textarea {
+  font-size: 0.875rem;
+}
+
+.admin .form textarea.plain,
+.admin .block-form textarea.short {
+  font-size: 0.9375rem;
+}
+
+.admin .form input:hover,
+.admin .form select:hover,
+.admin .form textarea:hover {
+  border-color: var(--muted);
+}
+
+.admin .form input:focus,
+.admin .form select:focus,
+.admin .form textarea:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.admin .form input[type="checkbox"],
+.admin .form input[type="radio"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent);
+}
+
+.admin .form input[type="file"] {
+  padding: 0.5rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 0.875rem;
+}
+
+.admin .form input[type="file"]::file-selector-button {
+  margin-right: 0.75rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.admin .form [aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.admin .form [aria-invalid="true"]:focus {
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+
+.admin .field-hint {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.admin .field-error {
+  color: var(--danger);
+  font-size: 0.8125rem;
+}
+
+/* Кнопки */
+
+.admin .button,
+.admin .form button,
+.admin button.danger,
+.admin button.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.25;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+
+.admin .button,
+.admin .form button {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.admin .button:hover,
+.admin .form button:hover {
+  background: var(--accent-hover);
+  color: var(--accent-ink);
+}
+
+.admin button.secondary,
+.admin .form button.secondary {
+  border-color: var(--border-strong);
+  background: var(--card);
+  color: var(--text);
+}
+
+.admin button.secondary:hover,
+.admin .form button.secondary:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.admin button.danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.admin button.danger:hover {
+  background: var(--danger-hover);
+}
+
+.admin .danger-link,
+.admin .form .link-button.danger-link {
+  color: var(--danger);
+}
+
+.admin .form .link-button {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.admin .form .link-button:hover {
+  background: none;
+  color: var(--accent);
+}
+
+.admin .form-actions {
+  gap: 0.75rem;
+  padding-top: 0.25rem;
+}
+
+.admin .form-actions > a {
+  color: var(--muted);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.admin .form-actions > a:hover {
+  color: var(--text);
+}
+
+/* Сообщения */
+
+.admin .flash,
+.admin .form-error {
+  padding: 0.75rem 1rem;
+  border: 1px solid transparent;
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+}
+
+.admin .flash {
+  border-color: var(--success);
+  background: var(--success-soft);
+  color: var(--text);
+}
+
+.admin .flash-warning {
+  border-color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.admin .form-error {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* Статусы записей: «пилюли» с цветом по смыслу. */
+
+.admin .status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.6rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.admin .status::before {
+  content: "";
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.admin .status-draft {
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.admin .status-changed {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.admin .status-scheduled {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Таблицы */
+
+.admin .table-wrap {
+  padding: 0;
+  overflow-x: auto;
+}
+
+.admin .admin-table {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.admin .admin-table th,
+.admin .admin-table td {
+  padding: 0.8rem 1.25rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.admin .admin-table th {
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.admin .admin-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin .admin-table tbody tr:hover td {
+  background: var(--surface);
+}
+
+.admin .admin-table td a {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.admin .admin-table td a:hover {
+  text-decoration: underline;
+}
+
+/* Дашборд: счётчики — карточки с крупным числом. */
+
+.admin .counters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 1rem;
+}
+
+.admin .counter {
+  min-width: 0;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.admin .counter a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.admin .counter a:hover {
+  color: var(--accent);
+}
+
+.admin .counter strong {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--text);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+/* Удаление и снятие с публикации */
+
+.admin .danger-zone {
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--border));
+}
+
+.admin .danger-zone > :last-child {
+  margin-bottom: 0;
+}
+
+/* Блоки, SEO и редактор Markdown внутри формы */
+
+.admin .blocks-editor > legend {
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}
+
+.admin .block-form {
+  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.admin .block-item {
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.admin .block-head h3 {
+  font-size: 0.9375rem;
+}
+
+.admin .block-thumb {
+  border-color: var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.admin .seo-fields {
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.admin .seo-fields summary {
+  font-size: 0.9375rem;
+}
+
+.admin .seo-snippet-search,
+.admin .seo-snippet-card {
+  background: var(--card);
+}
+
+.admin .preview {
+  border-radius: var(--radius);
+  background: var(--card);
+  font-size: 1rem;
+}
+
+.admin .md-toolbar {
+  gap: 0.15rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.admin .md-toolbar button,
+.admin .form .md-toolbar button {
+  min-width: 2rem;
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.admin .md-toolbar button:hover,
+.admin .form .md-toolbar button:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Медиатека */
+
+.admin .media-card {
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.admin .media-card:hover {
+  border-color: var(--accent);
+}
+
+.admin .media-card a {
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.admin .media-card img {
+  border: 0;
+}
+
+.admin .media-preview {
+  margin-bottom: 1.5rem;
+}
+
+.admin .media-preview img {
+  border: 0;
+}
+
+.admin .media-meta {
+  margin-bottom: 1.5rem;
+}
+
+.admin .media-meta dt {
+  color: var(--muted);
+}
+
+.admin .pagination a {
+  font-weight: 600;
+}
+
+/* Страницы ошибок */
+
+.admin .error-page {
+  padding: 2.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+
+.admin .error-code {
+  color: var(--accent);
+  font-size: 2.5rem;
+  font-weight: 700;
+}
