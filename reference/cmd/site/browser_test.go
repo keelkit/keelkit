@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -348,4 +349,59 @@ func TestBrowserSEOSnippet(t *testing.T) {
 	if typed != "Свой заголовок" || !marker {
 		t.Errorf("seo_title %q, no reload %v", typed, marker)
 	}
+}
+
+// Панель оформления Markdown (static/editor.js): кнопка оборачивает выделение, повторное нажатие снимает разметку,
+// Ctrl+B — то же с клавиатуры, правка отменяется (история ввода), превью обновляется; ссылка и список.
+func TestBrowserMarkdownToolbar(t *testing.T) {
+	srv := e2eServer(t, true)
+	ctx := browser(t)
+	browserLogin(t, ctx, srv.URL)
+
+	const ta = `.block-form .md-field textarea`
+	// sel выделяет в textarea фрагмент [from, to) (в символах UTF-16, как у JavaScript).
+	sel := func(from, to int) chromedp.Action {
+		return chromedp.Evaluate(fmt.Sprintf(`(() => { const t = document.querySelector(%q); t.focus(); t.setSelectionRange(%d, %d) })()`, ta, from, to), nil)
+	}
+	click := func(md string) chromedp.Action {
+		return chromedp.Click(`.block-form .md-toolbar [data-md="`+md+`"]`, chromedp.ByQuery)
+	}
+	var value, preview string
+	check := func(step, want string) {
+		t.Helper()
+		run(t, ctx, step, chromedp.Value(ta, &value, chromedp.ByQuery))
+		if value != want {
+			t.Errorf("%s: value = %q, want %q", step, value, want)
+		}
+	}
+
+	run(t, ctx, "bold",
+		chromedp.Navigate(srv.URL+"/admin/pages/new"),
+		chromedp.WaitVisible(`.block-form .md-toolbar`, chromedp.ByQuery),
+		chromedp.SendKeys(ta, "Привет мир", chromedp.ByQuery),
+		sel(7, 10),
+		click("bold"),
+		chromedp.WaitVisible(`.block-form .preview strong`, chromedp.ByQuery),
+		chromedp.Text(`.block-form .preview strong`, &preview, chromedp.ByQuery),
+	)
+	check("bold", "Привет **мир**")
+	if preview != "мир" {
+		t.Errorf("preview strong = %q", preview)
+	}
+
+	run(t, ctx, "bold again", click("bold"))
+	check("bold again", "Привет мир")
+
+	// Ctrl+B — событием keydown: его ловит обработчик editor.js (по ev.code, раскладка не важна).
+	ctrlB := fmt.Sprintf(`document.querySelector(%q).dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyB', key: 'и', ctrlKey: true, bubbles: true}))`, ta)
+	run(t, ctx, "ctrl+b", sel(0, 6), chromedp.Evaluate(ctrlB, nil))
+	check("ctrl+b", "**Привет** мир")
+	run(t, ctx, "undo", chromedp.Evaluate(`document.execCommand('undo')`, nil))
+	check("undo", "Привет мир")
+
+	run(t, ctx, "link", sel(7, 10), click("link"), chromedp.KeyEvent("https://go.dev"))
+	check("link", "Привет [мир](https://go.dev)")
+
+	run(t, ctx, "list", sel(0, 0), click("ul"))
+	check("list", "- Привет [мир](https://go.dev)")
 }

@@ -180,14 +180,18 @@ templ textField(b Block, field, label, value, hint string, e FormEnv) {
 	</label>
 }
 
-// markdownField — textarea Markdown и превью рядом. Превью обновляется при наборе с задержкой (htmx, только
-// это поле — hx-params); hx-sync отменяет устаревший запрос. При открытии формы превью рисует сервер.
+// markdownField — textarea Markdown с панелью оформления и превью рядом. Превью обновляется при наборе с задержкой
+// (htmx, только это поле — hx-params); hx-sync отменяет устаревший запрос. При открытии формы превью рисует сервер.
+// Панель — кнопки, которые оборачивают выделение разметкой Markdown (static/editor.js); без JavaScript её не видно.
+// Метка — через for, а не обёрткой: кнопки внутри label перехватили бы её связь с textarea.
 templ markdownField(b Block, field, label, value string, e FormEnv) {
 	{{ name := FieldName(b.ID, field) }}
 	<div class="editor">
-		<label>
-			{ label }
+		<div class="md-field">
+			<label for={ name }>{ label }</label>
+			@markdownToolbar(name)
 			<textarea
+				id={ name }
 				name={ name }
 				rows="10"
 				hx-post={ e.PreviewURL + "?field=" + name }
@@ -202,13 +206,29 @@ templ markdownField(b Block, field, label, value string, e FormEnv) {
 				}
 			>{ value }</textarea>
 			@fieldError(b, field, e)
-		</label>
+		</div>
 		<section class="preview" aria-label="Превью">
 			<p class="preview-title" aria-hidden="true">Превью</p>
 			<div id={ name + "-preview" } class="page" aria-live="polite">
 				@Preview(value)
 			</div>
 		</section>
+	</div>
+}
+
+// markdownToolbar — панель оформления для textarea с id target. data-md — действие в static/editor.js.
+// Подчёркивания нет: в Markdown его нет, а сырой HTML (<u>) не пропускается.
+templ markdownToolbar(target string) {
+	<div class="md-toolbar" role="toolbar" aria-label="Оформление текста" aria-controls={ target }>
+		<button type="button" data-md="bold" title="Жирный (Ctrl+B)" aria-label="Жирный"><b>Ж</b></button>
+		<button type="button" data-md="italic" title="Курсив (Ctrl+I)" aria-label="Курсив"><i>К</i></button>
+		<button type="button" data-md="strike" title="Зачёркнутый" aria-label="Зачёркнутый"><s>З</s></button>
+		<button type="button" data-md="link" title="Ссылка (Ctrl+K)" aria-label="Ссылка">Ссылка</button>
+		<button type="button" data-md="heading" title="Подзаголовок" aria-label="Подзаголовок">H2</button>
+		<button type="button" data-md="ul" title="Маркированный список" aria-label="Маркированный список">•&nbsp;Список</button>
+		<button type="button" data-md="ol" title="Нумерованный список" aria-label="Нумерованный список">1.&nbsp;Список</button>
+		<button type="button" data-md="quote" title="Цитата" aria-label="Цитата">«&nbsp;»</button>
+		<button type="button" data-md="code" title="Код" aria-label="Код"><code>&lt;/&gt;</code></button>
 	</div>
 }
 

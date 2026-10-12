@@ -18,7 +18,8 @@
   `github.com/chromedp/chromedp` v0.16.0 (только браузерные тесты с тегом `browser`; его `cdproto` — псевдоверсия, теги у неё не ставятся).
 - Инструменты (версии закреплены в `Makefile`): sqlc v1.31.1; CLI templ — `TEMPL_VERSION`, обязан совпадать с библиотекой
   в `go.mod` (`make generate` проверяет это и откажется запускаться при расхождении).
-- Вендоренный JS: htmx 2.0.11 — `static/htmx-2.0.11.min.js` (сверен с sha512 из npm).
+- Вендоренный JS: htmx 2.0.11 — `static/htmx-2.0.11.min.js` (сверен с sha512 из npm). Свой JS — `static/editor.js`
+  (панель оформления Markdown в админке), без зависимостей и сборки.
 
 ## Доступ к модулям Keelkit
 
@@ -246,6 +247,14 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 - Поле `richtext` (и Markdown в блоках): textarea + превью (`hx-post` на `…/preview?field=<имя>`, `hx-params` — только это поле,
   `hx-trigger="input changed delay:400ms"`, `hx-sync="this:replace"`); превью при открытии формы рисует сервер,
   ответ превью — тот же `richtext.Render`.
+  Над textarea — панель оформления (`markdownToolbar` в `internal/blocks/form.templ`, `static/editor.js`): жирный,
+  курсив, зачёркнутый, ссылка, подзаголовок `##`, списки, цитата, код. Кнопка оборачивает выделение разметкой Markdown
+  (пробелы по краям — снаружи), повторное нажатие снимает её; строчные — у каждой строки выделения; Ctrl/⌘+B, I, K
+  (по `ev.code` — работает в любой раскладке). Вставка — `execCommand('insertText')`: правка отменяется Ctrl+Z, событие
+  `input` обновляет превью. Подчёркивания нет: в Markdown его нет, `<u>` не пропускается. Панель — надстройка: без
+  JavaScript её не видно (CSS показывает `.md-toolbar` только при классе `js` на `<html>`, его ставит скрипт), кнопки —
+  `type="button"`. Метка поля — `<label for>`, не обёртка: кнопки внутри `label` перехватили бы её связь с textarea.
+  Обработчики делегированы на `document`, поэтому блоки, добавленные через htmx, работают сразу.
 
 ### Черновик-копия (образец — `pages`)
 
@@ -374,7 +383,8 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
   редиректы со старых slug. В тестах `BASE_URL` — `testBaseURL` (`https://example.test`; `handler(config{})` подставляет его сам).
 - Браузерные тесты — `cmd/site/browser_test.go` (`//go:build browser`, `TestBrowser*`, chromedp, headless Chrome):
   только критичные htmx-взаимодействия — превью при наборе, сохранение через `HX-Redirect`, подмена формы с ошибкой
-  без перезагрузки, «Добавить блок», «↑», «Скрыть» и выбор изображения у блока, выбор обложки поста, превью сниппета SEO, загрузка файла (`hx-encoding="multipart/form-data"`).
+  без перезагрузки, «Добавить блок», «↑», «Скрыть» и выбор изображения у блока, выбор обложки поста, превью сниппета SEO, загрузка файла (`hx-encoding="multipart/form-data"`),
+  панель оформления Markdown (`TestBrowserMarkdownToolbar`: кнопка, повторное нажатие, Ctrl+B, отмена, ссылка, список).
   После каждого htmx-действия — `htmxSettled()`: обработчики на новый фрагмент htmx навешивает после фазы settle,
   и клик chromedp раньше этого ушёл бы обычной отправкой формы. Запуск — `make e2e-browser`; `make test` их не собирает, линтер — собирает (`build-tags` в `.golangci.yml`).
 
@@ -417,7 +427,7 @@ internal/seofields/         # SEO записи вручную: поля, про�
 internal/slug/              # slug: Make (транслитерация), Valid
 internal/settings/          # site_settings: queries.sql и код sqlc
 internal/web/               # layout (Layout, LayoutMeta, Meta), страницы ошибок, рендер, Picture
-static/                     # CSS, htmx, иконка + static.go (embed, Path, Handler)
+static/                     # CSS, htmx, editor.js (панель Markdown в админке), иконка + static.go (embed, Path, Handler)
 site.yaml, sqlc.yaml        # спецификация сайта, конфиг sqlc
 ```
 

@@ -194,6 +194,34 @@ func TestE2EAdminPageCreate(t *testing.T) {
 	if got := text(doc.Find(".preview-empty")); got != "Здесь появится превью текста." {
 		t.Errorf("empty preview = %q", got)
 	}
+	// Панель оформления Markdown: управляет своим textarea, метка связана через for (кнопки не внутри label),
+	// кнопки не отправляют форму; скрипт панели подключён.
+	ta := doc.Find(".block-form .md-field textarea")
+	taID, _ := ta.Attr("id")
+	taName, _ := ta.Attr("name")
+	if taID == "" || taID != taName {
+		t.Errorf("markdown textarea id = %q, name = %q", taID, taName)
+	}
+	if v, _ := doc.Find(".block-form .md-toolbar").Attr("aria-controls"); v != taID {
+		t.Errorf("toolbar aria-controls = %q, want %q", v, taID)
+	}
+	if v, _ := doc.Find(".block-form .md-field > label").Attr("for"); v != taID {
+		t.Errorf("markdown label for = %q, want %q", v, taID)
+	}
+	var tools []string
+	doc.Find(".block-form .md-toolbar button").Each(func(_ int, b *goquery.Selection) {
+		if typ, _ := b.Attr("type"); typ != "button" {
+			t.Errorf("toolbar button type = %q, want button", typ)
+		}
+		v, _ := b.Attr("data-md")
+		tools = append(tools, v)
+	})
+	if got := strings.Join(tools, ","); got != "bold,italic,strike,link,heading,ul,ol,quote,code" {
+		t.Errorf("toolbar buttons = %s", got)
+	}
+	if doc.Find(`script[src^="/static/editor.js?v="]`).Length() != 1 {
+		t.Error("admin layout: no editor.js")
+	}
 	var add []string
 	doc.Find(`.block-add button`).Each(func(_ int, b *goquery.Selection) {
 		v, _ := b.Attr("value")
