@@ -53,7 +53,7 @@ content:
       # Лид — подзаголовок под заголовком; анонс — для ленты, RSS и описания (пусто — начало текста блоков).
       lead:      { type: text }
       excerpt:   { type: text }
-      cover:     { type: image }
+      cover:     { type: image, mobile: true }  # mobile — можно задать свою картинку для телефона
       cover_alt: { type: string }  # alt обложки; пусто — обложка декоративная
       category:  { type: ref, to: categories }
       body:      { type: blocks, allow: [text, image, image_text, quote, gallery, file] }

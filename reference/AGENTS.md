@@ -9,7 +9,7 @@
 - Модули Keelkit: `github.com/voffkin/keelkit/modules/images` v0.1.0, `github.com/voffkin/keelkit/modules/files` v0.1.0
   (таблицы `files_*`), `github.com/voffkin/keelkit/modules/richtext` v0.1.1 (без таблиц и миграций),
   `github.com/voffkin/keelkit/modules/auth` v0.1.0 (таблицы `users`, `sessions`);
-  в `site.yaml` — `modules: { images: v0, files: v0, richtext: v0, auth: v0 }` (`spec` v0.6.0: `SPEC_VERSION` в `Makefile`).
+  в `site.yaml` — `modules: { images: v0, files: v0, richtext: v0, auth: v0 }` (`spec` v0.7.0: `SPEC_VERSION` в `Makefile`).
   Их зависимости приходят транзитивно: `golang.org/x/image`, `github.com/gen2brain/webp` (+ `ebitengine/purego`);
   goldmark, bluemonday, `golang.org/x/net`; `golang.org/x/crypto` (argon2id).
 - Тег сборки `nodynamic` (`BUILD_TAGS` в `Makefile`, экспортируется через `GOFLAGS`): кодек WebP не подгружает

@@ -778,7 +778,7 @@ make check && make e2e-browser
   прежние `site.yaml` валидны. Валидатор: `mobile` — только у `image`. В эталоне — `cover: { type: image, mobile: true }`.
   У блоков признака нет: их поля описывает код сайта.
 
-- [ ] `spec v0.7.0`: `mobile` у `image` в `schema.json`, правило валидатора, пример в `spec/examples/invalid/`
+- [x] `spec v0.7.0`: `mobile` у `image` в `schema.json`, правило валидатора, пример в `spec/examples/invalid/`
       (`# expect: …`), `CHANGELOG.md`; релиз `make release MODULE=spec`, эталон — на новую версию
 - [ ] `web.MobileMedia`, `web.Picture` с мобильной картинкой; тест: с ней — два `<source media>` первыми и
       основная пара, без неё — разметка прежняя
