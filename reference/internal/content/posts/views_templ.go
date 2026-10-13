@@ -128,7 +128,7 @@ func ListPage(v listView) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = web.Picture(c.Cover, "", sizesCard).Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = web.PictureMobile(c.Cover, c.CoverMobile, "", sizesCard).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -490,7 +490,7 @@ func View(p viewData) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = web.Picture(p.Cover, p.CoverAlt, sizesCover).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = web.PictureMobile(p.Cover, p.CoverMobile, p.CoverAlt, sizesCover).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

@@ -214,42 +214,45 @@ templ Form(f postForm) {
 
 // coverField — выбор обложки из медиатеки (и ответ на POST /admin/posts/cover): превью слева, выбор и alt справа.
 // Смена выбора через htmx перерисовывает поле: появляется превью. Без JavaScript превью обновится после отправки формы.
+// Своя обложка для телефона (cover_mobile) — как у блоков (blocks.imageField): превью и выбор с
+// data-image-for="mobile" показывает режим «Телефон» формы, в режиме «Компьютер» они скрыты, но остаются в форме.
 templ coverField(f postForm) {
 	<div class="block-image-pick" id="cover-field">
 		<div class="block-thumb">
-			if img := f.Env.Resolved[f.Cover]; img != nil {
-				@web.Picture(img, "", "8rem")
-			} else {
-				<span class="muted">Без обложки</span>
-			}
+			<div class="image-variant" data-image-for="desktop">
+				if img := f.Env.Resolved[f.Cover]; img != nil {
+					@web.Picture(img, "", "8rem")
+				} else {
+					<span class="muted">Без обложки</span>
+				}
+			</div>
+			<div class="image-variant" data-image-for="mobile">
+				if img := f.Env.Resolved[f.CoverMobile]; img != nil {
+					@web.Picture(img, "", "8rem")
+				} else if img := f.Env.Resolved[f.Cover]; img != nil {
+					<div class="image-inherited">
+						@web.Picture(img, "", "8rem")
+						<span class="muted">как на компьютере</span>
+					</div>
+				} else {
+					<span class="muted">Без обложки</span>
+				}
+			</div>
 		</div>
 		<div class="block-image-fields">
-			<label>
-				Обложка
-				<select
-					name="cover"
-					hx-post={ AdminPath + "/cover" }
-					hx-params="cover,cover_alt"
-					hx-trigger="change"
-					hx-target="#cover-field"
-					hx-swap="outerHTML"
-					if f.Errors["cover"] != "" {
-						aria-invalid="true"
-						aria-describedby="cover-hint cover-error"
-					} else {
-						aria-describedby="cover-hint"
-					}
-				>
-					<option value="">— без обложки —</option>
-					for _, img := range coverOptions(f) {
-						<option value={ img.ID } selected?={ img.ID == f.Cover }>{ optionLabel(img) }</option>
-					}
-				</select>
-				<span class="field-hint" id="cover-hint">
+			if f.CoverMobile != "" {
+				<span class="status status-mobile">Своя для телефона</span>
+			}
+			<div class="image-variant" data-image-for="desktop">
+				@coverSelect(f, "cover", "Обложка", "— без обложки —", f.Cover) {
 					Необязательно: картинка над постом и в ленте блога. Новое изображение сначала загрузите в <a href={ templ.SafeURL(f.Env.MediaURL) } target="_blank">медиатеку</a>.
-				</span>
-				@fieldError(f, "cover")
-			</label>
+				}
+			</div>
+			<div class="image-variant" data-image-for="mobile">
+				@coverSelect(f, "cover_mobile", "Обложка для телефона", "— как на компьютере —", f.CoverMobile) {
+					Другой кадр для узкого экрана. Описание (alt) — общее с основной обложкой.
+				}
+			</div>
 			<label>
 				Описание обложки (alt)
 				<input
@@ -269,6 +272,37 @@ templ coverField(f postForm) {
 			</label>
 		</div>
 	</div>
+}
+
+// coverSelect — select обложки name (cover или cover_mobile) с подсказкой (children) и ошибкой; empty — надпись
+// пустого варианта. Смена перерисовывает поле обложки целиком (обе картинки и alt).
+templ coverSelect(f postForm, name, label, empty, value string) {
+	<label>
+		{ label }
+		<select
+			name={ name }
+			hx-post={ AdminPath + "/cover" }
+			hx-params="cover,cover_mobile,cover_alt"
+			hx-trigger="change"
+			hx-target="#cover-field"
+			hx-swap="outerHTML"
+			if f.Errors[name] != "" {
+				aria-invalid="true"
+				aria-describedby={ name + "-hint " + name + "-error" }
+			} else {
+				aria-describedby={ name + "-hint" }
+			}
+		>
+			<option value="">{ empty }</option>
+			for _, img := range coverOptions(f, value) {
+				<option value={ img.ID } selected?={ img.ID == value }>{ optionLabel(img) }</option>
+			}
+		</select>
+		<span class="field-hint" id={ name + "-hint" }>
+			{ children... }
+		</span>
+		@fieldError(f, name)
+	</label>
 }
 
 // addressSection — адрес поста (slug и старые адреса), свёрнутый: в заголовке виден текущий адрес. Раскрыт,
@@ -356,9 +390,9 @@ func formAction(f postForm) string {
 	return EditPath(f.ID)
 }
 
-// coverOptions — изображения для выбора обложки: Library и выбранное, если его там нет (загружено давно).
-func coverOptions(f postForm) []*images.Image {
-	img := f.Env.Resolved[f.Cover]
+// coverOptions — изображения для выбора обложки: Library и выбранное (id), если его там нет (загружено давно).
+func coverOptions(f postForm, id string) []*images.Image {
+	img := f.Env.Resolved[id]
 	if img == nil {
 		return f.Env.Library
 	}

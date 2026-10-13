@@ -77,7 +77,8 @@ type postForm struct {
 	Lead        string // подзаголовок под заголовком; пусто — нет
 	Excerpt     string // анонс для ленты, RSS и описания; пусто — начало текста блоков
 	Cover       string // id изображения; пусто — без обложки
-	CoverAlt    string // alt обложки; пусто — обложка декоративная
+	CoverMobile string // своя обложка для телефона; пусто — та же, что Cover
+	CoverAlt    string // alt обложки (общий для обеих); пусто — обложка декоративная
 	CategoryID  int64  // 0 — без категории
 	PublishDate string // как в поле datetime-local (часовой пояс сервера); пусто — «в момент публикации»
 	Blocks      []blocks.Block
@@ -148,6 +149,7 @@ func (a *Admin) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	saved.Title, saved.Slug, saved.Cover, saved.CategoryID, saved.PublishDate, saved.Blocks = "", "", "", 0, "", nil
 	saved.Lead, saved.Excerpt, saved.CoverAlt, saved.SEO, saved.OldPaths = "", "", "", seofields.Fields{}, ""
+	saved.CoverMobile = ""
 	a.submit(w, r, saved)
 }
 
@@ -191,12 +193,17 @@ func (a *Admin) submit(w http.ResponseWriter, r *http.Request, f postForm) {
 		admin.ServerError(w, r, err)
 		return
 	}
+	coverMobile, err := resolveCover(ctx, a.media, f.CoverMobile)
+	if err != nil {
+		admin.ServerError(w, r, err)
+		return
+	}
 	seoImage, err := f.SEO.Resolve(ctx, a.media)
 	if err != nil {
 		admin.ServerError(w, r, err)
 		return
 	}
-	ok := validate(&f, cover != nil, seoImage != nil)
+	ok := validate(&f, cover != nil, coverMobile != nil, seoImage != nil)
 	if ok {
 		if ok, err = a.checkOldPaths(ctx, &f); err != nil {
 			admin.ServerError(w, r, err)
@@ -262,6 +269,7 @@ func (a *Admin) save(ctx context.Context, f postForm, publish bool, now time.Tim
 	err = q.SaveDraft(ctx, SaveDraftParams{
 		PostID: id, Title: f.Title, Slug: f.Slug,
 		Cover:       sql.NullString{String: f.Cover, Valid: f.Cover != ""},
+		CoverMobile: sql.NullString{String: f.CoverMobile, Valid: f.CoverMobile != ""},
 		CategoryID:  sql.NullInt64{Int64: f.CategoryID, Valid: f.CategoryID != 0},
 		PublishDate: f.publishDB, Blocks: data,
 		Lead: f.Lead, Excerpt: f.Excerpt, CoverAlt: f.CoverAlt,
@@ -271,7 +279,7 @@ func (a *Admin) save(ctx context.Context, f postForm, publish bool, now time.Tim
 		return 0, err
 	}
 	ids := blocks.ImageIDs(f.Blocks)
-	for _, img := range []string{f.Cover, f.SEO.Image} {
+	for _, img := range []string{f.Cover, f.CoverMobile, f.SEO.Image} {
 		if img != "" && !slices.Contains(ids, img) {
 			ids = append(ids, img)
 		}
@@ -431,7 +439,8 @@ func (a *Admin) View(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	e := entry{
-		PostID: d.PostID, Title: d.Title, Slug: d.Slug, Cover: d.Cover, PublishDate: d.PublishDate, Blocks: d.Blocks,
+		PostID: d.PostID, Title: d.Title, Slug: d.Slug, Cover: d.Cover, CoverMobile: d.CoverMobile,
+		PublishDate: d.PublishDate, Blocks: d.Blocks,
 		Lead: d.Lead, Excerpt: d.Excerpt, CoverAlt: d.CoverAlt,
 		SeoTitle: d.SeoTitle, SeoDescription: d.SeoDescription, SeoImage: d.SeoImage,
 	}
@@ -515,7 +524,10 @@ func (a *Admin) viewData(ctx context.Context, f postForm) (viewData, error) {
 	}
 	return newViewData(ctx, a.media, a.files, entry{
 		PostID: f.ID, Title: title, Slug: s, Blocks: data,
-		Cover:    sql.NullString{String: strings.TrimSpace(f.Cover), Valid: strings.TrimSpace(f.Cover) != ""},
+		Cover: sql.NullString{String: strings.TrimSpace(f.Cover), Valid: strings.TrimSpace(f.Cover) != ""},
+		CoverMobile: sql.NullString{
+			String: strings.TrimSpace(f.CoverMobile), Valid: strings.TrimSpace(f.CoverMobile) != "" && strings.TrimSpace(f.Cover) != "",
+		},
 		Excerpt:  plainText(f.Excerpt),
 		CoverAlt: strings.TrimSpace(f.CoverAlt),
 		SeoTitle: f.SEO.Title, SeoDescription: f.SEO.Description, SeoImage: f.SEO.DBImage(),
@@ -565,14 +577,18 @@ func (a *Admin) Block(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, http.StatusOK, blocks.Form(b, env))
 }
 
-// Cover — POST /admin/posts/cover (htmx): поле обложки с превью выбранного изображения (поле cover из формы).
+// Cover — POST /admin/posts/cover (htmx): поле обложки с превью выбранных изображений (поля cover, cover_mobile
+// и cover_alt из формы).
 func (a *Admin) Cover(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxFormSize)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
-	f := postForm{Cover: strings.TrimSpace(r.PostFormValue("cover")), CoverAlt: r.PostFormValue("cover_alt")}
+	f := postForm{
+		Cover: strings.TrimSpace(r.PostFormValue("cover")), CoverMobile: strings.TrimSpace(r.PostFormValue("cover_mobile")),
+		CoverAlt: r.PostFormValue("cover_alt"),
+	}
 	env, err := a.env(r.Context(), nil, nil)
 	if err != nil {
 		admin.ServerError(w, r, err)
@@ -609,7 +625,8 @@ func (a *Admin) load(w http.ResponseWriter, r *http.Request) (postForm, bool) {
 		return postForm{}, false
 	}
 	f := postForm{
-		ID: id, Title: draft.Title, Slug: draft.Slug, Cover: draft.Cover.String, CategoryID: draft.CategoryID.Int64,
+		ID: id, Title: draft.Title, Slug: draft.Slug, Cover: draft.Cover.String, CoverMobile: draft.CoverMobile.String,
+		CategoryID:  draft.CategoryID.Int64,
 		PublishDate: inputValue(draft.PublishDate), Blocks: list,
 		Lead: draft.Lead, Excerpt: draft.Excerpt, CoverAlt: draft.CoverAlt,
 		SEO: seofields.FromDB(draft.SeoTitle, draft.SeoDescription, draft.SeoImage),
@@ -647,6 +664,7 @@ func (a *Admin) parseForm(w http.ResponseWriter, r *http.Request, f *postForm) b
 	f.Title, f.Slug, f.Blocks = r.PostFormValue("title"), r.PostFormValue("slug"), list
 	f.Cover, f.PublishDate = strings.TrimSpace(r.PostFormValue("cover")), strings.TrimSpace(r.PostFormValue("publish_date"))
 	f.Lead, f.Excerpt, f.CoverAlt = r.PostFormValue("lead"), r.PostFormValue("excerpt"), r.PostFormValue("cover_alt")
+	f.CoverMobile = strings.TrimSpace(r.PostFormValue("cover_mobile"))
 	f.SEO = seofields.Parse(r.PostForm)
 	f.OldPaths = r.PostFormValue("old_paths")
 	if s := r.PostFormValue("category"); s != "" {
@@ -660,8 +678,8 @@ func (a *Admin) parseForm(w http.ResponseWriter, r *http.Request, f *postForm) b
 
 // validate нормализует поля и проверяет их; ошибки — в f.Errors. Уникальность slug проверяет БД при сохранении.
 // Изображения блоков должны быть уже загружены в f.Env.Resolved, категории — в f.Categories; coverFound —
-// выбранная обложка есть в медиатеке, seoImageFound — картинка SEO.
-func validate(f *postForm, coverFound, seoImageFound bool) bool {
+// выбранная обложка есть в медиатеке, mobileFound — обложка для телефона, seoImageFound — картинка SEO.
+func validate(f *postForm, coverFound, mobileFound, seoImageFound bool) bool {
 	errs := blocks.Validate(f.Blocks, f.Env.Resolved, f.Env.Files)
 	f.Title = strings.TrimSpace(f.Title)
 
@@ -693,6 +711,16 @@ func validate(f *postForm, coverFound, seoImageFound bool) bool {
 
 	if f.Cover != "" && !coverFound {
 		errs["cover"] = "Изображения нет в медиатеке: выберите другое."
+	}
+	// Своя для телефона — только при основной; та же, что основная, ничего не меняет.
+	switch {
+	case f.CoverMobile == "":
+	case f.CoverMobile == f.Cover:
+		f.CoverMobile = ""
+	case f.Cover == "":
+		errs["cover_mobile"] = "Сначала выберите основную картинку."
+	case !mobileFound:
+		errs["cover_mobile"] = "Изображения нет в медиатеке: выберите другое."
 	}
 	// alt без обложки ничего не описывает: убираем, чтобы он не появился у следующей выбранной картинки.
 	if f.CoverAlt = strings.TrimSpace(f.CoverAlt); f.Cover == "" {
@@ -755,16 +783,22 @@ func (a *Admin) env(ctx context.Context, list []blocks.Block, errs map[string]st
 	}, nil
 }
 
-// resolveCover добавляет выбранную обложку в f.Env.Resolved (её превью и пункт в выборе, если она загружена давно).
+// resolveCover добавляет выбранные обложки (основную и для телефона) в f.Env.Resolved: их превью и пункты
+// в выборе, если они загружены давно.
 func (a *Admin) resolveCover(ctx context.Context, f *postForm) error {
-	img, err := resolveCover(ctx, a.media, f.Cover)
-	if err != nil || img == nil {
-		return err
+	for _, id := range []string{f.Cover, f.CoverMobile} {
+		img, err := resolveCover(ctx, a.media, id)
+		if err != nil {
+			return err
+		}
+		if img == nil {
+			continue
+		}
+		if f.Env.Resolved == nil {
+			f.Env.Resolved = blocks.Resolved{}
+		}
+		f.Env.Resolved[img.ID] = img
 	}
-	if f.Env.Resolved == nil {
-		f.Env.Resolved = blocks.Resolved{}
-	}
-	f.Env.Resolved[img.ID] = img
 	return nil
 }
 

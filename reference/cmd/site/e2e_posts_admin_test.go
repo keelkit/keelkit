@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/voffkin/keelkit/reference/internal/web"
 )
 
 var postEditURL = regexp.MustCompile(`^/admin/posts/(\d+)\?(saved|published)=1$`)
@@ -296,7 +298,7 @@ func TestE2EAdminPostCover(t *testing.T) {
 		"Hx-Request": {"true"}, "X-Csrf-Token": {a.token},
 	})
 	doc := parse(t, html)
-	if resp.StatusCode != http.StatusOK || doc.Find("#cover-field picture").Length() != 1 {
+	if resp.StatusCode != http.StatusOK || doc.Find(`#cover-field [data-image-for="desktop"] picture`).Length() != 1 {
 		t.Fatalf("cover fragment: status %d\n%.300s", resp.StatusCode, html)
 	}
 	if v, _ := doc.Find(`select[name="cover"] option[selected]`).Attr("value"); v != img {
@@ -339,6 +341,95 @@ func TestE2EAdminPostCover(t *testing.T) {
 	}
 	if resp, _ := post(t, a.client, a.srv.URL+show+"/delete", url.Values{"csrf_token": {a.token}}, nil); resp.StatusCode != http.StatusConflict {
 		t.Errorf("delete image of published cover: status %d, want 409", resp.StatusCode)
+	}
+}
+
+// Своя обложка для телефона: htmx-фрагмент поля, ошибки, сохранение и публикация (ссылки в post_images), вывод
+// в посте и в ленте (<source media>), og:image — основная, неопубликованное изменение, 409 медиатеки.
+func TestE2EAdminPostCoverMobile(t *testing.T) {
+	site, imgs := migratedSiteWithImages(t)
+	a := newPageAdminOn(t, site)
+	main, phone := imgs["photo.jpg"], imgs["small.jpg"]
+	hx := http.Header{"Hx-Request": {"true"}, "X-Csrf-Token": {a.token}}
+
+	// Фрагмент поля: без своей — приглушённое превью основной, со своей — её превью и метка.
+	_, html := post(t, a.client, a.srv.URL+"/admin/posts/cover", url.Values{"cover": {main}}, hx)
+	doc := parse(t, html)
+	if doc.Find(`#cover-field [data-image-for="mobile"] .image-inherited picture`).Length() != 1 || doc.Find(".status-mobile").Length() != 0 {
+		t.Errorf("cover fragment without mobile:\n%.500s", html)
+	}
+	_, html = post(t, a.client, a.srv.URL+"/admin/posts/cover", url.Values{"cover": {main}, "cover_mobile": {phone}, "cover_alt": {"Кот"}}, hx)
+	doc = parse(t, html)
+	if v, _ := doc.Find(`select[name="cover_mobile"] option[selected]`).Attr("value"); v != phone {
+		t.Errorf("cover fragment: cover_mobile = %q", v)
+	}
+	if doc.Find(".status-mobile").Length() != 1 || doc.Find(`#cover-field [data-image-for="mobile"] .image-inherited`).Length() != 0 {
+		t.Errorf("cover fragment with mobile:\n%.500s", html)
+	}
+
+	// Своя без основной — ошибка у поля (форма и htmx).
+	form := newPostForm("Кадр", "kadr", "", "")
+	form.Set("cover_mobile", phone)
+	for _, hdr := range []http.Header{nil, htmx} {
+		resp, body := a.submit("/admin/posts", form, "save", hdr)
+		if resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("mobile without cover: status %d, want 422", resp.StatusCode)
+		}
+		if got := text(parse(t, body).Find("#cover_mobile-error")); got != "Сначала выберите основную картинку." {
+			t.Errorf("mobile without cover: error %q (htmx=%v)", got, hdr != nil)
+		}
+	}
+
+	form.Set("cover", main)
+	form.Set("cover_alt", "Кот")
+	edit := a.createPost(form, "publish")
+	id := strings.TrimPrefix(edit, "/admin/posts/")
+	var n int
+	if err := site.db.QueryRow(`SELECT count(*) FROM post_images WHERE post_id = ? AND image_id = ?`, id, phone).Scan(&n); err != nil || n != 2 {
+		t.Errorf("post_images for cover_mobile = %d, %v; want 2 (draft and published)", n, err)
+	}
+	if got := a.postForm(edit).Get("cover_mobile"); got != phone {
+		t.Errorf("saved cover_mobile = %q", got)
+	}
+
+	// На сайте: пост и карточка ленты — <source media> своей; img и og:image — основная.
+	doc = page(t, a.srv, blogPath+"/kadr", http.StatusOK)
+	if media, _ := doc.Find(".post-cover source").First().Attr("media"); media != web.MobileMedia {
+		t.Errorf("post cover: first <source> media = %q", media)
+	}
+	if srcset, _ := doc.Find(".post-cover source[media][type='image/jpeg']").Attr("srcset"); !strings.Contains(srcset, phone) {
+		t.Errorf("post cover: mobile srcset = %q", srcset)
+	}
+	if src, _ := doc.Find(".post-cover img").Attr("src"); !strings.Contains(src, main) {
+		t.Errorf("post cover img = %q, want the main cover", src)
+	}
+	if og, _ := doc.Find(`meta[property="og:image"]`).Attr("content"); !strings.Contains(og, main) {
+		t.Errorf("og:image = %q, want the main cover", og)
+	}
+	doc = page(t, a.srv, blogPath, http.StatusOK)
+	if doc.Find(`.post-card:contains("Кадр") .post-card-cover source[media]`).Length() != 2 {
+		t.Error("blog card: no <source media> of the mobile cover")
+	}
+
+	// Используемая своя обложка не удаляется из медиатеки.
+	if resp, _ := post(t, a.client, a.srv.URL+"/admin/media/"+phone+"/delete", url.Values{"csrf_token": {a.token}}, nil); resp.StatusCode != http.StatusConflict {
+		t.Errorf("delete mobile cover: status %d, want 409", resp.StatusCode)
+	}
+
+	// Убрать свою в черновике — неопубликованное изменение; после публикации на сайте только основная.
+	form = a.postForm(edit)
+	form.Set("cover_mobile", "")
+	if resp, _ := a.submit(edit, form, "save", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("save: status %d", resp.StatusCode)
+	}
+	if got := a.postStatus("Кадр"); got != "Есть неопубликованные изменения" {
+		t.Errorf("status after removing mobile cover = %q", got)
+	}
+	if resp, _ := a.submit(edit, a.postForm(edit), "publish", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("publish: status %d", resp.StatusCode)
+	}
+	if n := page(t, a.srv, blogPath+"/kadr", http.StatusOK).Find(".post-cover source[media]").Length(); n != 0 {
+		t.Errorf("mobile cover removed: <source media> = %d", n)
 	}
 }
 

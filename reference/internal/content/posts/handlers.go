@@ -54,8 +54,9 @@ type entry = ListPublishedPostsRow
 // card — пост в ленте: анонс и обложка.
 type card struct {
 	entry
-	Cover   *images.Image
-	Summary string
+	Cover       *images.Image
+	CoverMobile *images.Image // своя обложка для телефона; nil — та же
+	Summary     string
 }
 
 // listView — лента: весь блог или категория.
@@ -145,7 +146,11 @@ func (h *Handler) card(ctx context.Context, e entry) (card, error) {
 	if err != nil {
 		return card{}, err
 	}
-	return card{entry: e, Cover: cover, Summary: summary(e, list, summaryLen)}, nil
+	mobile, err := resolveCover(ctx, h.images, e.CoverMobile.String)
+	if err != nil {
+		return card{}, err
+	}
+	return card{entry: e, Cover: cover, CoverMobile: mobile, Summary: summary(e, list, summaryLen)}, nil
 }
 
 // Show — GET BlogPath/{slug...}: опубликованный пост, дата публикации которого наступила. Иначе — 301 на текущий
@@ -254,13 +259,14 @@ func (h *Handler) FeedItems(ctx context.Context) ([]seo.Item, error) {
 // viewData — пост для публичного шаблона: опубликованная копия или (Preview) черновик в админке.
 type viewData struct {
 	entry
-	List     []blocks.Block
-	Resolved blocks.Resolved
-	Files    blocks.Files // файлы блоков file
-	Cover    *images.Image
-	SEOImage *images.Image // картинка SEO (seo_image); nil — подстановка
-	Preview  bool          // предпросмотр черновика: плашка со ссылкой в редактор
-	Live     bool          // живой предпросмотр в редакторе (Admin.Live): без плашки, редактор рядом
+	List        []blocks.Block
+	Resolved    blocks.Resolved
+	Files       blocks.Files // файлы блоков file
+	Cover       *images.Image
+	CoverMobile *images.Image // своя обложка для телефона; nil — та же. og:image — всегда Cover
+	SEOImage    *images.Image // картинка SEO (seo_image); nil — подстановка
+	Preview     bool          // предпросмотр черновика: плашка со ссылкой в редактор
+	Live        bool          // живой предпросмотр в редакторе (Admin.Live): без плашки, редактор рядом
 }
 
 // seo — SEO поста, заданное вручную.
@@ -285,7 +291,11 @@ func newViewData(ctx context.Context, imgs blocks.Images, fls blocks.FileSource,
 	if err != nil {
 		return viewData{}, err
 	}
-	v := viewData{entry: e, List: list, Resolved: res, Files: fs, Cover: cover}
+	mobile, err := resolveCover(ctx, imgs, e.CoverMobile.String)
+	if err != nil {
+		return viewData{}, err
+	}
+	v := viewData{entry: e, List: list, Resolved: res, Files: fs, Cover: cover, CoverMobile: mobile}
 	if v.SEOImage, err = v.seo().Resolve(ctx, imgs); err != nil {
 		return viewData{}, err
 	}

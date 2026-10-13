@@ -152,7 +152,7 @@ func (q *Queries) GetCategoryBySlug(ctx context.Context, slug string) (GetCatego
 }
 
 const getPostContent = `-- name: GetPostContent :one
-SELECT post_id, kind, title, slug, cover, category_id, publish_date, blocks, lead, excerpt, cover_alt,
+SELECT post_id, kind, title, slug, cover, cover_mobile, category_id, publish_date, blocks, lead, excerpt, cover_alt,
        seo_title, seo_description, seo_image
 FROM post_contents WHERE post_id = ? AND kind = ?
 `
@@ -162,15 +162,34 @@ type GetPostContentParams struct {
 	Kind   string
 }
 
-func (q *Queries) GetPostContent(ctx context.Context, arg GetPostContentParams) (PostContent, error) {
+type GetPostContentRow struct {
+	PostID         int64
+	Kind           string
+	Title          string
+	Slug           string
+	Cover          sql.NullString
+	CoverMobile    sql.NullString
+	CategoryID     sql.NullInt64
+	PublishDate    string
+	Blocks         string
+	Lead           string
+	Excerpt        string
+	CoverAlt       string
+	SeoTitle       string
+	SeoDescription string
+	SeoImage       sql.NullString
+}
+
+func (q *Queries) GetPostContent(ctx context.Context, arg GetPostContentParams) (GetPostContentRow, error) {
 	row := q.db.QueryRowContext(ctx, getPostContent, arg.PostID, arg.Kind)
-	var i PostContent
+	var i GetPostContentRow
 	err := row.Scan(
 		&i.PostID,
 		&i.Kind,
 		&i.Title,
 		&i.Slug,
 		&i.Cover,
+		&i.CoverMobile,
 		&i.CategoryID,
 		&i.PublishDate,
 		&i.Blocks,
@@ -185,7 +204,7 @@ func (q *Queries) GetPostContent(ctx context.Context, arg GetPostContentParams) 
 }
 
 const getPublishedPostBySlug = `-- name: GetPublishedPostBySlug :one
-SELECT c.post_id, c.title, c.slug, c.cover, c.publish_date, c.blocks, c.lead, c.excerpt, c.cover_alt,
+SELECT c.post_id, c.title, c.slug, c.cover, c.cover_mobile, c.publish_date, c.blocks, c.lead, c.excerpt, c.cover_alt,
        c.seo_title, c.seo_description, c.seo_image,
        CAST(coalesce(cat.name, '') AS TEXT) AS category_name,
        CAST(coalesce(cat.slug, '') AS TEXT) AS category_slug
@@ -204,6 +223,7 @@ type GetPublishedPostBySlugRow struct {
 	Title          string
 	Slug           string
 	Cover          sql.NullString
+	CoverMobile    sql.NullString
 	PublishDate    string
 	Blocks         string
 	Lead           string
@@ -224,6 +244,7 @@ func (q *Queries) GetPublishedPostBySlug(ctx context.Context, arg GetPublishedPo
 		&i.Title,
 		&i.Slug,
 		&i.Cover,
+		&i.CoverMobile,
 		&i.PublishDate,
 		&i.Blocks,
 		&i.Lead,
@@ -387,6 +408,7 @@ SELECT p.id, d.title, d.slug, d.publish_date, p.updated_at,
        CAST(coalesce(pub.slug, '') AS TEXT) AS published_slug,
        CAST(coalesce(pub.publish_date, '') AS TEXT) AS published_date,
        CAST(pub.post_id IS NOT NULL AND (pub.title <> d.title OR pub.slug <> d.slug OR pub.cover IS NOT d.cover
+            OR pub.cover_mobile IS NOT d.cover_mobile
             OR pub.category_id IS NOT d.category_id OR pub.publish_date <> d.publish_date OR pub.blocks <> d.blocks
             OR pub.lead <> d.lead OR pub.excerpt <> d.excerpt OR pub.cover_alt <> d.cover_alt
             OR pub.seo_title <> d.seo_title OR pub.seo_description <> d.seo_description
@@ -482,7 +504,7 @@ func (q *Queries) ListPublishedPostDates(ctx context.Context, now string) ([]Lis
 }
 
 const listPublishedPosts = `-- name: ListPublishedPosts :many
-SELECT c.post_id, c.title, c.slug, c.cover, c.publish_date, c.blocks, c.lead, c.excerpt, c.cover_alt,
+SELECT c.post_id, c.title, c.slug, c.cover, c.cover_mobile, c.publish_date, c.blocks, c.lead, c.excerpt, c.cover_alt,
        c.seo_title, c.seo_description, c.seo_image,
        CAST(coalesce(cat.name, '') AS TEXT) AS category_name,
        CAST(coalesce(cat.slug, '') AS TEXT) AS category_slug
@@ -504,6 +526,7 @@ type ListPublishedPostsRow struct {
 	Title          string
 	Slug           string
 	Cover          sql.NullString
+	CoverMobile    sql.NullString
 	PublishDate    string
 	Blocks         string
 	Lead           string
@@ -531,6 +554,7 @@ func (q *Queries) ListPublishedPosts(ctx context.Context, arg ListPublishedPosts
 			&i.Title,
 			&i.Slug,
 			&i.Cover,
+			&i.CoverMobile,
 			&i.PublishDate,
 			&i.Blocks,
 			&i.Lead,
@@ -556,7 +580,7 @@ func (q *Queries) ListPublishedPosts(ctx context.Context, arg ListPublishedPosts
 }
 
 const listPublishedPostsInCategory = `-- name: ListPublishedPostsInCategory :many
-SELECT c.post_id, c.title, c.slug, c.cover, c.publish_date, c.blocks, c.lead, c.excerpt, c.cover_alt,
+SELECT c.post_id, c.title, c.slug, c.cover, c.cover_mobile, c.publish_date, c.blocks, c.lead, c.excerpt, c.cover_alt,
        c.seo_title, c.seo_description, c.seo_image,
        CAST(coalesce(cat.name, '') AS TEXT) AS category_name,
        CAST(coalesce(cat.slug, '') AS TEXT) AS category_slug
@@ -579,6 +603,7 @@ type ListPublishedPostsInCategoryRow struct {
 	Title          string
 	Slug           string
 	Cover          sql.NullString
+	CoverMobile    sql.NullString
 	PublishDate    string
 	Blocks         string
 	Lead           string
@@ -610,6 +635,7 @@ func (q *Queries) ListPublishedPostsInCategory(ctx context.Context, arg ListPubl
 			&i.Title,
 			&i.Slug,
 			&i.Cover,
+			&i.CoverMobile,
 			&i.PublishDate,
 			&i.Blocks,
 			&i.Lead,
@@ -730,12 +756,13 @@ func (q *Queries) PostsUsingImage(ctx context.Context, imageID string) ([]PostsU
 }
 
 const publishDraft = `-- name: PublishDraft :exec
-INSERT INTO post_contents (post_id, kind, title, slug, cover, category_id, publish_date, blocks, lead, excerpt, cover_alt,
+INSERT INTO post_contents (post_id, kind, title, slug, cover, cover_mobile, category_id, publish_date, blocks, lead, excerpt, cover_alt,
     seo_title, seo_description, seo_image)
-SELECT src.post_id, 'published', src.title, src.slug, src.cover, src.category_id, src.publish_date, src.blocks,
+SELECT src.post_id, 'published', src.title, src.slug, src.cover, src.cover_mobile, src.category_id, src.publish_date, src.blocks,
        src.lead, src.excerpt, src.cover_alt, src.seo_title, src.seo_description, src.seo_image
 FROM post_contents AS src WHERE src.post_id = ? AND src.kind = 'draft'
 ON CONFLICT (post_id, kind) DO UPDATE SET title = excluded.title, slug = excluded.slug, cover = excluded.cover,
+    cover_mobile = excluded.cover_mobile,
     category_id = excluded.category_id, publish_date = excluded.publish_date, blocks = excluded.blocks,
     lead = excluded.lead, excerpt = excluded.excerpt, cover_alt = excluded.cover_alt,
     seo_title = excluded.seo_title, seo_description = excluded.seo_description, seo_image = excluded.seo_image
@@ -813,10 +840,11 @@ func (q *Queries) RememberPublishedSlug(ctx context.Context, postID int64) error
 }
 
 const saveDraft = `-- name: SaveDraft :exec
-INSERT INTO post_contents (post_id, kind, title, slug, cover, category_id, publish_date, blocks, lead, excerpt, cover_alt,
+INSERT INTO post_contents (post_id, kind, title, slug, cover, cover_mobile, category_id, publish_date, blocks, lead, excerpt, cover_alt,
     seo_title, seo_description, seo_image)
-VALUES (?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (post_id, kind) DO UPDATE SET title = excluded.title, slug = excluded.slug, cover = excluded.cover,
+    cover_mobile = excluded.cover_mobile,
     category_id = excluded.category_id, publish_date = excluded.publish_date, blocks = excluded.blocks,
     lead = excluded.lead, excerpt = excluded.excerpt, cover_alt = excluded.cover_alt,
     seo_title = excluded.seo_title, seo_description = excluded.seo_description, seo_image = excluded.seo_image
@@ -827,6 +855,7 @@ type SaveDraftParams struct {
 	Title          string
 	Slug           string
 	Cover          sql.NullString
+	CoverMobile    sql.NullString
 	CategoryID     sql.NullInt64
 	PublishDate    string
 	Blocks         string
@@ -844,6 +873,7 @@ func (q *Queries) SaveDraft(ctx context.Context, arg SaveDraftParams) error {
 		arg.Title,
 		arg.Slug,
 		arg.Cover,
+		arg.CoverMobile,
 		arg.CategoryID,
 		arg.PublishDate,
 		arg.Blocks,

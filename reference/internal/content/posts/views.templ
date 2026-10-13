@@ -29,7 +29,7 @@ templ ListPage(v listView) {
 						<li class="post-card">
 							if c.Cover != nil {
 								<a class="post-card-cover" href={ templ.SafeURL(PublicPath(c.Slug)) } tabindex="-1" aria-hidden="true">
-									@web.Picture(c.Cover, "", sizesCard)
+									@web.PictureMobile(c.Cover, c.CoverMobile, "", sizesCard)
 								</a>
 							}
 							<div class="post-card-body">
@@ -90,7 +90,7 @@ templ View(p viewData) {
 			@meta(p.entry)
 			if p.Cover != nil {
 				<div class="post-cover">
-					@web.Picture(p.Cover, p.CoverAlt, sizesCover)
+					@web.PictureMobile(p.Cover, p.CoverMobile, p.CoverAlt, sizesCover)
 				</div>
 			}
 			@blocks.View(p.List, p.Resolved, p.Files, nil)
