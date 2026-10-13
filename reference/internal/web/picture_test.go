@@ -67,3 +67,66 @@ func TestPictureFallback(t *testing.T) {
 		t.Errorf("image without variants rendered %d <picture>", n)
 	}
 }
+
+func TestPictureMobile(t *testing.T) {
+	img := &images.Image{Variants: []images.StoredVariant{variant(images.WebP, 960, 640), variant(images.JPEG, 960, 640)}}
+	mobile := &images.Image{Variants: []images.StoredVariant{
+		{Format: images.WebP, Width: 480, Height: 720, Path: "m/v1/480.webp"},
+		{Format: images.JPEG, Width: 480, Height: 720, Path: "m/v1/480.jpg"},
+	}}
+	render := func(mobile *images.Image) (*goquery.Selection, string) {
+		t.Helper()
+		var b strings.Builder
+		if err := PictureMobile(img, mobile, "Закат", "100vw").Render(t.Context(), &b); err != nil {
+			t.Fatal(err)
+		}
+		doc, err := goquery.NewDocumentFromReader(strings.NewReader(b.String()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return doc.Find("picture"), b.String()
+	}
+
+	sources := func(p *goquery.Selection) []string {
+		var got []string
+		p.Find("source").Each(func(_ int, s *goquery.Selection) {
+			got = append(got, s.AttrOr("media", "")+"|"+s.AttrOr("type", "")+"|"+s.AttrOr("srcset", "")+"|"+
+				s.AttrOr("width", "")+"x"+s.AttrOr("height", ""))
+		})
+		return got
+	}
+
+	// С мобильной: два <source media> первыми (WebP, затем JPEG) с её размерами, потом основная пара.
+	p, _ := render(mobile)
+	want := []string{
+		MobileMedia + "|image/webp|/media/m/v1/480.webp 480w|480x720",
+		MobileMedia + "|image/jpeg|/media/m/v1/480.jpg 480w|480x720",
+		"|image/webp|/media/abc/v1/960.webp 960w|x",
+	}
+	if got := sources(p); strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("sources =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if got := p.Find("img").AttrOr("src", ""); got != "/media/abc/v1/960.jpg" {
+		t.Errorf("img src = %q, want the main image", got)
+	}
+
+	// Без мобильной (nil или без вариантов) — разметка как у Picture.
+	var plain strings.Builder
+	if err := Picture(img, "Закат", "100vw").Render(t.Context(), &plain); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range []*images.Image{nil, {}} {
+		if _, html := render(m); html != plain.String() {
+			t.Errorf("PictureMobile(img, %v) =\n%s\nwant Picture output\n%s", m, html, plain.String())
+		}
+	}
+
+	// Мобильная без основной — ничего: основная обязательна.
+	var b strings.Builder
+	if err := PictureMobile(&images.Image{}, mobile, "", "100vw").Render(t.Context(), &b); err != nil {
+		t.Fatal(err)
+	}
+	if b.Len() != 0 {
+		t.Errorf("mobile without main rendered %q", b.String())
+	}
+}

@@ -11,8 +11,35 @@ import (
 // по нему браузер выбирает вариант из srcset. width и height — пропорции, чтобы вёрстка не прыгала при загрузке.
 // Изображение без вариантов не выводится.
 templ Picture(img *images.Image, alt, sizes string) {
+	@PictureMobile(img, nil, alt, sizes)
+}
+
+// PictureMobile — Picture со своей картинкой для телефона: на экране уже MobileMedia браузер берёт mobile
+// (свои WebP и JPEG, свои width и height), шире — img; скачивается одна из двух. mobile == nil или без
+// вариантов — разметка как у Picture. Alt один: на обеих картинках одно и то же.
+templ PictureMobile(img, mobile *images.Image, alt, sizes string) {
 	if p, ok := newPicture(img); ok {
 		<picture>
+			if m, ok := newPicture(mobile); ok {
+				if m.webp != "" {
+					<source
+						media={ MobileMedia }
+						type="image/webp"
+						srcset={ m.webp }
+						sizes={ sizes }
+						width={ strconv.Itoa(m.src.Width) }
+						height={ strconv.Itoa(m.src.Height) }
+					/>
+				}
+				<source
+					media={ MobileMedia }
+					type="image/jpeg"
+					srcset={ m.jpeg }
+					sizes={ sizes }
+					width={ strconv.Itoa(m.src.Width) }
+					height={ strconv.Itoa(m.src.Height) }
+				/>
+			}
 			if p.webp != "" {
 				<source type="image/webp" srcset={ p.webp } sizes={ sizes }/>
 			}
