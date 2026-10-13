@@ -14,14 +14,23 @@ func NormalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
-// CreateUser создаёт пользователя. email — только адрес, без имени («a@example.com», не «A <a@example.com>»);
-// пароль проходит CheckPasswordPolicy. Ошибки: ErrInvalidEmail, ErrPasswordLength, ErrUserExists.
-func (s *Service) CreateUser(ctx context.Context, email, password string) (User, error) {
+// CheckEmail проверяет email нового пользователя: только адрес, без имени («a@example.com»,
+// не «A <a@example.com>»). Ошибка — ErrInvalidEmail.
+func CheckEmail(email string) error {
 	addr, err := mail.ParseAddress(email)
 	if err != nil || addr.Name != "" || addr.Address != strings.TrimSpace(email) {
-		return User{}, fmt.Errorf("%w: %q", ErrInvalidEmail, email)
+		return fmt.Errorf("%w: %q", ErrInvalidEmail, email)
 	}
-	email = NormalizeEmail(addr.Address)
+	return nil
+}
+
+// CreateUser создаёт пользователя; email проходит CheckEmail, пароль — CheckPasswordPolicy.
+// Ошибки: ErrInvalidEmail, ErrPasswordLength, ErrUserExists.
+func (s *Service) CreateUser(ctx context.Context, email, password string) (User, error) {
+	if err := CheckEmail(email); err != nil {
+		return User{}, err
+	}
+	email = NormalizeEmail(email)
 	if err := CheckPasswordPolicy(password); err != nil {
 		return User{}, err
 	}
