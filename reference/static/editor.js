@@ -1,4 +1,5 @@
-// editor.js — панель оформления Markdown в админке (markdownToolbar в internal/blocks/form.templ).
+// editor.js — панель оформления Markdown в админке (markdownToolbar в internal/blocks/form.templ)
+// и закрытие меню «Добавить блок».
 // Кнопка оборачивает выделение разметкой Markdown, повторное нажатие снимает её; Ctrl/⌘+B, I, K — то же с клавиатуры.
 // Без этого файла панели не видно (CSS показывает её только при классе js), textarea работает как обычно.
 (function () {
@@ -129,6 +130,12 @@
     if (!btn) return;
     var ta = document.getElementById(btn.closest(".md-toolbar").getAttribute("aria-controls"));
     if (ta) apply(ta, btn.getAttribute("data-md"));
+  });
+
+  // Меню «Добавить блок» (blocks.Editor) закрывается после выбора: htmx уже получил click на кнопке.
+  document.addEventListener("click", function (ev) {
+    var menu = ev.target.closest && ev.target.closest(".block-add-menu button");
+    if (menu) menu.closest("details").open = false;
   });
 
   // ev.code, а не ev.key: в русской раскладке Ctrl+B даёт key «и».

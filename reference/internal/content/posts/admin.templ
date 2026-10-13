@@ -141,72 +141,79 @@ templ Form(f postForm) {
 			@fieldError(f, "title")
 		</label>
 		@textField(f, "lead", "Лид", f.Lead, 2, maxLeadLen, "Необязательно: подзаголовок под заголовком поста, простым текстом.")
-		<label>
-			Slug
-			<input
-				type="text"
-				name="slug"
-				value={ f.Slug }
-				placeholder="составится из заголовка"
-				if f.Errors["slug"] != "" {
-					aria-invalid="true"
-					aria-describedby="slug-hint slug-error"
-				} else {
-					aria-describedby="slug-hint"
-				}
-			/>
-			<span class="field-hint" id="slug-hint">{ "Адрес поста: " + BlogPath + "/slug — латиница, цифры и дефисы. Пусто — составится из заголовка. Новый адрес появится на сайте после публикации." }</span>
-			@fieldError(f, "slug")
-		</label>
-		@textField(f, "old_paths", "Старые адреса", f.OldPaths, 2, maxOldPaths*(maxOldPathLen+1),
-			"По адресу в строке — путь после "+BlogPath+"/, например old_slug или 2019/05/post.html. С них сайт перенаправит (301) на пост, пока он опубликован. Прежний slug попадает сюда сам при смене адреса.")
-		<label>
-			Категория
-			<select
-				name="category"
-				if f.Errors["category"] != "" {
-					aria-invalid="true"
-					aria-describedby="category-error"
-				}
-			>
-				<option value="">— без категории —</option>
-				for _, c := range f.Categories {
-					<option value={ strconv.FormatInt(c.ID, 10) } selected?={ c.ID == f.CategoryID }>{ c.Name }</option>
-				}
-			</select>
-			@fieldError(f, "category")
-		</label>
-		<label>
-			Дата публикации
-			<input
-				type="datetime-local"
-				name="publish_date"
-				value={ f.PublishDate }
-				if f.Errors["publish_date"] != "" {
-					aria-invalid="true"
-					aria-describedby="publish-date-hint publish_date-error"
-				} else {
-					aria-describedby="publish-date-hint"
-				}
-			/>
-			<span class="field-hint" id="publish-date-hint">Пусто — дата появится в момент публикации. Дата в будущем — пост появится на сайте в это время.</span>
-			@fieldError(f, "publish_date")
-		</label>
 		@coverField(f)
-		@textField(f, "excerpt", "Анонс", f.Excerpt, 3, maxExcerptLen, "Для ленты блога, RSS и описания для поисковиков. Пусто — начало текста поста.")
 		@blocks.Editor(f.Blocks, f.Env)
+		<fieldset class="form-section">
+			<legend>Публикация</legend>
+			<label>
+				Дата публикации
+				<input
+					type="datetime-local"
+					name="publish_date"
+					value={ f.PublishDate }
+					if f.Errors["publish_date"] != "" {
+						aria-invalid="true"
+						aria-describedby="publish-date-hint publish_date-error"
+					} else {
+						aria-describedby="publish-date-hint"
+					}
+				/>
+				<span class="field-hint" id="publish-date-hint">Пусто — дата появится в момент публикации. Дата в будущем — пост появится на сайте в это время.</span>
+				@fieldError(f, "publish_date")
+			</label>
+			<label>
+				Категория
+				<select
+					name="category"
+					if f.Errors["category"] != "" {
+						aria-invalid="true"
+						aria-describedby="category-error"
+					}
+				>
+					<option value="">— без категории —</option>
+					for _, c := range f.Categories {
+						<option value={ strconv.FormatInt(c.ID, 10) } selected?={ c.ID == f.CategoryID }>{ c.Name }</option>
+					}
+				</select>
+				@fieldError(f, "category")
+			</label>
+			@textField(f, "excerpt", "Анонс", f.Excerpt, 3, maxExcerptLen, "Для ленты блога, RSS и описания для поисковиков. Пусто — начало текста поста.")
+		</fieldset>
+		@addressSection(f) {
+			<label>
+				Адрес
+				<span class="input-group">
+					<span class="input-prefix" aria-hidden="true">{ BlogPath + "/" }</span>
+					<input
+						type="text"
+						name="slug"
+						value={ f.Slug }
+						placeholder="составится из заголовка"
+						if f.Errors["slug"] != "" {
+							aria-invalid="true"
+							aria-describedby="slug-hint slug-error"
+						} else {
+							aria-describedby="slug-hint"
+						}
+					/>
+				</span>
+				<span class="field-hint" id="slug-hint">Латиница, цифры и дефисы. Пусто — составится из заголовка. Новый адрес появится на сайте после публикации.</span>
+				@fieldError(f, "slug")
+			</label>
+			@textField(f, "old_paths", "Старые адреса", f.OldPaths, 2, maxOldPaths*(maxOldPathLen+1),
+				"По адресу в строке — путь после "+BlogPath+"/, например old_slug или 2019/05/post.html. С них сайт перенаправит (301) на пост, пока он опубликован. Прежний slug попадает сюда сам при смене адреса.")
+		}
 		@seofields.Section(f.SEO, f.SEOEnv)
 		<div class="form-actions">
-			<button type="submit" name="action" value="save">Сохранить</button>
-			<button type="submit" name="action" value="publish" class="secondary">Опубликовать</button>
+			<button type="submit" name="action" value="save" title="Сохранить черновик: на сайте ничего не изменится">Сохранить</button>
+			<button type="submit" name="action" value="publish" class="secondary" title="Сохранить и показать на сайте">Опубликовать</button>
 			<a href={ templ.SafeURL(AdminPath) }>Отмена</a>
 		</div>
-		<span class="field-hint">«Сохранить» — сохранить черновик, на сайте ничего не изменится. «Опубликовать» — сохранить и показать на сайте.</span>
 	</form>
 }
 
-// coverField — выбор обложки из медиатеки (и ответ на POST /admin/posts/cover). Смена выбора через htmx
-// перерисовывает поле: появляется превью. Без JavaScript превью обновится после отправки формы.
+// coverField — выбор обложки из медиатеки (и ответ на POST /admin/posts/cover): превью слева, выбор и alt справа.
+// Смена выбора через htmx перерисовывает поле: появляется превью. Без JavaScript превью обновится после отправки формы.
 templ coverField(f postForm) {
 	<div class="block-image-pick" id="cover-field">
 		<div class="block-thumb">
@@ -216,50 +223,61 @@ templ coverField(f postForm) {
 				<span class="muted">Без обложки</span>
 			}
 		</div>
-		<label>
-			Обложка
-			<select
-				name="cover"
-				hx-post={ AdminPath + "/cover" }
-				hx-params="cover,cover_alt"
-				hx-trigger="change"
-				hx-target="#cover-field"
-				hx-swap="outerHTML"
-				if f.Errors["cover"] != "" {
-					aria-invalid="true"
-					aria-describedby="cover-hint cover-error"
-				} else {
-					aria-describedby="cover-hint"
-				}
-			>
-				<option value="">— без обложки —</option>
-				for _, img := range coverOptions(f) {
-					<option value={ img.ID } selected?={ img.ID == f.Cover }>{ optionLabel(img) }</option>
-				}
-			</select>
-			<span class="field-hint" id="cover-hint">
-				Необязательно: картинка над постом и в ленте блога. Новое изображение сначала загрузите в <a href={ templ.SafeURL(f.Env.MediaURL) } target="_blank">медиатеку</a>.
-			</span>
-			@fieldError(f, "cover")
-		</label>
-		<label>
-			Описание обложки (alt)
-			<input
-				type="text"
-				name="cover_alt"
-				value={ f.CoverAlt }
-				maxlength={ strconv.Itoa(maxAltLen) }
-				if f.Errors["cover_alt"] != "" {
-					aria-invalid="true"
-					aria-describedby="cover_alt-hint cover_alt-error"
-				} else {
-					aria-describedby="cover_alt-hint"
-				}
-			/>
-			<span class="field-hint" id="cover_alt-hint">Что изображено — для тех, кто не видит картинку. Пусто — обложка считается украшением.</span>
-			@fieldError(f, "cover_alt")
-		</label>
+		<div class="block-image-fields">
+			<label>
+				Обложка
+				<select
+					name="cover"
+					hx-post={ AdminPath + "/cover" }
+					hx-params="cover,cover_alt"
+					hx-trigger="change"
+					hx-target="#cover-field"
+					hx-swap="outerHTML"
+					if f.Errors["cover"] != "" {
+						aria-invalid="true"
+						aria-describedby="cover-hint cover-error"
+					} else {
+						aria-describedby="cover-hint"
+					}
+				>
+					<option value="">— без обложки —</option>
+					for _, img := range coverOptions(f) {
+						<option value={ img.ID } selected?={ img.ID == f.Cover }>{ optionLabel(img) }</option>
+					}
+				</select>
+				<span class="field-hint" id="cover-hint">
+					Необязательно: картинка над постом и в ленте блога. Новое изображение сначала загрузите в <a href={ templ.SafeURL(f.Env.MediaURL) } target="_blank">медиатеку</a>.
+				</span>
+				@fieldError(f, "cover")
+			</label>
+			<label>
+				Описание обложки (alt)
+				<input
+					type="text"
+					name="cover_alt"
+					value={ f.CoverAlt }
+					maxlength={ strconv.Itoa(maxAltLen) }
+					if f.Errors["cover_alt"] != "" {
+						aria-invalid="true"
+						aria-describedby="cover_alt-hint cover_alt-error"
+					} else {
+						aria-describedby="cover_alt-hint"
+					}
+				/>
+				<span class="field-hint" id="cover_alt-hint">Что изображено — для тех, кто не видит картинку. Пусто — обложка считается украшением.</span>
+				@fieldError(f, "cover_alt")
+			</label>
+		</div>
 	</div>
+}
+
+// addressSection — адрес поста (slug и старые адреса), свёрнутый: в заголовке виден текущий адрес. Раскрыт,
+// если в его полях ошибка.
+templ addressSection(f postForm) {
+	<details class="form-section" open?={ f.Errors["slug"] != "" || f.Errors["old_paths"] != "" }>
+		<summary>Адрес <span class="form-section-note">{ addressNote(f.Slug) }</span></summary>
+		{ children... }
+	</details>
 }
 
 // textField — необязательное поле простого текста (лид, анонс) с подсказкой.
@@ -315,6 +333,14 @@ templ BlockedPage(f postForm) {
 
 // deleteHint — почему опубликованный пост нельзя удалить сразу.
 const deleteHint = "Удалить можно только неопубликованный пост: сначала снимите его с публикации."
+
+// addressNote — адрес поста в заголовке свёрнутого раздела «Адрес».
+func addressNote(slug string) string {
+	if slug == "" {
+		return "составится из заголовка"
+	}
+	return PublicPath(slug)
+}
 
 func formTitle(f postForm) string {
 	if f.ID == 0 {

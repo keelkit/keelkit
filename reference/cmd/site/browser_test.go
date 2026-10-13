@@ -146,10 +146,12 @@ func TestBrowserBlocks(t *testing.T) {
 		chromedp.Evaluate(`window.keelkitMarker = true`, nil),
 		chromedp.SendKeys(`input[name="title"]`, "Блоки", chromedp.ByQuery),
 		chromedp.SendKeys(`.block-form textarea`, "Первый", chromedp.ByQuery),
+		chromedp.Click(`.block-add > summary`, chromedp.ByQuery),
 		chromedp.Click(`.block-add button[value="add:quote"]`, chromedp.ByQuery),
 		chromedp.WaitVisible(`#blocks > .block-form:nth-child(2) textarea`, chromedp.ByQuery),
 		htmxSettled(),
 		chromedp.SendKeys(`#blocks > .block-form:nth-child(2) textarea`, "Цитата", chromedp.ByQuery),
+		chromedp.Click(`.block-add > summary`, chromedp.ByQuery),
 		chromedp.Click(`.block-add button[value="add:image"]`, chromedp.ByQuery),
 		chromedp.WaitVisible(`#blocks > .block-form:nth-child(3) select`, chromedp.ByQuery),
 		htmxSettled(),
@@ -603,6 +605,7 @@ func TestBrowserLivePreview(t *testing.T) {
 
 	// «Добавить блок» (htmx) тоже обновляет предпросмотр: блок «Цитата» появляется в iframe.
 	run(t, ctx, "add block",
+		chromedp.Click(`.block-add > summary`, chromedp.ByQuery),
 		chromedp.Click(`.block-add button[value="add:quote"]`, chromedp.ByQuery),
 		htmxSettled(),
 		chromedp.SendKeys(`#blocks > .block-form:last-child textarea`, "Живая цитата", chromedp.ByQuery),

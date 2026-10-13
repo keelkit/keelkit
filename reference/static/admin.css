@@ -360,7 +360,8 @@ body.admin {
 }
 
 .admin .admin-main > * + .form,
-.admin .admin-main > * + .danger-zone {
+.admin .admin-main > * + .danger-zone,
+.admin .live-editor > * + .danger-zone {
   margin-top: 1.5rem;
 }
 
@@ -787,14 +788,55 @@ body.admin {
   background: var(--bg);
 }
 
-.admin .seo-fields {
+.admin .form-section {
   padding: 1rem 1.25rem;
   border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
-.admin .seo-fields summary {
+.admin .form-section > summary,
+.admin fieldset.form-section > legend {
   font-size: 0.9375rem;
+}
+
+.admin .input-prefix {
+  border-color: var(--border-strong);
+  background: var(--card);
+  font-size: 0.9375rem;
+}
+
+/* «Добавить блок»: пунктирная кнопка во всю ширину под блоками, раскрывает типы блоков. */
+.admin .block-add > summary {
+  display: block;
+  padding: 0.7rem 1rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  color: var(--muted);
+  font-size: 0.9375rem;
+  text-align: center;
+  list-style: none;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.admin .block-add > summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin .block-add > summary::before {
+  content: "+ ";
+}
+
+.admin .block-add > summary:hover,
+.admin .block-add[open] > summary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.admin .block-add > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .admin .seo-snippet-search,

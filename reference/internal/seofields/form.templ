@@ -10,7 +10,7 @@ import (
 // Section — раздел «Поисковики и соцсети» в форме записи: превью сниппета и поля. Свёрнут (<details>, без
 // JavaScript), пока ничего не задано вручную и нет ошибок. f — поля из формы, e.Errors — ошибки всей формы.
 templ Section(f Fields, e Env) {
-	<details class="seo-fields" open?={ open(f, e.Errors) }>
+	<details class="form-section seo-fields" open?={ open(f, e.Errors) }>
 		<summary>Поисковики и соцсети</summary>
 		@Snippet(e.Meta, e.Snippet)
 		<label>

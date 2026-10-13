@@ -142,32 +142,44 @@ templ Form(f pageForm) {
 			/>
 			@fieldError(f, "title")
 		</label>
-		<label>
-			Slug
-			<input
-				type="text"
-				name="slug"
-				value={ f.Slug }
-				placeholder="составится из заголовка"
-				if f.Errors["slug"] != "" {
-					aria-invalid="true"
-					aria-describedby="slug-hint slug-error"
-				} else {
-					aria-describedby="slug-hint"
-				}
-			/>
-			<span class="field-hint" id="slug-hint">Адрес страницы: латиница, цифры и дефисы. Пусто — составится из заголовка. Новый адрес появится на сайте после публикации.</span>
-			@fieldError(f, "slug")
-		</label>
 		@blocks.Editor(f.Blocks, f.Env)
+		@addressSection(f) {
+			<label>
+				Адрес
+				<span class="input-group">
+					<span class="input-prefix" aria-hidden="true">/</span>
+					<input
+						type="text"
+						name="slug"
+						value={ f.Slug }
+						placeholder="составится из заголовка"
+						if f.Errors["slug"] != "" {
+							aria-invalid="true"
+							aria-describedby="slug-hint slug-error"
+						} else {
+							aria-describedby="slug-hint"
+						}
+					/>
+				</span>
+				<span class="field-hint" id="slug-hint">Латиница, цифры и дефисы. Пусто — составится из заголовка. Новый адрес появится на сайте после публикации.</span>
+				@fieldError(f, "slug")
+			</label>
+		}
 		@seofields.Section(f.SEO, f.SEOEnv)
 		<div class="form-actions">
-			<button type="submit" name="action" value="save">Сохранить</button>
-			<button type="submit" name="action" value="publish" class="secondary">Опубликовать</button>
+			<button type="submit" name="action" value="save" title="Сохранить черновик: на сайте ничего не изменится">Сохранить</button>
+			<button type="submit" name="action" value="publish" class="secondary" title="Сохранить и показать на сайте">Опубликовать</button>
 			<a href={ templ.SafeURL(AdminPath) }>Отмена</a>
 		</div>
-		<span class="field-hint">«Сохранить» — сохранить черновик, на сайте ничего не изменится. «Опубликовать» — сохранить и показать на сайте.</span>
 	</form>
+}
+
+// addressSection — адрес страницы (slug), свёрнутый: в заголовке виден текущий адрес. Раскрыт, если в поле ошибка.
+templ addressSection(f pageForm) {
+	<details class="form-section" open?={ f.Errors["slug"] != "" }>
+		<summary>Адрес <span class="form-section-note">{ addressNote(f.Slug) }</span></summary>
+		{ children... }
+	</details>
 }
 
 templ fieldError(f pageForm, field string) {
@@ -221,6 +233,14 @@ func deleteHint(publishedSlug string) string {
 		return "Главная страница всегда опубликована, поэтому удалить её нельзя."
 	}
 	return "Удалить можно только неопубликованную страницу: сначала снимите её с публикации."
+}
+
+// addressNote — адрес страницы в заголовке свёрнутого раздела «Адрес».
+func addressNote(slug string) string {
+	if slug == "" {
+		return "составится из заголовка"
+	}
+	return PublicPath(slug)
 }
 
 func formTitle(f pageForm) string {

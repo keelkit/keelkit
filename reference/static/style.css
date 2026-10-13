@@ -602,25 +602,74 @@ button.danger:hover {
   color: var(--muted);
 }
 
-/* SEO записи (internal/seofields): свёрнутый раздел формы и превью сниппета в поиске и соцсетях. */
-.seo-fields {
+/* Раздел формы записи после содержания: «Публикация» (fieldset), свёрнутые «Адрес» и «Поисковики и соцсети»
+   (details). В заголовке свёрнутого раздела — текущее значение (.form-section-note). */
+.form-section {
+  margin: 0;
   padding: 0.75rem 1rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  min-width: 0;
 }
 
-.seo-fields summary {
+fieldset.form-section {
+  display: grid;
+  gap: 1rem;
+}
+
+/* float выводит legend из рамки fieldset внутрь раздела: она становится первой строкой сетки. */
+fieldset.form-section > legend {
+  float: left;
+  padding: 0;
+  font-weight: 600;
+}
+
+.form-section > summary {
   font-weight: 600;
   cursor: pointer;
 }
 
-.seo-fields[open] > summary {
+.form-section[open] > summary {
   margin-bottom: 1rem;
 }
 
-.seo-fields > label + label {
+details.form-section > label + label {
   margin-top: 1rem;
 }
+
+.form-section-note {
+  margin-left: 0.5rem;
+  color: var(--muted);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+/* Поле с неизменяемым началом: «/blog/» перед slug. */
+.input-group {
+  display: flex;
+  min-width: 0;
+}
+
+.input-prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 0.65rem;
+  border: 1px solid var(--border);
+  border-right: 0;
+  border-radius: var(--radius) 0 0 var(--radius);
+  color: var(--muted);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.input-group input {
+  flex: 1;
+  min-width: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* Превью сниппета (internal/seofields) в поиске и соцсетях. */
 
 .seo-snippet {
   display: grid;
@@ -1116,11 +1165,18 @@ figure.block {
   font-size: 0.95rem;
 }
 
-.block-add {
+/* «Добавить блок» — меню на <details>: типы блоков появляются по нажатию и не спорят с «Сохранить». */
+.block-add > summary {
+  display: inline-block;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.block-add-menu {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 0.5rem;
+  margin-top: 0.75rem;
 }
 
 button.secondary,
@@ -1146,9 +1202,16 @@ button.secondary:hover,
   align-items: start;
 }
 
+/* Выбор изображения и его поля (alt, подпись) — справа от превью одной колонкой. */
+.block-image-fields {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
 @media (min-width: 40rem) {
   .block-image-pick {
-    grid-template-columns: 8rem 1fr;
+    grid-template-columns: 8rem minmax(0, 1fr);
   }
 }
 
