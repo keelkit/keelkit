@@ -8,12 +8,10 @@ require (
 	github.com/PuerkitoBio/goquery v1.13.0
 	github.com/a-h/templ v0.3.1020
 	github.com/chromedp/chromedp v0.16.0
-	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/pressly/goose/v3 v3.28.0
 	github.com/voffkin/keelkit/modules/images v0.1.0
-	github.com/yuin/goldmark v1.8.6
+	github.com/voffkin/keelkit/modules/richtext v0.1.1
 	golang.org/x/crypto v0.57.0
-	golang.org/x/net v0.60.0
 	golang.org/x/term v0.46.0
 	modernc.org/sqlite v1.60.1
 )
@@ -34,11 +32,14 @@ require (
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
+	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/sethvargo/go-retry v0.4.0 // indirect
+	github.com/yuin/goldmark v1.8.6 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/image v0.46.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	modernc.org/libc v1.77.1 // indirect

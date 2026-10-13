@@ -6,15 +6,16 @@
 ## Версии
 
 - Go: `go 1.26.0` в `go.mod` (актуальный релиз минус один минор), тулчейн `go1.27.2`.
-- Модули Keelkit: `github.com/voffkin/keelkit/modules/images` v0.1.0 (в `site.yaml` — `modules: { images: v0 }`).
-  Его зависимости приходят транзитивно: `golang.org/x/image`, `github.com/gen2brain/webp` (+ `ebitengine/purego`).
+- Модули Keelkit: `github.com/voffkin/keelkit/modules/images` v0.1.0 (в `site.yaml` — `modules: { images: v0 }`),
+  `github.com/voffkin/keelkit/modules/richtext` v0.1.1 (без таблиц и миграций).
+  Их зависимости приходят транзитивно: `golang.org/x/image`, `github.com/gen2brain/webp` (+ `ebitengine/purego`);
+  goldmark, bluemonday, `golang.org/x/net`.
 - Тег сборки `nodynamic` (`BUILD_TAGS` в `Makefile`, экспортируется через `GOFLAGS`): кодек WebP не подгружает
   системную libwebp, а всегда работает на коде, транслированном в Go. Обработка изображений даёт одинаковый результат
   на любой машине, бинарник не зависит от библиотек хоста. Сборка и тесты без `make` — с `-tags nodynamic`.
 - Зависимости: `modernc.org/sqlite` v1.60.1, `github.com/pressly/goose/v3` v3.28.0 (только библиотека, CLI goose не используется),
-  `github.com/a-h/templ` v0.3.1020, `github.com/yuin/goldmark` v1.8.6, `github.com/microcosm-cc/bluemonday` v1.0.27,
-  `golang.org/x/crypto` v0.57.0 (argon2id), `golang.org/x/term` v0.46.0 (ввод пароля без эха),
-  `golang.org/x/net` v0.60.0 (токенизатор HTML для типографики `richtext`; уже был в графе через bluemonday); в тестах — `github.com/PuerkitoBio/goquery` v1.13.0,
+  `github.com/a-h/templ` v0.3.1020,
+  `golang.org/x/crypto` v0.57.0 (argon2id), `golang.org/x/term` v0.46.0 (ввод пароля без эха); в тестах — `github.com/PuerkitoBio/goquery` v1.13.0,
   `github.com/chromedp/chromedp` v0.16.0 (только браузерные тесты с тегом `browser`; его `cdproto` — псевдоверсия, теги у неё не ставятся).
 - Инструменты (версии закреплены в `Makefile`): sqlc v1.31.1; CLI templ — `TEMPL_VERSION`, обязан совпадать с библиотекой
   в `go.mod` (`make generate` проверяет это и откажется запускаться при расхождении).
@@ -162,8 +163,8 @@
 - Данные шапки (`web.Site`: настройки сайта — см. «Настройки сайта», меню — см. «Меню», `BaseURL`, путь ленты) собирает `siteLoader` в `cmd/site/server.go`; middleware `web.WithSite`
   кладёт их в контекст (и путь запроса, и согласие с cookies), layout читает через `web.SiteFrom(ctx)`. HTML-маршруты оборачиваются в него, `/healthz` и `/static/` — нет.
   `internal/web` не импортирует типы контента: связывает их только `cmd/site`.
-- `richtext` (Markdown): `richtext.Render` → goldmark (GFM, сырой HTML не пропускается) → bluemonday (UGC; `class="language-*"`
-  у `code`; `nofollow` только у внешних ссылок) → типографика (`typography.go`). Результат — тип `richtext.HTML`, в шаблоне выводится как `@body`.
+- `richtext` (Markdown) — модуль `modules/richtext`: `richtext.Render` → goldmark (GFM, сырой HTML не пропускается) → bluemonday (UGC; `class="language-*"`
+  у `code`; `nofollow` только у внешних ссылок) → типографика. Результат — тип `richtext.HTML`, в шаблоне выводится как `@body`.
   Типографика: неразрывный пробел (U+00A0) после коротких предлогов, союзов и частиц (`shortWords`, без учёта регистра;
   цепочка «и в лесу» связывается целиком) и перед тире, отбитым пробелами (« — », « – »; диапазон «2020–2025» не трогается).
   Работает по тексту уже очищенного HTML (токенизатор `golang.org/x/net/html`): теги и атрибуты не меняются, текст в
@@ -451,7 +452,7 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
 
 ## Тесты
 
-- Unit-тесты — рядом с пакетом (`internal/richtext`, `internal/database`, `internal/admin`, `internal/slug`, `internal/blocks`, `internal/menu`,
+- Unit-тесты — рядом с пакетом (`internal/database`, `internal/admin`, `internal/slug`, `internal/blocks`, `internal/menu`,
   `internal/listfield`).
 - e2e — `cmd/site/e2e_test.go`, функции `TestE2E*`: `httptest.NewServer(newMux(db, config{}))` над БД после `migrate` и `seed`,
   HTML разбирается goquery. Хелперы `fetch` (тело уже прочитано и закрыто) и `page` (статус, `Content-Type`, документ).
@@ -460,6 +461,8 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
 - `TestImagesContract` (`cmd/site/images_test.go`) — контрактные тесты модуля (`testkit.Run`) на интеграции сайта:
   `migratedSite` (миграции модуля и сайта, загрузки во временной папке) и маршруты `newMux`. При обновлении модуля
   они первыми покажут, что интеграция сломалась.
+- `TestRichtextContract` (`cmd/site/richtext_test.go`) — контрактные тесты модуля `richtext`: Markdown публикуется текстовым
+  блоком страницы (`pages.SeedPublished`), testkit проверяет HTML, который отдаёт сервер (XSS-примеры обезврежены).
 - Хелпер `migratedSite(t, withSeed)` (`main_test.go`) — БД после `migrate`, сервис изображений и `handler(cfg)`;
   `withSeed` заливает `seedContent` без изображений (их обработка ~1 с). Нужны картинки из seed — `migratedSiteWithImages(t)`
   (полный seed, возвращает id изображений по имени файла).
@@ -520,6 +523,7 @@ cmd/site/e2e_menus_test.go        # e2e меню: раздел админки, �
 cmd/site/migrations_test.go # миграции, меняющие данные, на копии реалистичных данных
 cmd/site/spec_test.go       # site.yaml ↔ код (блоки, features, поля настроек, меню)
 cmd/site/images_test.go     # контрактные тесты модуля images (testkit)
+cmd/site/richtext_test.go   # контрактные тесты модуля richtext (testkit)
 cmd/site/browser_test.go    # браузерные тесты (тег browser, make e2e-browser)
 db/migrations/              # миграции сайта (goose) + embed.go
 internal/admin/             # админка: вход, сессии, CSRF, ограничение попыток, оболочка, дашборд
@@ -531,7 +535,6 @@ internal/content/categories/ # категории: queries.sql, sqlc, admin.go, 
 internal/database/          # открытие SQLite, статус схем, снимок, применение миграций
 internal/media/             # медиатека в админке (модуль images)
 internal/menu/              # меню (menu_items): запросы, сборка для сайта (Site), раздел админки
-internal/richtext/          # Markdown → очищенный HTML
 internal/seo/               # sitemap.xml, rss.xml, robots.txt
 internal/seofields/         # SEO записи вручную: поля, проверка, раздел формы с превью сниппета, наложение на web.Meta
 internal/slug/              # slug: Make (транслитерация), Valid

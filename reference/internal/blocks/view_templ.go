@@ -15,8 +15,8 @@ import (
 	"strings"
 
 	"github.com/voffkin/keelkit/modules/images"
+	"github.com/voffkin/keelkit/modules/richtext"
 
-	"github.com/voffkin/keelkit/reference/internal/richtext"
 	"github.com/voffkin/keelkit/reference/internal/web"
 )
 

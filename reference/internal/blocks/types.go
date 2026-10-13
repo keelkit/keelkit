@@ -8,8 +8,9 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/voffkin/keelkit/modules/richtext"
+
 	"github.com/voffkin/keelkit/reference/internal/listfield"
-	"github.com/voffkin/keelkit/reference/internal/richtext"
 )
 
 // Ограничения полей блоков.
