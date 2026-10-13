@@ -104,8 +104,8 @@
   `GET|POST /admin/files/{id}/delete` (подтверждение, удалить; используемый — 409).
 - Медиатека: `GET /admin/media` (загрузка и сетка, `?page=N`), `POST /admin/media` (загрузка), `GET /admin/media/{id}`
   (карточка), `GET|POST /admin/media/{id}/delete` (подтверждение, удалить).
-- Зарезервированные slug — `reservedSlugs` в `cmd/site/server.go` (`admin`, `static`, `media`, `healthz` и раздел постов из
-  `posts.BlogPath`): их маршруты перекрывают
+- Зарезервированные slug — `reservedSlugs` в `cmd/site/server.go` (`admin`, `static`, `media`, `files`, `healthz` и раздел
+  постов из `posts.BlogPath`): их маршруты перекрывают
   страницу, админка такие slug не принимает. Маршрут-поддерево (`/static/`) занимает и путь без слеша (`GET /static` → 404),
   иначе его забрал бы `GET /{slug}`; e2e `TestE2EReservedSlugsShadowPages` проверяет каждый slug из списка.
 - Всё остальное — оформленная 404 (`web.NotFound`).
@@ -253,8 +253,8 @@
 
 Один тип — один пакет `internal/content/<type>/` (образцы — `pages`; `posts` — то же с обложкой, категорией и датой
 публикации; `categories` — справочник без черновика):
-`queries.sql` + код sqlc, `handlers.go` (`Handler`, `NewHandler(db, images)`, публичные хендлеры), `views.templ`,
-`admin.go` (`Admin`, `NewAdmin(db, media, mediaURL, reserved)`, `AdminPath`, `EditPath`, хендлеры раздела админки,
+`queries.sql` + код sqlc, `handlers.go` (`Handler`, `NewHandler(db, images, files…)`, публичные хендлеры), `views.templ`,
+`admin.go` (`Admin`, `NewAdmin(db, media, mediaURL, files, filesURL, …)`, `AdminPath`, `EditPath`, хендлеры раздела админки,
 `SeedPublished` для seed), `admin.templ`. Поле `blocks` — через `internal/blocks/` (см. «Блоки»).
 Миграция — в `db/migrations/`, маршруты — в `newMux`, dev-данные — в `cmd/site/seed.go`, запись sqlc — в `sqlc.yaml`,
 счётчик дашборда — в `adminCounters`, пункт меню — в `admin.Options.Sections`, feature `sitemap`/`rss` — см. «SEO».
@@ -365,7 +365,7 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
   контента, сам полей не хранит — только место среди блоков. Записи и их вывод даёт код типа: `blocks.ListSource`
   (`Render` — компонент со всеми записями, `AdminURL` — раздел для ссылки в форме блока); источники по имени блока —
   `blockLists` в `cmd/site/server.go`, их получают `pages.NewHandler` и `pages.NewAdmin` (предпросмотр).
-  `ListSources.Resolve` загружает записи только видимых блоков, вывод — `blocks.View(list, res, lists)`; блок без
+  `ListSources.Resolve` загружает записи только видимых блоков, вывод — `blocks.View(list, res, files, lists)`; блок без
   источника не выводится (предупреждение в лог). `TestBlockListsMatchKinds` сверяет `blockLists` с `blocks.ListKinds`.
   Новый блок-список: тип контента (обычно с feature `order`), запись в `blocks.Kinds` с `newListing`, метод вывода в
   пакете типа (`people.Handler.Cards`), запись в `blockLists`, имя — в `allow`. Свои поля блоку-списку (заголовок,
@@ -536,7 +536,7 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
 
 - Unit-тесты — рядом с пакетом (`internal/database`, `internal/slug`, `internal/blocks`, `internal/menu`,
   `internal/listfield`).
-- e2e — `cmd/site/e2e_test.go`, функции `TestE2E*`: `httptest.NewServer(newMux(db, config{}))` над БД после `migrate` и `seed`,
+- e2e — `cmd/site/e2e_test.go`, функции `TestE2E*`: `httptest.NewServer(s.handler(config{}))` (все маршруты `newMux`) над БД после `migrate` и `seed`,
   HTML разбирается goquery. Хелперы `fetch` (тело уже прочитано и закрыто) и `page` (статус, `Content-Type`, документ).
 - e2e админки — `cmd/site/e2e_admin_test.go`: `adminClient` (cookie jar, редиректы не выполняются), `post`, `login`, `loginOK`
   (вход dev-пользователем, возвращает CSRF-токен сессии), `csrfToken` (скрытое поле формы).
@@ -551,7 +551,7 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
   миграция сайта) мигрирует, пользователь входит.
 - `TestRichtextContract` (`cmd/site/richtext_test.go`) — контрактные тесты модуля `richtext`: Markdown публикуется текстовым
   блоком страницы (`pages.SeedPublished`), testkit проверяет HTML, который отдаёт сервер (XSS-примеры обезврежены).
-- Хелпер `migratedSite(t, withSeed)` (`main_test.go`) — БД после `migrate`, сервис изображений и `handler(cfg)`;
+- Хелпер `migratedSite(t, withSeed)` (`main_test.go`) — БД после `migrate`, сервисы изображений и файлов и `handler(cfg)`;
   `withSeed` заливает `seedContent` без изображений (их обработка ~1 с). Нужны картинки из seed — `migratedSiteWithImages(t)`
   (полный seed, возвращает id изображений по имени файла).
 - e2e файлов — `cmd/site/e2e_files_admin_test.go`: страница «Документы» (ссылка, картинка, плеер; тип, Range, CSP у SVG),

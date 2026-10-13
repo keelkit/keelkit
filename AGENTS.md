@@ -312,6 +312,7 @@ internal/database/         # открытие SQLite, статус схем, с�
 internal/content/<type>/   # модель, sqlc-запросы, хендлеры, templ одного типа контента (миграции — в db/migrations/)
 internal/admin/            # страница входа и оболочка админки (меню, дашборд) поверх модуля auth
 internal/media/            # медиатека в админке поверх модуля images
+internal/filelib/          # раздел «Файлы» в админке поверх модуля files
 internal/blocks/           # поля blocks: типы блоков (структура, проверка, вывод, форма), JSON
 internal/listfield/        # поля list: id и порядок элементов, кнопки «↑ ↓ Убрать / Добавить», JSON
 internal/web/              # layout, общие компоненты templ
@@ -333,7 +334,7 @@ site.yaml, sqlc.yaml, Makefile, AGENTS.md, CLAUDE.md
 
 **Эксплуатация**
 - Основной вариант — бинарник под systemd на VPS; Dockerfile — опция.
-- `make backup` (по cron): снимок БД и архив загрузок с локального диска. При хранилище S3 загрузки защищает версионирование бакета.
+- `make backup` (по cron): снимок БД и архив загрузок с локального диска (`DATA_DIR/uploads` и `DATA_DIR/files`). При хранилище S3 загрузки защищает версионирование бакета.
 - litestream — опция, описывается в `AGENTS.md` сайта, но не обязательна.
 
 ## Makefile — единая точка входа
