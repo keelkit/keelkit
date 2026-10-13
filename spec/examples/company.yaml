@@ -5,6 +5,7 @@ site:
   languages: [ru]
 modules:
   images: v0
+  files: v0
   richtext: v0
   auth: v0
 settings:

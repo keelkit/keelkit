@@ -41,7 +41,8 @@
       "properties": {
         "images": { "$ref": "#/$defs/moduleVersion" },
         "richtext": { "$ref": "#/$defs/moduleVersion" },
-        "auth": { "$ref": "#/$defs/moduleVersion" }
+        "auth": { "$ref": "#/$defs/moduleVersion" },
+        "files": { "$ref": "#/$defs/moduleVersion" }
       }
     },
     "content": {

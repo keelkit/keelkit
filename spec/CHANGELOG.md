@@ -2,6 +2,12 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — semver (теги `spec/vX.Y.Z`).
 
+## [0.6.0] — 2026-10-13
+
+### Added
+- Модуль `files` в `modules` (PDF, видео, SVG; `modules/files`). Изменение добавочное: прежние `site.yaml` остаются
+  валидными.
+
 ## [0.5.0] — 2026-10-13
 
 ### Added
