@@ -49,7 +49,7 @@
 | `make generate-check` | проверить, что генерация ничего не меняет (входит в `make check` монорепо) |
 | `make test` | все тесты, включая e2e |
 | `make e2e` | только e2e (`TestE2E*` в `cmd/site`) |
-| `make e2e-browser` | браузерные тесты htmx-взаимодействий (`TestBrowser*`, тег `browser`, chromedp; нужен Chrome) |
+| `make e2e-browser` | браузерные тесты админки: htmx и свой JS (`TestBrowser*`, тег `browser`, chromedp; нужен Chrome) |
 | `make test-isolated` | тесты с `GOWORK=off`, только на опубликованных версиях модулей |
 | `make lint` | golangci-lint, версия закреплена в `Makefile` |
 
@@ -217,6 +217,10 @@
   меню, формы и таблицы — карточками.
 
 ## Админка и авторизация
+
+Админка рассчитана на JavaScript (htmx и свой JS в `static/`), запасного варианта без скрипта не делаем; публичный
+сайт — без обязательного JavaScript (корневой `AGENTS.md`, «Стек сайта»). Поведение на JavaScript покрывают браузерные
+тесты (`make e2e-browser`, входит в `make check`).
 
 Вход, сессии и CSRF — модуль `auth` (как подключать — `modules/auth/UPGRADE.md`, v0.1.0); в `internal/admin/` —
 страница входа, оболочка админки и страницы ошибок. «Простой режим»: любой пользователь из `users` — администратор;
@@ -628,7 +632,7 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
   неопубликованных страниц, адреса от `BASE_URL`), robots.txt, canonical и Open Graph, `noindex` предпросмотра,
   редиректы со старых slug. В тестах `BASE_URL` — `testBaseURL` (`https://example.test`; `handler(config{})` подставляет его сам).
 - Браузерные тесты — `cmd/site/browser_test.go` (`//go:build browser`, `TestBrowser*`, chromedp, headless Chrome):
-  только критичные htmx-взаимодействия — превью при наборе, сохранение через `HX-Redirect`, подмена формы с ошибкой
+  поведение админки на htmx и своём JS — превью при наборе, сохранение через `HX-Redirect`, подмена формы с ошибкой
   без перезагрузки, «Добавить блок», «↑», «Скрыть» и выбор изображения у блока, выбор обложки поста, превью сниппета SEO, загрузка файла (`hx-encoding="multipart/form-data"`),
   выбор картинки и «Добавить ссылку» в настройках, «Понятно» в баннере cookies (`TestBrowserSettingsAndCookieBanner`),
   «Добавить пункт» меню, поле адреса по выбору и подпункты в шапке по фокусу (`TestBrowserMenu`),
@@ -636,7 +640,7 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
   ↓ в списке людей (`TestBrowserPeopleOrder`), живой предпросмотр (`TestBrowserLivePreview`: ввод и «Добавить блок» видны
   в iframe, «Телефон», щелчок по блоку в предпросмотре, ссылка в нём не открывается, вкладки на узком экране).
   После каждого htmx-действия — `htmxSettled()`: обработчики на новый фрагмент htmx навешивает после фазы settle,
-  и клик chromedp раньше этого ушёл бы обычной отправкой формы. Запуск — `make e2e-browser`; `make test` их не собирает, линтер — собирает (`build-tags` в `.golangci.yml`).
+  и клик chromedp раньше этого ушёл бы обычной отправкой формы. Запуск — `make e2e-browser` (входит в `make check`); `make test` их не собирает, линтер — собирает (`build-tags` в `.golangci.yml`).
 
 ## Спецификация
 

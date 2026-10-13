@@ -79,7 +79,7 @@ deps-check: ## Доступные обновления зависимостей 
 # перед релизом (её вызывает make release). Для reference/ — ещё generate-check и e2e, для spec/ — проверка reference/site.yaml.
 check: lint test test-isolated deps-check ## Все проверки CI локально (по умолчанию все). Пример: make check MODULE=images
 ifneq ($(filter reference,$(DIRS)),)
-	@$(MAKE) --no-print-directory generate-check e2e
+	@$(MAKE) --no-print-directory generate-check e2e e2e-browser
 endif
 ifneq ($(filter spec,$(DIRS)),)
 	@$(MAKE) --no-print-directory spec-validate FILE=reference/site.yaml
