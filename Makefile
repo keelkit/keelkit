@@ -53,7 +53,7 @@ DIRS := modules/$(MODULE)
 endif
 endif
 
-.PHONY: help check test test-isolated lint deps-check release spec-validate images-demo build run dev migrate seed user-create reprocess-images reset generate generate-check e2e e2e-browser
+.PHONY: help check test test-isolated lint deps-check release spec-validate images-demo build run dev migrate backup seed user-create reprocess-images reset generate generate-check e2e e2e-browser
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -105,6 +105,9 @@ dev: ## Эталонный сайт для разработки: миграци�
 
 migrate: ## Снимок БД и миграции эталонного сайта
 	@$(MAKE) -C reference migrate
+
+backup: ## Снимок БД и архив загрузок эталонного сайта в reference/backups/
+	@$(MAKE) -C reference backup
 
 seed: ## Заполнить эталонный сайт dev-данными (идемпотентно)
 	@$(MAKE) -C reference seed

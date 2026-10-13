@@ -58,7 +58,7 @@ SPEC_VALIDATE = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/voffkin/keelkit/sp
 
 SITE = ADDR=$(ADDR) BASE_URL=$(BASE_URL) DATA_DIR=$(DATA_DIR) BACKUP_DIR=$(BACKUP_DIR) COOKIE_SECURE=$(COOKIE_SECURE) go run ./cmd/site
 
-.PHONY: help build run dev migrate seed user-create reprocess-images reset generate generate-check test test-isolated e2e e2e-browser lint deps-check spec-validate
+.PHONY: help build run dev migrate backup seed user-create reprocess-images reset generate generate-check test test-isolated e2e e2e-browser lint deps-check spec-validate
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -75,6 +75,9 @@ dev: migrate seed ## Для разработки: миграции, seed и за
 
 migrate: ## Снимок БД в BACKUP_DIR и применение миграций (модули, затем сайт)
 	$(SITE) migrate
+
+backup: ## Снимок БД и архив загрузок (uploads/, files/) в BACKUP_DIR: <время>.db и <время>.tar.gz; сервер может работать
+	$(SITE) backup
 
 seed: ## Заполнить dev-данными (идемпотентно, только для разработки)
 	$(SITE) seed

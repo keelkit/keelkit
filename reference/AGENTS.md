@@ -42,6 +42,7 @@
 | `make run` | запустить сайт (`ADDR`, `DATA_DIR`, `BASE_URL`); при непримененных миграциях отказывается стартовать |
 | `make dev` | для разработки: `migrate`, `seed`, запуск |
 | `make migrate` | снимок БД в `BACKUP_DIR` (`VACUUM INTO`), затем миграции: модули в порядке `site.yaml`, потом сайт |
+| `make backup` | снимок БД и архив загрузок в `BACKUP_DIR` (`site backup`, см. «Резервные копии»); сервер может работать |
 | `make seed` | dev-данные; идемпотентно, в проде не запускается; печатает dev-пользователя админки |
 | `make reprocess-images BELOW=N` | повторная обработка изображений с версией профиля ниже `N` текущим профилем; идемпотентна и безопасна для прерывания (повторный запуск доделывает), сервер может работать. Печатает `processed`/`failed` |
 | `make user-create EMAIL=…` | пользователь админки; пароль спрашивается дважды без эха (не из терминала — строками из stdin). Ввод не виден — проверьте раскладку: пароль, дважды набранный кириллицей, совпадёт сам с собой, но не с латиницей в браузере. Смены пароля пока нет |
@@ -60,7 +61,7 @@
 |---|---|---|
 | `ADDR` | `:8080` (в `make run`/`dev` — `:9090`) | адрес HTTP-сервера |
 | `DATA_DIR` | `data` | каталог с БД (`site.db`) и загрузками (`uploads/`: оригиналы и варианты изображений; `files/`: файлы модуля `files`) |
-| `BACKUP_DIR` | `backups` | каталог снимков БД перед миграциями |
+| `BACKUP_DIR` | `backups` | каталог снимков БД перед миграциями и резервных копий `site backup` |
 | `COOKIE_SECURE` | `true` | флаг `Secure` у cookie админки и согласия с баннером cookies; `false` — только для разработки по http (`make run`/`make dev` передают `false`) |
 | `TZ` | часовой пояс системы | в нём показываются и вводятся даты публикации постов (в БД — UTC) |
 | `BASE_URL` | — (в `make run`/`dev` — `http://localhost:<порт из ADDR>`) | адрес сайта (`https://example.com`, без пути) для canonical, Open Graph, sitemap, RSS и robots.txt. **Обязателен для `serve`**: без него сайт не стартует (адрес из заголовка `Host` подделывается). Слеш в конце отбрасывается |
@@ -117,7 +118,7 @@
 
 ## Бинарник
 
-`site serve | migrate | seed | user create EMAIL | reprocess-images -below N`. Миграции применяются только `site migrate`, никогда при старте.
+`site serve | migrate | backup | seed | user create EMAIL | reprocess-images -below N`. Миграции применяются только `site migrate`, никогда при старте.
 
 ## БД и миграции
 
@@ -144,6 +145,31 @@
   `pages_legacy` ещё не удалена (`00006`, `00007` её не трогают): удалит отдельная миграция `DROP TABLE pages_legacy`.
 - **`queries.sql` — только ASCII**, включая комментарии: sqlc v1.31.1 для SQLite вырезает текст запроса по смещениям
   в байтах, и кириллица в файле обрезает запросы. Русские тексты передаются параметрами. В миграциях кириллица допустима.
+
+## Резервные копии
+
+- `site backup` (`make backup`) пишет в `BACKUP_DIR` пару с одной меткой времени UTC: `<время>.db` — снимок БД
+  (`VACUUM INTO`, как перед миграциями) и `<время>.tar.gz` — `uploads/` и `files/` из `DATA_DIR` с этими путями
+  в архиве. Права обоих — `0600` (в БД хеши паролей и сессии). Архив появляется только целиком (временный файл
+  `.backup-*.tmp` и rename); недописанные файлы хранилища (`*.tmp-*`) в него не попадают.
+- Сервер может работать. Сначала снимок, потом архив: хранилище пишет файл до строки в БД и удаляет после, поэтому
+  всё, на что ссылается снимок, уже на диске. Пропасть может только файл, удалённый во время архивации (редактор удалил
+  изображение, идёт `reprocess-images`), — он перечисляется в логе (`file deleted during backup`).
+  Если `DATA_DIR/site.db` нет — ошибка, а не снимок пустой БД.
+- Без `make` на сервере — бинарником по cron; копии старше N дней удаляет `find` (вместе со снимками перед миграциями):
+  ```cron
+  # /etc/cron.d/site: каждую ночь в 03:30, хранить 14 дней
+  30 3 * * * site cd /srv/site && DATA_DIR=data BACKUP_DIR=backups ./site backup && find backups -name '*Z.*' -mtime +14 -delete
+  ```
+  Копии на том же диске не спасают от потери диска или сервера: их копирование в другое место (rsync, rclone,
+  снимки диска у хостера) настраивается для каждого сайта. При хранилище S3 загрузки защищает версионирование бакета.
+- Восстановление — в пустой `DATA_DIR` (не поверх: старые `site.db-wal` и `-shm` испортят снимок):
+  ```sh
+  systemctl stop site && mv data data.old && mkdir data
+  tar -xzf backups/<время>.tar.gz -C data && cp backups/<время>.db data/site.db
+  ./site migrate && systemctl start site     # migrate — если бинарник новее копии
+  ```
+  Тест `TestBackupRestore` (`cmd/site/backup_test.go`) проверяет этот путь: сайт из копии отдаёт изображения и файлы.
 
 ## Изображения (модуль `images`)
 
@@ -685,6 +711,7 @@ cmd/site/seed.go            # dev-данные: seedContent, seedImages
 cmd/site/seeddata/          # изображения для seed (embed)
 cmd/site/seedfiles/         # файлы для seed: PDF, SVG, MP4 (embed)
 cmd/site/user.go            # site user create
+cmd/site/backup.go          # site backup: снимок БД и архив загрузок
 cmd/site/e2e_test.go        # e2e (TestE2E*)
 cmd/site/e2e_admin_test.go  # e2e админки
 cmd/site/e2e_pages_admin_test.go  # e2e раздела «Страницы»

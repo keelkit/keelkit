@@ -4,6 +4,7 @@
 //
 //	site serve    HTTP-сервер; не стартует при непримененных миграциях
 //	site migrate  снимок БД и применение миграций (модули, затем сайт)
+//	site backup   снимок БД и архив загрузок (uploads/, files/) в BACKUP_DIR; сервер может работать
 //	site seed     dev-данные, идемпотентно
 //	site user create EMAIL  пользователь админки; пароль спрашивается интерактивно
 //	site reprocess-images -below N  повторная обработка изображений с версией профиля ниже N
@@ -111,7 +112,7 @@ func envOr(key, def string) string {
 	return def
 }
 
-const usage = "usage: site <serve|migrate|seed> | site user create EMAIL | site reprocess-images -below N"
+const usage = "usage: site <serve|migrate|backup|seed> | site user create EMAIL | site reprocess-images -below N"
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
@@ -136,6 +137,8 @@ func main() {
 		err = serve(ctx, cfg)
 	case cmd == "migrate" && len(args) == 1:
 		err = migrate(ctx, cfg)
+	case cmd == "backup" && len(args) == 1:
+		err = backup(ctx, cfg)
 	case cmd == "seed" && len(args) == 1:
 		err = seed(ctx, cfg)
 	case cmd == "user" && len(args) == 3 && args[1] == "create":

@@ -808,7 +808,7 @@ make check
 Цель: сайт можно развернуть, резервировать и безопасно обновлять.
 
 - [x] `make build` — один статический бинарник (`CGO_ENABLED=0`), версия вшита через `-ldflags`
-- [ ] `make backup` — снимок БД + архив загрузок (`uploads/` и `files/`); пример cron-строки в `reference/AGENTS.md`
+- [x] `make backup` — снимок БД + архив загрузок (`uploads/` и `files/`); пример cron-строки в `reference/AGENTS.md`
 - [ ] `deploy/site.service` (systemd), опциональный `Dockerfile`; описание litestream как опции
 - [ ] CI: path-фильтры (`modules/<X>` и `spec/` → джобы модуля и `reference/`), `lint`, `test`, `test-isolated`, `generate-check`, `deps-check`, для `reference/` — ещё `e2e`, всё с `GOWORK=off`
 - [ ] Вернуть автозапуск CI (`push` в `main`, `pull_request`; до этапа 11 — только `workflow_dispatch`, проверки — локально `make check`)

@@ -143,7 +143,7 @@ func Migrate(ctx context.Context, db *sql.DB, sources []Source, backupDir string
 	return path, nil
 }
 
-// Snapshot сохраняет согласованную копию БД через VACUUM INTO в dir/<UTC-время>.db.
+// Snapshot сохраняет согласованную копию БД через VACUUM INTO в dir/<UTC-время>.db (права 0600).
 func Snapshot(ctx context.Context, db *sql.DB, dir string) (string, error) {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", fmt.Errorf("create backup dir: %w", err)
@@ -151,6 +151,10 @@ func Snapshot(ctx context.Context, db *sql.DB, dir string) (string, error) {
 	path := filepath.Join(dir, time.Now().UTC().Format("20060102T150405.000000Z")+".db")
 	if _, err := db.ExecContext(ctx, `VACUUM INTO ?`, path); err != nil {
 		return "", fmt.Errorf("vacuum into %s: %w", path, err)
+	}
+	// В снимке хеши паролей и сессии: читать его может только владелец.
+	if err := os.Chmod(path, 0o600); err != nil {
+		return "", fmt.Errorf("chmod snapshot: %w", err)
 	}
 	if fi, err := os.Stat(path); err != nil {
 		return "", fmt.Errorf("check snapshot: %w", err)
