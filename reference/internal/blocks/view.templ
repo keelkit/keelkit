@@ -39,12 +39,12 @@ templ textView(b Block, t *Text) {
 	</div>
 }
 
-templ imageView(b Block, m *Image, img *images.Image) {
+templ imageView(b Block, m *Image, img, mobile *images.Image) {
 	if img == nil {
 		@missingImage(b, m.Image)
 	} else {
 		<figure class="block block-image" id={ "block-" + b.ID }>
-			@web.Picture(img, m.Alt, sizesFull)
+			@web.PictureMobile(img, mobile, m.Alt, sizesFull)
 			if m.Caption != "" {
 				<figcaption>{ m.Caption }</figcaption>
 			}
@@ -52,13 +52,13 @@ templ imageView(b Block, m *Image, img *images.Image) {
 	}
 }
 
-templ imageTextView(b Block, m *ImageText, img *images.Image) {
+templ imageTextView(b Block, m *ImageText, img, mobile *images.Image) {
 	<div class={ "block", "block-image-text", templ.KV("block-image-right", m.right()) } id={ "block-" + b.ID }>
 		if img == nil {
 			@missingImage(b, m.Image)
 		} else {
 			<figure class="block-image-text-media">
-				@web.Picture(img, m.Alt, sizesHalf)
+				@web.PictureMobile(img, mobile, m.Alt, sizesHalf)
 				if m.Caption != "" {
 					<figcaption>{ m.Caption }</figcaption>
 				}
@@ -79,7 +79,7 @@ templ galleryView(b Block, g *Gallery, res Resolved) {
 				if img := res[it.Image]; img != nil {
 					<li class="gallery-slide">
 						<figure>
-							@web.Picture(img, it.Alt, sizesSlide)
+							@web.PictureMobile(img, res[it.ImageMobile], it.Alt, sizesSlide)
 							if it.Caption != "" {
 								<figcaption>{ it.Caption }</figcaption>
 							}

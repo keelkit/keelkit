@@ -501,3 +501,116 @@ func TestFileBlock(t *testing.T) {
 		}
 	}
 }
+
+// Своя картинка для телефона у image, image_text и элемента галереи: чтение формы, проверка, ссылки, JSON и вывод.
+func TestImageMobile(t *testing.T) {
+	form := url.Values{
+		"block":                    {"a", "b", "c", "d", "g"},
+		"block-a-type":             {"image"},
+		"block-a-image":            {"main"},
+		"block-a-image_mobile":     {" phone "},
+		"block-a-alt":              {"Закат"},
+		"block-b-type":             {"image_text"},
+		"block-b-image":            {""},
+		"block-b-image_mobile":     {"phone"}, // без основной
+		"block-b-alt":              {"Закат"},
+		"block-b-body":             {"Текст"},
+		"block-c-type":             {"image"},
+		"block-c-image":            {"main"},
+		"block-c-image_mobile":     {"gone"}, // нет в медиатеке
+		"block-c-alt":              {"Закат"},
+		"block-d-type":             {"image"},
+		"block-d-image":            {"main"},
+		"block-d-image_mobile":     {"main"}, // та же, что основная, — сбрасывается
+		"block-d-alt":              {"Закат"},
+		"block-g-type":             {"gallery"},
+		"block-g-item":             {"x"},
+		"block-g-i-x-image":        {"main"},
+		"block-g-i-x-image_mobile": {"phone2"},
+		"block-g-i-x-alt":          {"Слайд"},
+	}
+	list, err := Parse(form)
+	if err != nil {
+		t.Fatal(err)
+	}
+	variants := func(dir string) []images.StoredVariant {
+		return []images.StoredVariant{
+			{Format: images.WebP, Width: 480, Height: 320, Path: dir + "/v1/480.webp"},
+			{Format: images.JPEG, Width: 480, Height: 320, Path: dir + "/v1/480.jpg"},
+		}
+	}
+	res := Resolved{
+		"main":   {ID: "main", Variants: variants("main")},
+		"phone":  {ID: "phone", Variants: variants("phone")},
+		"phone2": {ID: "phone2", Variants: variants("phone2")},
+	}
+	errs := Validate(list, res, nil)
+	want := map[string]string{
+		"block-b-image_mobile": "Сначала выберите основную картинку.",
+		"block-c-image_mobile": "Изображения нет в медиатеке: выберите другое.",
+	}
+	for k, msg := range want {
+		if errs[k] != msg {
+			t.Errorf("errs[%s] = %q, want %q", k, errs[k], msg)
+		}
+	}
+	if _, ok := errs["block-a-image_mobile"]; ok {
+		t.Errorf("valid mobile image rejected: %v", errs)
+	}
+	if m := list[0].Content.(*Image); m.ImageMobile != "phone" {
+		t.Errorf("image_mobile not trimmed: %q", m.ImageMobile)
+	}
+	if m := list[3].Content.(*Image); m.ImageMobile != "" {
+		t.Errorf("image_mobile equal to the main one kept: %q", m.ImageMobile)
+	}
+
+	// Ссылки — и мобильные картинки; картинка страницы — только основная.
+	if got := strings.Join(ImageIDs(list), ","); got != "main,phone,gone,phone2" {
+		t.Errorf("ImageIDs = %s", got)
+	}
+	onlyMobile := []Block{{ID: "m", Type: "image_text", Content: &ImageText{ImageMobile: "phone"}}}
+	if img := FirstImage(onlyMobile, res); img != nil {
+		t.Errorf("FirstImage took the mobile image %s", img.ID)
+	}
+
+	// JSON: image_mobile сохраняется и читается; без неё ключа нет (прежние данные не меняются).
+	s, err := Marshal([]Block{list[0], list[3]})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(s, `"image_mobile":"phone"`) || strings.Count(s, "image_mobile") != 1 {
+		t.Errorf("Marshal = %s", s)
+	}
+	back, err := Unmarshal(s)
+	if err != nil || back[0].Content.(*Image).ImageMobile != "phone" {
+		t.Errorf("Unmarshal = %+v, %v", back, err)
+	}
+
+	// Вывод: у блока и слайда — <source media> мобильной картинки.
+	var buf bytes.Buffer
+	if err := View([]Block{list[0], list[4]}, res, nil, nil).Render(context.Background(), &buf); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"/media/phone/v1/480.webp", "/media/phone2/v1/480.jpg"} {
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("view has no %q:\n%s", want, buf.String())
+		}
+	}
+
+	// Форма: метка «Своя для телефона» только у блока с мобильной картинкой.
+	for _, tt := range []struct {
+		b    Block
+		want bool
+	}{{list[0], true}, {list[3], false}} {
+		buf.Reset()
+		if err := Form(tt.b, FormEnv{Resolved: res}).Render(context.Background(), &buf); err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Contains(buf.String(), "Своя для телефона"); got != tt.want {
+			t.Errorf("block %s: badge = %v, want %v", tt.b.ID, got, tt.want)
+		}
+		if !strings.Contains(buf.String(), `name="block-`+tt.b.ID+`-image_mobile"`) {
+			t.Errorf("block %s: no image_mobile field", tt.b.ID)
+		}
+	}
+}

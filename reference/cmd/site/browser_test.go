@@ -170,7 +170,7 @@ func TestBrowserBlocks(t *testing.T) {
 		// Картинка с loading="lazy" до загрузки нулевого размера: ждём элемент, а не его видимость.
 		chromedp.WaitReady(`#blocks > .block-form:nth-child(3) .block-thumb picture`, chromedp.ByQuery),
 		htmxSettled(),
-		chromedp.Evaluate(`document.querySelectorAll('.block-thumb picture').length`, &thumbs),
+		chromedp.Evaluate(`document.querySelectorAll('.block-thumb [data-image-for="desktop"] picture').length`, &thumbs),
 	)
 	var alt string
 	run(t, ctx, "alt kept", chromedp.Value(`#blocks > .block-form:nth-child(3) input[name$="-alt"]`, &alt, chromedp.ByQuery))

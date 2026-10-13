@@ -116,7 +116,7 @@ func textView(b Block, t *Text) templ.Component {
 	})
 }
 
-func imageView(b Block, m *Image, img *images.Image) templ.Component {
+func imageView(b Block, m *Image, img, mobile *images.Image) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -160,7 +160,7 @@ func imageView(b Block, m *Image, img *images.Image) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = web.Picture(img, m.Alt, sizesFull).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = web.PictureMobile(img, mobile, m.Alt, sizesFull).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -192,7 +192,7 @@ func imageView(b Block, m *Image, img *images.Image) templ.Component {
 	})
 }
 
-func imageTextView(b Block, m *ImageText, img *images.Image) templ.Component {
+func imageTextView(b Block, m *ImageText, img, mobile *images.Image) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -258,7 +258,7 @@ func imageTextView(b Block, m *ImageText, img *images.Image) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = web.Picture(img, m.Alt, sizesHalf).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = web.PictureMobile(img, mobile, m.Alt, sizesHalf).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -348,7 +348,7 @@ func galleryView(b Block, g *Gallery, res Resolved) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = web.Picture(img, it.Alt, sizesSlide).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = web.PictureMobile(img, res[it.ImageMobile], it.Alt, sizesSlide).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

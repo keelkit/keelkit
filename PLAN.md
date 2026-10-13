@@ -782,7 +782,7 @@ make check && make e2e-browser
       (`# expect: …`), `CHANGELOG.md`; релиз `make release MODULE=spec`, эталон — на новую версию
 - [x] `web.MobileMedia`, `web.PictureMobile` (`web.Picture` — она же без мобильной); тест: с ней — два `<source media>` первыми и
       основная пара, без неё — разметка прежняя
-- [ ] Блоки `image`, `image_text`, элемент галереи: `image_mobile` — чтение, проверка, ссылки в `page_images`/`post_images`,
+- [x] Блоки `image`, `image_text`, элемент галереи: `image_mobile` — чтение, проверка, ссылки в `page_images`/`post_images`,
       вывод; e2e: сохранение, публикация копирует, используемую мобильную картинку нельзя удалить
 - [ ] Обложка поста: миграция `cover_mobile`, sqlc, форма, вывод на странице поста и в ленте; e2e как у блоков
 - [ ] Админка: режим «Компьютер / Телефон» (`static/live-preview.js` и выбор картинки), приглушённое превью

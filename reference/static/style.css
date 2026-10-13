@@ -1229,6 +1229,39 @@ button.secondary:hover,
   border-radius: var(--radius);
 }
 
+/* Своя картинка для телефона: превью и выбор с data-image-for="mobile" показывает режим «Телефон» формы
+   (data-image-mode="mobile"), основные он скрывает. Обёртки — display: contents, чтобы не ломать сетку поля.
+   Ошибка у поля телефона видна в любом режиме. */
+.image-variant {
+  display: contents;
+}
+
+.image-variant[data-image-for="mobile"],
+[data-image-mode="mobile"] .image-variant[data-image-for="desktop"] {
+  display: none;
+}
+
+[data-image-mode="mobile"] .image-variant[data-image-for="mobile"],
+.block-image-fields > .image-variant[data-image-for="mobile"]:has(.field-error) {
+  display: contents;
+}
+
+/* Не задана своя для телефона — приглушённое превью основной с подписью. */
+.image-inherited {
+  display: grid;
+  gap: 0.25rem;
+  justify-items: center;
+  text-align: center;
+}
+
+.image-inherited img {
+  opacity: 0.45;
+}
+
+.block-image-fields > .status-mobile {
+  justify-self: start;
+}
+
 .form select {
   padding: 0.5rem 0.65rem;
   border: 1px solid var(--border);

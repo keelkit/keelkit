@@ -630,6 +630,12 @@ body.admin {
   color: var(--accent);
 }
 
+/* «Своя для телефона» у картинки блока и обложки. */
+.admin .status-mobile {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 /* Таблицы */
 
 .admin .table-wrap {

@@ -14,6 +14,8 @@ import (
 	"testing"
 
 	"github.com/PuerkitoBio/goquery"
+
+	"github.com/voffkin/keelkit/reference/internal/web"
 )
 
 // htmx — заголовки запроса, который отправляет htmx.
@@ -937,7 +939,7 @@ func TestE2EPageImages(t *testing.T) {
 	if n := sel.Find("option").Length(); n != len(imgs)+1 {
 		t.Errorf("image options = %d, want %d and «— выберите —»", n, len(imgs)+1)
 	}
-	if doc.Find("#block-about-photo .block-thumb picture").Length() != 1 {
+	if doc.Find(`#block-about-photo .block-thumb [data-image-for="desktop"] picture`).Length() != 1 {
 		t.Error("no thumbnail of the selected image")
 	}
 
@@ -1137,5 +1139,118 @@ func TestE2EAdminPageGallery(t *testing.T) {
 		if resp, _ := a.submit(edit, tc.form, tc.action, nil); resp.StatusCode != http.StatusBadRequest {
 			t.Errorf("%s: status %d, want 400", tc.name, resp.StatusCode)
 		}
+	}
+}
+
+// Своя картинка для телефона у блоков image, image_text и элемента галереи: сохранение, ошибки, публикация копирует
+// её вместе со ссылками, на сайте — <source media>, используемую нельзя удалить из медиатеки.
+func TestE2EPageMobileImages(t *testing.T) {
+	site, imgs := migratedSiteWithImages(t)
+	a := newPageAdminOn(t, site)
+	photo, small, png, webp := imgs["photo.jpg"], imgs["small.jpg"], imgs["transparent.png"], imgs["orientation-6.webp"]
+
+	form := newPageForm("Кадры", "")
+	addBlock(form, "pic", "image", map[string]string{"image": photo, "image_mobile": small, "alt": "Фото"})
+	addBlock(form, "side", "image_text", map[string]string{"image": photo, "image_mobile": png, "alt": "Фото", "body": "Текст"})
+	addBlock(form, "g", "gallery", map[string]string{"i-a-image": photo, "i-a-image_mobile": webp, "i-a-alt": "Слайд"})
+	form.Add("block-g-item", "a")
+	edit := a.create(form, "save")
+	id := strings.TrimPrefix(edit, "/admin/pages/")
+
+	refs := func(img string) string {
+		t.Helper()
+		rows, err := site.db.Query(`SELECT kind FROM page_images WHERE page_id = ? AND image_id = ? ORDER BY kind`, id, img)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = rows.Close() }()
+		var kinds []string
+		for rows.Next() {
+			var k string
+			if err := rows.Scan(&k); err != nil {
+				t.Fatal(err)
+			}
+			kinds = append(kinds, k)
+		}
+		return strings.Join(kinds, ",")
+	}
+	for _, img := range []string{small, png, webp} {
+		if got := refs(img); got != "draft" {
+			t.Errorf("page_images of mobile %s after save = %q, want draft", img, got)
+		}
+	}
+
+	// Форма: выбранная мобильная картинка и метка у каждого блока и элемента.
+	_, html := a.get(edit)
+	doc := parse(t, html)
+	for name, want := range map[string]string{
+		"block-pic-image_mobile":   small,
+		"block-side-image_mobile":  png,
+		"block-g-i-a-image_mobile": webp,
+	} {
+		if v, _ := doc.Find(`select[name="` + name + `"] option[selected]`).Attr("value"); v != want {
+			t.Errorf("%s = %q, want %q", name, v, want)
+		}
+	}
+	if n := doc.Find(".status-mobile").Length(); n != 3 {
+		t.Errorf("«Своя для телефона» badges = %d, want 3", n)
+	}
+
+	// Публикация копирует мобильные картинки и их ссылки; на сайте — <source media> первыми.
+	if resp, _ := a.submit(edit, a.form(edit), "publish", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("publish: status %d", resp.StatusCode)
+	}
+	if got := refs(small); got != "draft,published" {
+		t.Errorf("page_images of mobile after publish = %q", got)
+	}
+	doc = page(t, a.srv, "/kadry", http.StatusOK)
+	for _, sel := range []string{"#block-pic picture", "#block-side picture", "#block-g picture"} {
+		media, _ := doc.Find(sel + " source").First().Attr("media")
+		if media != web.MobileMedia {
+			t.Errorf("%s: first <source> media = %q, want %q", sel, media, web.MobileMedia)
+		}
+		if n := doc.Find(sel + " source[media]").Length(); n != 2 {
+			t.Errorf("%s: <source media> = %d, want 2 (WebP and JPEG)", sel, n)
+		}
+	}
+	srcset, _ := doc.Find("#block-pic source[media][type='image/jpeg']").Attr("srcset")
+	if !strings.Contains(srcset, small) {
+		t.Errorf("mobile srcset = %q, want variants of small.jpg (%s)", srcset, small)
+	}
+	// og:image — основная, а не мобильная.
+	if og, _ := doc.Find(`meta[property="og:image"]`).Attr("content"); !strings.Contains(og, photo) {
+		t.Errorf("og:image = %q, want the main image %s", og, photo)
+	}
+
+	// Используемая мобильная картинка не удаляется из медиатеки: 409.
+	for _, img := range []string{small, png, webp} {
+		resp, _ := post(t, a.client, a.srv.URL+"/admin/media/"+img+"/delete", url.Values{"csrf_token": {a.token}}, nil)
+		if resp.StatusCode != http.StatusConflict {
+			t.Errorf("delete mobile image %s in use: status %d, want 409", img, resp.StatusCode)
+		}
+	}
+
+	// Мобильная без основной — ошибка у поля (форма и htmx); убрать мобильную — на сайте прежняя разметка.
+	form = a.form(edit)
+	form.Set("block-pic-image", "")
+	for _, hdr := range []http.Header{nil, htmx} {
+		resp, body := a.submit(edit, form, "save", hdr)
+		if resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("mobile without main: status %d, want 422", resp.StatusCode)
+		}
+		if got := text(parse(t, body).Find("#block-pic-image_mobile-error")); got != "Сначала выберите основную картинку." {
+			t.Errorf("mobile without main: error %q (htmx=%v)", got, hdr != nil)
+		}
+	}
+	form = a.form(edit)
+	form.Set("block-pic-image_mobile", "")
+	if resp, _ := a.submit(edit, form, "publish", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("publish without mobile: status %d", resp.StatusCode)
+	}
+	if n := page(t, a.srv, "/kadry", http.StatusOK).Find("#block-pic source[media]").Length(); n != 0 {
+		t.Errorf("mobile removed: <source media> = %d, want 0", n)
+	}
+	if got := refs(small); got != "" {
+		t.Errorf("page_images of removed mobile = %q, want none", got)
 	}
 }

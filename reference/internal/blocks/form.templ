@@ -85,14 +85,14 @@ templ textForm(b Block, t *Text, e FormEnv) {
 }
 
 templ imageForm(b Block, m *Image, e FormEnv) {
-	@imageField(b, "image", m.Image, e) {
+	@imageField(b, "image", "image_mobile", m.Image, m.ImageMobile, e) {
 		@textField(b, "alt", "Описание (alt)", m.Alt, "Что изображено — для тех, кто не видит картинку, и для поисковиков.", e)
 		@textField(b, "caption", "Подпись", m.Caption, "Необязательно: выводится под изображением.", e)
 	}
 }
 
 templ imageTextForm(b Block, m *ImageText, e FormEnv) {
-	@imageField(b, "image", m.Image, e) {
+	@imageField(b, "image", "image_mobile", m.Image, m.ImageMobile, e) {
 		@textField(b, "alt", "Описание (alt)", m.Alt, "Что изображено — для тех, кто не видит картинку, и для поисковиков.", e)
 		@textField(b, "caption", "Подпись", m.Caption, "Необязательно: выводится под изображением.", e)
 	}
@@ -126,7 +126,7 @@ templ galleryForm(b Block, g *Gallery, e FormEnv) {
 						<button type="submit" name="action" value={ itemAction("remove", b, it.ID) } class="link-button danger-link" formnovalidate>Убрать</button>
 					</div>
 				</div>
-				@imageField(b, ItemField(it.ID, "image"), it.Image, e) {
+				@imageField(b, ItemField(it.ID, "image"), ItemField(it.ID, "image_mobile"), it.Image, it.ImageMobile, e) {
 					@textField(b, ItemField(it.ID, "alt"), "Описание (alt)", it.Alt, "Что изображено — для тех, кто не видит картинку, и для поисковиков.", e)
 					@textField(b, ItemField(it.ID, "caption"), "Подпись", it.Caption, "Необязательно: выводится под изображением.", e)
 				}
@@ -289,46 +289,81 @@ templ Preview(src string) {
 
 // imageField — выбор изображения из медиатеки в поле field блока (у элемента списка — ItemField): превью слева,
 // справа выбор и children — поля этого изображения (alt, подпись). Смена выбора через htmx перерисовывает блок
-// (BlockURL?id=): появляется превью выбранной картинки. Без JavaScript превью обновится после отправки формы.
-templ imageField(b Block, field, id string, e FormEnv) {
-	{{ name := FieldName(b.ID, field) }}
+// (BlockURL?id=): появляется превью выбранной картинки.
+// Своя картинка для телефона (mobileField, необязательна) — те же превью и выбор с data-image-for="mobile": их
+// показывает режим «Телефон» формы (data-image-mode="mobile"), в режиме «Компьютер» они скрыты, но остаются в форме,
+// поэтому сохранение от режима не зависит. Не задана — в режиме «Телефон» приглушённое превью основной.
+templ imageField(b Block, field, mobileField, id, mobileID string, e FormEnv) {
 	<div class="block-image-pick">
 		<div class="block-thumb">
-			if img := e.Resolved[id]; img != nil {
-				@web.Picture(img, "", "8rem")
-			} else {
-				<span class="muted">Не выбрано</span>
-			}
+			<div class="image-variant" data-image-for="desktop">
+				if img := e.Resolved[id]; img != nil {
+					@web.Picture(img, "", "8rem")
+				} else {
+					<span class="muted">Не выбрано</span>
+				}
+			</div>
+			<div class="image-variant" data-image-for="mobile">
+				if img := e.Resolved[mobileID]; img != nil {
+					@web.Picture(img, "", "8rem")
+				} else if img := e.Resolved[id]; img != nil {
+					<div class="image-inherited">
+						@web.Picture(img, "", "8rem")
+						<span class="muted">как на компьютере</span>
+					</div>
+				} else {
+					<span class="muted">Не выбрано</span>
+				}
+			</div>
 		</div>
 		<div class="block-image-fields">
-			<label>
-				Изображение
-				<select
-					name={ name }
-					hx-post={ e.BlockURL + "?id=" + b.ID }
-					hx-trigger="change"
-					hx-target={ "#block-" + b.ID }
-					hx-swap="outerHTML"
-					if e.err(b, field) != "" {
-						aria-invalid="true"
-						aria-describedby={ name + "-hint " + name + "-error" }
-					} else {
-						aria-describedby={ name + "-hint" }
-					}
-				>
-					<option value="">— выберите —</option>
-					for _, img := range options(id, e) {
-						<option value={ img.ID } selected?={ img.ID == id }>{ optionLabel(img) }</option>
-					}
-				</select>
-				<span class="field-hint" id={ name + "-hint" }>
+			if mobileID != "" {
+				<span class="status status-mobile">Своя для телефона</span>
+			}
+			<div class="image-variant" data-image-for="desktop">
+				@imageSelect(b, field, "Изображение", "— выберите —", id, e) {
 					Новое изображение сначала загрузите в <a href={ templ.SafeURL(e.MediaURL) } target="_blank">медиатеку</a>.
-				</span>
-				@fieldError(b, field, e)
-			</label>
+				}
+			</div>
+			<div class="image-variant" data-image-for="mobile">
+				@imageSelect(b, mobileField, "Изображение для телефона", "— как на компьютере —", mobileID, e) {
+					Другой кадр для узкого экрана. Описание (alt) — общее с основной картинкой.
+				}
+			</div>
 			{ children... }
 		</div>
 	</div>
+}
+
+// imageSelect — select изображения из медиатеки (поле field блока) с подсказкой (children) и ошибкой;
+// empty — надпись пустого варианта.
+templ imageSelect(b Block, field, label, empty, id string, e FormEnv) {
+	{{ name := FieldName(b.ID, field) }}
+	<label>
+		{ label }
+		<select
+			name={ name }
+			hx-post={ e.BlockURL + "?id=" + b.ID }
+			hx-trigger="change"
+			hx-target={ "#block-" + b.ID }
+			hx-swap="outerHTML"
+			if e.err(b, field) != "" {
+				aria-invalid="true"
+				aria-describedby={ name + "-hint " + name + "-error" }
+			} else {
+				aria-describedby={ name + "-hint" }
+			}
+		>
+			<option value="">{ empty }</option>
+			for _, img := range options(id, e) {
+				<option value={ img.ID } selected?={ img.ID == id }>{ optionLabel(img) }</option>
+			}
+		</select>
+		<span class="field-hint" id={ name + "-hint" }>
+			{ children... }
+		</span>
+		@fieldError(b, field, e)
+	</label>
 }
 
 templ fieldError(b Block, field string, e FormEnv) {

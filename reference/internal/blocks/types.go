@@ -41,37 +41,46 @@ func (t *Text) imageIDs() []string                      { return nil }
 func (t *Text) plainText() []string                     { return []string{richtext.PlainText(t.Body)} }
 
 // Image — блок image: изображение из медиатеки (id модуля images), alt обязателен, подпись — нет.
+// ImageMobile — необязательная своя картинка для телефона (web.PictureMobile); alt у обеих один.
 type Image struct {
-	Image   string `json:"image"`
-	Alt     string `json:"alt"`
-	Caption string `json:"caption"`
+	Image       string `json:"image"`
+	ImageMobile string `json:"image_mobile,omitempty"`
+	Alt         string `json:"alt"`
+	Caption     string `json:"caption"`
 }
 
 func (m *Image) readForm(f fields) {
-	m.Image, m.Alt, m.Caption = f.Get("image"), f.Get("alt"), f.Get("caption")
+	m.Image, m.ImageMobile = f.Get("image"), f.Get("image_mobile")
+	m.Alt, m.Caption = f.Get("alt"), f.Get("caption")
 }
 
 func (m *Image) check(res Resolved, _ Files) map[string]string {
 	errs := map[string]string{}
 	checkImage(errs, &m.Image, &m.Alt, res)
+	checkMobile(errs, m.Image, &m.ImageMobile, res)
 	m.Caption = strings.TrimSpace(m.Caption)
 	checkShort(errs, "caption", m.Caption, "Подпись")
 	return errs
 }
 
-func (m *Image) view(b Block, e viewEnv) templ.Component { return imageView(b, m, e.res[m.Image]) }
+func (m *Image) view(b Block, e viewEnv) templ.Component {
+	return imageView(b, m, e.res[m.Image], e.res[m.ImageMobile])
+}
 func (m *Image) form(b Block, e FormEnv) templ.Component { return imageForm(b, m, e) }
 func (m *Image) imageIDs() []string                      { return []string{m.Image} }
+func (m *Image) mobileImageIDs() []string                { return []string{m.ImageMobile} }
 func (m *Image) plainText() []string                     { return []string{m.Caption} }
 
 // ImageText — блок image_text: изображение и Markdown рядом. Position: "right" — картинка справа,
 // иначе (в том числе пусто в старых данных) — слева. Подпись под картинкой необязательна (в старых данных её нет).
+// ImageMobile — своя картинка для телефона, как у Image.
 type ImageText struct {
-	Image    string `json:"image"`
-	Alt      string `json:"alt"`
-	Caption  string `json:"caption"`
-	Body     string `json:"body"`
-	Position string `json:"position"`
+	Image       string `json:"image"`
+	ImageMobile string `json:"image_mobile,omitempty"`
+	Alt         string `json:"alt"`
+	Caption     string `json:"caption"`
+	Body        string `json:"body"`
+	Position    string `json:"position"`
 }
 
 // Положения картинки в ImageText.
@@ -81,13 +90,15 @@ const (
 )
 
 func (m *ImageText) readForm(f fields) {
-	m.Image, m.Alt, m.Caption = f.Get("image"), f.Get("alt"), f.Get("caption")
+	m.Image, m.ImageMobile = f.Get("image"), f.Get("image_mobile")
+	m.Alt, m.Caption = f.Get("alt"), f.Get("caption")
 	m.Body, m.Position = f.Get("body"), f.Get("position")
 }
 
 func (m *ImageText) check(res Resolved, _ Files) map[string]string {
 	errs := map[string]string{}
 	checkImage(errs, &m.Image, &m.Alt, res)
+	checkMobile(errs, m.Image, &m.ImageMobile, res)
 	m.Caption = strings.TrimSpace(m.Caption)
 	checkShort(errs, "caption", m.Caption, "Подпись")
 	m.Body = normalizeNewlines(m.Body)
@@ -101,10 +112,11 @@ func (m *ImageText) check(res Resolved, _ Files) map[string]string {
 func (m *ImageText) right() bool { return m.Position == PositionRight }
 
 func (m *ImageText) view(b Block, e viewEnv) templ.Component {
-	return imageTextView(b, m, e.res[m.Image])
+	return imageTextView(b, m, e.res[m.Image], e.res[m.ImageMobile])
 }
 func (m *ImageText) form(b Block, e FormEnv) templ.Component { return imageTextForm(b, m, e) }
 func (m *ImageText) imageIDs() []string                      { return []string{m.Image} }
+func (m *ImageText) mobileImageIDs() []string                { return []string{m.ImageMobile} }
 func (m *ImageText) plainText() []string {
 	return []string{m.Caption, richtext.PlainText(m.Body)}
 }
@@ -142,12 +154,13 @@ type Gallery struct {
 	Items []GalleryItem `json:"items"`
 }
 
-// GalleryItem — изображение галереи: alt обязателен, подпись — нет.
+// GalleryItem — изображение галереи: alt обязателен, подпись — нет; ImageMobile — своя картинка для телефона.
 type GalleryItem struct {
-	ID      string `json:"id"`
-	Image   string `json:"image"`
-	Alt     string `json:"alt"`
-	Caption string `json:"caption"`
+	ID          string `json:"id"`
+	Image       string `json:"image"`
+	ImageMobile string `json:"image_mobile,omitempty"`
+	Alt         string `json:"alt"`
+	Caption     string `json:"caption"`
 }
 
 // newGallery — новая галерея сразу с одним пустым элементом: форма показывает, что заполнять.
@@ -157,7 +170,8 @@ func (g *Gallery) readForm(f fields) {
 	g.Items = nil
 	for _, id := range f.All("item") {
 		g.Items = append(g.Items, GalleryItem{
-			ID: id, Image: f.item(id, "image"), Alt: f.item(id, "alt"), Caption: f.item(id, "caption"),
+			ID: id, Image: f.item(id, "image"), ImageMobile: f.item(id, "image_mobile"),
+			Alt: f.item(id, "alt"), Caption: f.item(id, "caption"),
 		})
 	}
 }
@@ -174,6 +188,7 @@ func (g *Gallery) check(res Resolved, _ Files) map[string]string {
 		it := &g.Items[i]
 		e := map[string]string{}
 		checkImage(e, &it.Image, &it.Alt, res)
+		checkMobile(e, it.Image, &it.ImageMobile, res)
 		it.Caption = strings.TrimSpace(it.Caption)
 		checkShort(e, "caption", it.Caption, "Подпись")
 		prefixErrors(errs, e, it.ID)
@@ -188,6 +203,14 @@ func (g *Gallery) imageIDs() []string {
 	ids := make([]string, 0, len(g.Items))
 	for _, it := range g.Items {
 		ids = append(ids, it.Image)
+	}
+	return ids
+}
+
+func (g *Gallery) mobileImageIDs() []string {
+	ids := make([]string, 0, len(g.Items))
+	for _, it := range g.Items {
+		ids = append(ids, it.ImageMobile)
 	}
 	return ids
 }
@@ -308,6 +331,21 @@ func checkImage(errs map[string]string, id, alt *string, res Resolved) {
 		errs["alt"] = "Опишите изображение для тех, кто его не видит (alt)."
 	case utf8.RuneCountInString(*alt) > maxShort:
 		errs["alt"] = fmt.Sprintf("Описание длиннее %d символов.", maxShort)
+	}
+}
+
+// checkMobile — своя картинка для телефона необязательна; задана — есть в медиатеке и при основной.
+// Та же, что основная, ничего не меняет — сбрасывается.
+func checkMobile(errs map[string]string, main string, mobile *string, res Resolved) {
+	*mobile = strings.TrimSpace(*mobile)
+	switch {
+	case *mobile == "":
+	case *mobile == main:
+		*mobile = ""
+	case main == "":
+		errs["image_mobile"] = "Сначала выберите основную картинку."
+	case res[*mobile] == nil:
+		errs["image_mobile"] = "Изображения нет в медиатеке: выберите другое."
 	}
 }
 

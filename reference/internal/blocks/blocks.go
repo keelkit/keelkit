@@ -45,9 +45,14 @@ type Content interface {
 	check(res Resolved, fs Files) map[string]string
 	view(b Block, e viewEnv) templ.Component
 	form(b Block, e FormEnv) templ.Component
+	// imageIDs — основные изображения блока (не картинки для телефона): ссылки, og:image (FirstImage).
 	imageIDs() []string
 	plainText() []string
 }
+
+// mobileRefs — блок со своими картинками для телефона (Image, ImageText, Gallery). Они держат изображение так же,
+// как основные (ImageIDs), но картинкой страницы (FirstImage) не становятся.
+type mobileRefs interface{ mobileImageIDs() []string }
 
 // Kind — тип блока: имя (в JSON и в allow спецификации) и название в админке.
 type Kind struct {
@@ -298,14 +303,21 @@ func Validate(list []Block, res Resolved, fs Files) map[string]string {
 	return errs
 }
 
-// ImageIDs — id изображений из всех блоков, включая скрытые (они тоже держат изображение), без повторов.
+// ImageIDs — id изображений из всех блоков, включая скрытые (они тоже держат изображение) и картинки для
+// телефона, без повторов.
 func ImageIDs(list []Block) []string {
 	var ids []string
-	for _, b := range list {
-		for _, id := range b.Content.imageIDs() {
+	add := func(list []string) {
+		for _, id := range list {
 			if id != "" && !slices.Contains(ids, id) {
 				ids = append(ids, id)
 			}
+		}
+	}
+	for _, b := range list {
+		add(b.Content.imageIDs())
+		if m, ok := b.Content.(mobileRefs); ok {
+			add(m.mobileImageIDs())
 		}
 	}
 	return ids
@@ -359,7 +371,7 @@ func ResolveFiles(ctx context.Context, src FileSource, list []Block) (Files, err
 	return fs, nil
 }
 
-// FirstImage — первое изображение видимых блоков (картинка страницы для og:image); нет — nil.
+// FirstImage — первое основное изображение видимых блоков (картинка страницы для og:image); нет — nil.
 func FirstImage(list []Block, res Resolved) *images.Image {
 	for _, b := range list {
 		if b.Hidden {
