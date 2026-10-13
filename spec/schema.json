@@ -35,11 +35,13 @@
       }
     },
     "modules": {
-      "description": "Подключённые модули Keelkit и их мажорные версии.",
+      "description": "Подключённые модули Keelkit и их мажорные версии: все модули Keelkit из go.mod сайта, в том числе без таблиц. Порядок — порядок применения миграций модулей.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "images": { "$ref": "#/$defs/moduleVersion" }
+        "images": { "$ref": "#/$defs/moduleVersion" },
+        "richtext": { "$ref": "#/$defs/moduleVersion" },
+        "auth": { "$ref": "#/$defs/moduleVersion" }
       }
     },
     "content": {

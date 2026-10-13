@@ -2,6 +2,13 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — semver (теги `spec/vX.Y.Z`).
 
+## [0.4.0] — 2026-10-13
+
+### Added
+- Модули `richtext` и `auth` в `modules` (рядом с `images`). В `modules` перечисляются все модули Keelkit из `go.mod`
+  сайта, в том числе без таблиц (`richtext`); порядок — порядок применения миграций модулей.
+  Изменение добавочное: прежние `site.yaml` остаются валидными.
+
 ## [0.3.0] — 2026-10-12
 
 ### Added

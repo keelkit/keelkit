@@ -9,7 +9,8 @@
 Таблиц и миграций у модуля нет.
 
 **Изменения в коде сайта** (образец — `reference/`):
-1. `go get github.com/voffkin/keelkit/modules/richtext@v0.1.0` (через `make`: нужны `GOPRIVATE` и SSH, см. `AGENTS.md`).
+1. `go get github.com/voffkin/keelkit/modules/richtext@v0.1.0` (через `make`: нужны `GOPRIVATE` и SSH, см. `AGENTS.md`);
+   в `site.yaml` — `modules: { …, richtext: v0 }` (валидатор `spec` с v0.4.0, `SPEC_VERSION` в `Makefile` сайта).
 2. Импорты `<модуль сайта>/internal/richtext` → `github.com/voffkin/keelkit/modules/richtext` (Go-код и `.templ`),
    затем `make generate`. Удалить каталог `internal/richtext`.
 3. `go mod tidy`: goldmark, bluemonday и `golang.org/x/net` остаются в `go.mod`, если сайт использует их сам, иначе
