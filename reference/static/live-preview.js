@@ -4,6 +4,9 @@
 // iframe того же происхождения, поэтому связь блоков — прямым доступом к его документу: щелчок по блоку
 // в предпросмотре открывает форму блока, щелчок по заголовку блока в форме прокручивает предпросмотр к нему.
 // Ссылки в предпросмотре не открываются, баннера cookies в нём нет. Без этого файла панели не видно, форма работает как обычно.
+// Кнопки ширины («Компьютер», «Телефон») переключают и режим формы — атрибут data-image-mode на корне: в режиме
+// телефона поля картинок показывают свою картинку для телефона. Кнопок две группы (на панели и над формой на узком
+// экране); они переключаются вместе.
 (function () {
   "use strict";
 
@@ -167,20 +170,23 @@
     }, 1200);
   });
 
-  // --- ширина экрана ---
+  // --- ширина экрана и режим формы ---
 
   var width = parseInt(load("width"), 10) || 0;
   var widthButtons = root.querySelectorAll("[data-live-width]");
 
   function setWidth(w) {
     var found = false;
+    var mode = "";
     widthButtons.forEach(function (b) {
       var on = parseInt(b.getAttribute("data-live-width"), 10) === w;
       b.setAttribute("aria-pressed", on ? "true" : "false");
+      if (on) mode = b.getAttribute("data-live-mode") || "";
       found = found || on;
     });
     if (!found) return setWidth(parseInt(widthButtons[0].getAttribute("data-live-width"), 10));
     width = w;
+    root.setAttribute("data-image-mode", mode);
     store("width", String(w));
     fit();
   }

@@ -615,7 +615,7 @@ func TestBrowserLivePreview(t *testing.T) {
 	// «Телефон»: iframe в ширину 390 px.
 	var width string
 	run(t, ctx, "phone",
-		chromedp.Click(`[data-live-width="390"]`, chromedp.ByQuery),
+		chromedp.Click(`.live-pane [data-live-width="390"]`, chromedp.ByQuery),
 		chromedp.Evaluate(`document.querySelector('.live-frame').style.width`, &width),
 	)
 	if width != "390px" {
@@ -660,5 +660,108 @@ func TestBrowserLivePreview(t *testing.T) {
 	)
 	if strings.Contains(list, "Живая страница") {
 		t.Error("live preview saved the page")
+	}
+}
+
+// Режим «Компьютер / Телефон»: кнопки ширины переключают и поля картинок. В режиме телефона у блока без своей
+// картинки — приглушённая основная; выбранная своя видна в предпросмотре «Телефон» (currentSrc), «Компьютер» —
+// основная; сохранение в режиме «Компьютер» не теряет скрытое поле; на узком экране переключатель над формой.
+func TestBrowserMobileImage(t *testing.T) {
+	site, _ := migratedSiteWithImages(t)
+	srv := httptest.NewServer(site.handler(config{}))
+	t.Cleanup(srv.Close)
+	var id int64
+	if err := site.db.QueryRow(`SELECT page_id FROM page_contents WHERE kind = 'draft' AND slug = 'about'`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	edit := fmt.Sprintf("%s/admin/pages/%d", srv.URL, id)
+	ctx := browser(t)
+	browserLogin(t, ctx, srv.URL)
+
+	const (
+		mainSel   = `select[name="block-about-photo-image"]`
+		mobileSel = `select[name="block-about-photo-image_mobile"]`
+	)
+	visible := func(sel string) string { return `!!document.querySelector('` + sel + `')?.offsetParent` }
+	var mainID, mode string
+	var mainShown, mobileShown, inherited bool
+	run(t, ctx, "desktop mode",
+		chromedp.EmulateViewport(1400, 900),
+		chromedp.Navigate(edit),
+		chromedp.WaitVisible(`.live.is-on .live-pane`, chromedp.ByQuery),
+		chromedp.Value(mainSel, &mainID, chromedp.ByQuery),
+		chromedp.Evaluate(visible(mainSel), &mainShown),
+		chromedp.Evaluate(visible(mobileSel), &mobileShown),
+	)
+	if !mainShown || mobileShown {
+		t.Errorf("«Компьютер»: main select shown %v, mobile select shown %v", mainShown, mobileShown)
+	}
+
+	run(t, ctx, "phone mode",
+		chromedp.Click(`.live-pane [data-live-width="390"]`, chromedp.ByQuery),
+		chromedp.Evaluate(`document.querySelector('.live').getAttribute('data-image-mode')`, &mode),
+		chromedp.Evaluate(visible(mainSel), &mainShown),
+		chromedp.Evaluate(visible(mobileSel), &mobileShown),
+		chromedp.Evaluate(visible(`#block-about-photo [data-image-for="mobile"] .image-inherited`), &inherited),
+	)
+	if mode != "mobile" || mainShown || !mobileShown || !inherited {
+		t.Errorf("«Телефон»: mode %q, main shown %v, mobile shown %v, inherited preview %v", mode, mainShown, mobileShown, inherited)
+	}
+
+	// Выбор своей картинки перерисовывает блок (htmx): её превью и метка, режим сохраняется.
+	var mobileID string
+	var badge bool
+	run(t, ctx, "pick mobile",
+		chromedp.Evaluate(`(() => { const s = document.querySelector('`+mobileSel+`');
+			const main = document.querySelector('`+mainSel+`').value;
+			s.value = Array.from(s.options).find(o => o.value && o.value !== main).value;
+			s.dispatchEvent(new Event('change', {bubbles: true})); return s.value; })()`, &mobileID),
+		chromedp.WaitReady(`#block-about-photo .status-mobile`, chromedp.ByQuery),
+		htmxSettled(),
+		chromedp.Evaluate(visible(`#block-about-photo [data-image-for="mobile"] picture:not(.image-inherited picture)`), &badge),
+	)
+	if !badge {
+		t.Error("mobile image picked: no preview of it in phone mode")
+	}
+
+	// Предпросмотр: на телефоне браузер берёт свою картинку, на компьютере — основную.
+	shows := func(step, want string) {
+		t.Helper()
+		var ok bool
+		run(t, ctx, step,
+			chromedp.Poll(`(() => { const img = document.querySelector('.live-frame').contentDocument
+				?.querySelector('#block-about-photo img');
+				if (!img) return false;
+				img.loading = 'eager';
+				return img.currentSrc.includes('/media/`+want+`/'); })()`, &ok, chromedp.WithPollingTimeout(15*time.Second)),
+		)
+	}
+	shows("phone preview shows the mobile image", mobileID)
+	run(t, ctx, "desktop", chromedp.Click(`.live-pane [data-live-width="1440"]`, chromedp.ByQuery))
+	shows("desktop preview shows the main image", mainID)
+
+	// «Сохранить» в режиме «Компьютер»: скрытое поле своей картинки уходит с формой.
+	var saved string
+	run(t, ctx, "save",
+		chromedp.Click(`.form-actions button[value="save"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`.flash`, chromedp.ByQuery),
+		chromedp.Value(mobileSel, &saved, chromedp.ByQuery),
+	)
+	if saved != mobileID {
+		t.Errorf("saved image_mobile = %q, want %q", saved, mobileID)
+	}
+
+	// Узкий экран: переключатель над формой, нажатая кнопка та же, что на панели; он тоже меняет режим.
+	var pressed string
+	run(t, ctx, "narrow",
+		chromedp.EmulateViewport(700, 900),
+		chromedp.WaitVisible(`.live-tabs .live-widths`, chromedp.ByQuery),
+		chromedp.Evaluate(`document.querySelector('.live-tabs [aria-pressed="true"][data-live-width]').textContent`, &pressed),
+		chromedp.Click(`.live-tabs [data-live-width="390"]`, chromedp.ByQuery),
+		chromedp.Evaluate(`document.querySelector('.live').getAttribute('data-image-mode')`, &mode),
+		chromedp.Evaluate(visible(mobileSel), &mobileShown),
+	)
+	if pressed != "Компьютер" || mode != "mobile" || !mobileShown {
+		t.Errorf("narrow: pressed %q, mode %q, mobile select shown %v", pressed, mode, mobileShown)
 	}
 }

@@ -1128,6 +1128,12 @@ body.admin {
   display: none;
 }
 
+/* Переключатель ширины над формой (вкладки на узком экране) — справа от вкладок. */
+.live-tabs .live-widths {
+  margin-left: auto;
+  font-size: 0.875rem;
+}
+
 @media (max-width: 64rem) {
   .live.is-on {
     grid-template-columns: minmax(0, 1fr);

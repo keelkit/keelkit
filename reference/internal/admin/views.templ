@@ -108,11 +108,15 @@ templ Layout(title string) {
 // Live — редактор записи с живым предпросмотром: слева children (форма с id formID), справа запись в шаблоне
 // сайта — ответ на POST url с полями формы, обновляется при вводе (static/live-preview.js). Панель, граница
 // и вкладки скрыты (hidden), пока их не включит скрипт: без JavaScript остаётся одна форма.
+// Кнопки ширины («Компьютер», «Телефон») переключают и режим формы: data-image-mode на корне показывает поля
+// своей картинки для телефона (data-image-for="mobile", internal/blocks и обложка поста). На узком экране тот же
+// переключатель — над формой, рядом с вкладками.
 templ Live(url, formID string) {
 	<div class="live" data-live-url={ url } data-live-form={ formID }>
 		<div class="live-tabs" role="group" aria-label="Что показать" hidden>
 			<button type="button" class="secondary" data-live-tab="editor" aria-pressed="true">Редактор</button>
 			<button type="button" class="secondary" data-live-tab="preview" aria-pressed="false">Предпросмотр</button>
+			@liveWidths()
 		</div>
 		<div class="live-editor">
 			{ children... }
@@ -120,11 +124,7 @@ templ Live(url, formID string) {
 		<div class="live-gutter" role="separator" aria-orientation="vertical" aria-label="Граница редактора и предпросмотра: стрелки влево и вправо" tabindex="0" hidden></div>
 		<aside class="live-pane" aria-label="Предпросмотр" hidden>
 			<div class="live-bar">
-				<div class="live-widths" role="group" aria-label="Ширина экрана">
-					for _, d := range liveDevices {
-						<button type="button" data-live-width={ strconv.Itoa(d.width) } aria-pressed="false">{ d.title }</button>
-					}
-				</div>
+				@liveWidths()
 				<span class="live-zoom"></span>
 				<span class="live-status"></span>
 				<button type="button" class="live-reload link-button">Обновить</button>
@@ -136,11 +136,24 @@ templ Live(url, formID string) {
 	</div>
 }
 
-// liveDevices — ширины экрана в предпросмотре; первая — по умолчанию.
+// liveWidths — кнопки ширины экрана: ширина предпросмотра и режим полей картинок (data-live-mode).
+templ liveWidths() {
+	<div class="live-widths" role="group" aria-label="Ширина экрана">
+		for _, d := range liveDevices {
+			<button type="button" data-live-width={ strconv.Itoa(d.width) } data-live-mode={ d.mode } title={ d.hint } aria-pressed="false">{ d.title }</button>
+		}
+	</div>
+}
+
+// liveDevices — ширины экрана в предпросмотре; первая — по умолчанию. «Телефон» уже web.MobileMedia (768 px):
+// предпросмотр показывает картинки для телефона.
 var liveDevices = []struct {
-	title string
-	width int
-}{{"Компьютер", 1440}, {"Телефон", 390}}
+	title, mode, hint string
+	width             int
+}{
+	{"Компьютер", "desktop", "Предпросмотр на компьютере; в форме — основные картинки", 1440},
+	{"Телефон", "mobile", "Предпросмотр на телефоне; в форме — картинки для телефона", 390},
+}
 
 // LoginPage — форма входа.
 templ LoginPage(f loginForm) {
