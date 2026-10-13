@@ -37,8 +37,11 @@ func assertLiveShell(t *testing.T, html, liveURL, formID string) {
 	if live.Find(".live-pane iframe.live-frame").Length() != 1 {
 		t.Error("no iframe in .live-pane")
 	}
-	if live.Find("[data-live-width]").Length() != 2 {
-		t.Error("want 2 device width buttons")
+	// Кнопки ширины — на панели и над формой (вкладки на узком экране); у каждой — режим полей картинок.
+	for _, group := range []string{".live-pane", ".live-tabs"} {
+		if got := live.Find(group + " [data-live-width][data-live-mode]").Length(); got != 2 {
+			t.Errorf("%s: %d device width buttons, want 2", group, got)
+		}
 	}
 }
 
