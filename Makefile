@@ -53,7 +53,7 @@ DIRS := modules/$(MODULE)
 endif
 endif
 
-.PHONY: help check test test-isolated lint deps-check release spec-validate images-demo run dev migrate seed user-create reprocess-images reset generate generate-check e2e e2e-browser
+.PHONY: help check test test-isolated lint deps-check release spec-validate images-demo build run dev migrate seed user-create reprocess-images reset generate generate-check e2e e2e-browser
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -93,6 +93,9 @@ spec-validate: ## Проверить спецификацию сайта. При
 
 images-demo: ## Обработать изображения модулем images и построить отчёт modules/images/demo-out/index.html. Пример: make images-demo IN=~/Pictures/photo.jpg
 	@cd modules/images && go run ./internal/cmd/images-demo -in "$(abspath $(IN))" -out demo-out
+
+build: ## Статический бинарник эталонного сайта reference/bin/site. Пример: make build GOOS=linux GOARCH=amd64
+	@$(MAKE) -C reference build
 
 run: ## Запустить эталонный сайт на http://localhost:9090 (нужен make migrate). Пример: make run ADDR=:9091
 	@$(MAKE) -C reference run

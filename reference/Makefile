@@ -26,6 +26,14 @@ COOKIE_SECURE ?= false
 # Адрес сайта для canonical, Open Graph, sitemap, RSS и robots.txt (serve без него не стартует).
 # Для разработки — localhost с портом из ADDR; в проде — настоящий адрес, например https://example.com.
 BASE_URL ?= http://localhost:$(lastword $(subst :, ,$(ADDR)))
+# Сборка: каталог бинарника, целевая ОС и архитектура (по умолчанию — текущие; для VPS: GOOS=linux GOARCH=amd64).
+BIN_DIR ?= bin
+GOOS ?= $(shell go env GOOS)
+GOARCH ?= $(shell go env GOARCH)
+# Версия, вшиваемая в бинарник (видна в /healthz и логе старта): тег сайта vX.Y.Z, иначе хеш коммита;
+# -dirty — есть незакоммиченные правки. Теги модулей монорепо (modules/…, spec/…) сюда не попадают.
+VERSION ?= $(shell git describe --tags --match 'v[0-9]*' --always --dirty 2>/dev/null || echo dev)
+
 # Email пользователя админки для user-create.
 EMAIL ?=
 # Версия профиля для reprocess-images: обработать изображения с версией ниже BELOW.
@@ -50,10 +58,14 @@ SPEC_VALIDATE = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/voffkin/keelkit/sp
 
 SITE = ADDR=$(ADDR) BASE_URL=$(BASE_URL) DATA_DIR=$(DATA_DIR) BACKUP_DIR=$(BACKUP_DIR) COOKIE_SECURE=$(COOKIE_SECURE) go run ./cmd/site
 
-.PHONY: help run dev migrate seed user-create reprocess-images reset generate generate-check test test-isolated e2e e2e-browser lint deps-check spec-validate
+.PHONY: help build run dev migrate seed user-create reprocess-images reset generate generate-check test test-isolated e2e e2e-browser lint deps-check spec-validate
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
+
+# CGO_ENABLED=0 — статический бинарник без libc хоста; -trimpath — без локальных путей в бинарнике.
+build: ## Статический бинарник BIN_DIR/site с вшитой версией. Пример: make build GOOS=linux GOARCH=amd64
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o $(BIN_DIR)/site ./cmd/site
 
 run: ## Запустить сайт (откажется при непримененных миграциях). Пример: make run ADDR=:9091 DATA_DIR=/tmp/site BASE_URL=https://example.com
 	$(SITE) serve

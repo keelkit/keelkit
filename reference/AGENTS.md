@@ -38,6 +38,7 @@
 
 | Цель | Что делает |
 |---|---|
+| `make build` | статический бинарник `bin/site` (`CGO_ENABLED=0`, `-trimpath`); версия — тег сайта `vX.Y.Z` или хеш коммита (`-dirty` при незакоммиченных правках), видна в `/healthz` и логе старта. Для VPS: `make build GOOS=linux GOARCH=amd64`; `VERSION=…` задаёт версию явно |
 | `make run` | запустить сайт (`ADDR`, `DATA_DIR`, `BASE_URL`); при непримененных миграциях отказывается стартовать |
 | `make dev` | для разработки: `migrate`, `seed`, запуск |
 | `make migrate` | снимок БД в `BACKUP_DIR` (`VACUUM INTO`), затем миграции: модули в порядке `site.yaml`, потом сайт |
