@@ -74,6 +74,15 @@ func (q *Queries) DeleteContentImages(ctx context.Context, arg DeleteContentImag
 	return err
 }
 
+const deleteOldPaths = `-- name: DeleteOldPaths :exec
+DELETE FROM post_redirects WHERE post_id = ?
+`
+
+func (q *Queries) DeleteOldPaths(ctx context.Context, postID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteOldPaths, postID)
+	return err
+}
+
 const deleteUnpublishedPost = `-- name: DeleteUnpublishedPost :execrows
 DELETE FROM posts
 WHERE id = ? AND NOT EXISTS (SELECT 1 FROM post_contents c WHERE c.post_id = posts.id AND c.kind = 'published')
@@ -230,6 +239,21 @@ func (q *Queries) InsertContentImage(ctx context.Context, arg InsertContentImage
 	return err
 }
 
+const insertOldPath = `-- name: InsertOldPath :exec
+INSERT INTO post_redirects (slug, post_id) VALUES (?, ?)
+ON CONFLICT (slug) DO UPDATE SET post_id = excluded.post_id
+`
+
+type InsertOldPathParams struct {
+	Slug   string
+	PostID int64
+}
+
+func (q *Queries) InsertOldPath(ctx context.Context, arg InsertOldPathParams) error {
+	_, err := q.db.ExecContext(ctx, insertOldPath, arg.Slug, arg.PostID)
+	return err
+}
+
 const listCategoriesWithPosts = `-- name: ListCategoriesWithPosts :many
 SELECT cat.name, cat.slug FROM categories cat
 WHERE EXISTS (SELECT 1 FROM post_contents c
@@ -290,6 +314,34 @@ func (q *Queries) ListCategoryOptions(ctx context.Context) ([]ListCategoryOption
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOldPaths = `-- name: ListOldPaths :many
+SELECT slug FROM post_redirects WHERE post_id = ? ORDER BY slug
+`
+
+// Post form, "old addresses": paths under the blog that redirect to the post.
+func (q *Queries) ListOldPaths(ctx context.Context, postID int64) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listOldPaths, postID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var slug string
+		if err := rows.Scan(&slug); err != nil {
+			return nil, err
+		}
+		items = append(items, slug)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -553,6 +605,25 @@ func (q *Queries) ListPublishedPostsInCategory(ctx context.Context, arg ListPubl
 	return items, nil
 }
 
+const oldPathOwner = `-- name: OldPathOwner :one
+SELECT r.post_id, d.title FROM post_redirects r
+JOIN post_contents d ON d.post_id = r.post_id AND d.kind = 'draft'
+WHERE r.slug = ?
+`
+
+type OldPathOwnerRow struct {
+	PostID int64
+	Title  string
+}
+
+// Old-address check: the post this path already redirects to.
+func (q *Queries) OldPathOwner(ctx context.Context, slug string) (OldPathOwnerRow, error) {
+	row := q.db.QueryRowContext(ctx, oldPathOwner, slug)
+	var i OldPathOwnerRow
+	err := row.Scan(&i.PostID, &i.Title)
+	return i, err
+}
+
 const postsUsingImage = `-- name: PostsUsingImage :many
 SELECT DISTINCT p.id, d.title
 FROM post_images i
@@ -617,6 +688,20 @@ SELECT src.post_id, 'published', src.image_id FROM post_images AS src WHERE src.
 func (q *Queries) PublishDraftImages(ctx context.Context, postID int64) error {
 	_, err := q.db.ExecContext(ctx, publishDraftImages, postID)
 	return err
+}
+
+const publishedSlugOwner = `-- name: PublishedSlugOwner :one
+SELECT d.title FROM post_contents c
+JOIN post_contents d ON d.post_id = c.post_id AND d.kind = 'draft'
+WHERE c.kind = 'published' AND c.slug = ?
+`
+
+// Old-address check: title of the post published under this slug.
+func (q *Queries) PublishedSlugOwner(ctx context.Context, slug string) (string, error) {
+	row := q.db.QueryRowContext(ctx, publishedSlugOwner, slug)
+	var title string
+	err := row.Scan(&title)
+	return title, err
 }
 
 const redirectTarget = `-- name: RedirectTarget :one

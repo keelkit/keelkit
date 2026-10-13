@@ -59,7 +59,7 @@ func newPostForm(title, slug, category, date string) url.Values {
 // blogTitles — заголовки первой страницы ленты.
 func (a *pageAdmin) blogTitles() []string {
 	a.t.Helper()
-	_, html := a.get("/blog")
+	_, html := a.get(blogPath)
 	return cardTitles(parse(a.t, html))
 }
 
@@ -93,7 +93,7 @@ func TestE2EAdminPostPublish(t *testing.T) {
 	if got := a.postStatus("Свежий пост"); got != "Черновик" {
 		t.Errorf("status after save = %q", got)
 	}
-	if resp, _ := a.get("/blog/svezhiy-post"); resp.StatusCode != http.StatusNotFound {
+	if resp, _ := a.get(blogPath + "/svezhiy-post"); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("draft on site: status %d", resp.StatusCode)
 	}
 	if f := a.postForm(edit); f.Get("publish_date") != "" || f.Get("slug") != "svezhiy-post" {
@@ -117,7 +117,7 @@ func TestE2EAdminPostPublish(t *testing.T) {
 	if got := a.postStatus("Свежий пост"); got != "Опубликован" {
 		t.Errorf("status after publish = %q", got)
 	}
-	doc = page(t, a.srv, "/blog/svezhiy-post", http.StatusOK)
+	doc = page(t, a.srv, blogPath+"/svezhiy-post", http.StatusOK)
 	if got := text(doc.Find("article .post-meta a")); got != "Веб" {
 		t.Errorf("category on site = %q", got)
 	}
@@ -131,7 +131,7 @@ func TestE2EAdminPostPublish(t *testing.T) {
 	if got := a.postStatus("Свежий пост, исправленный"); got != "Есть неопубликованные изменения" {
 		t.Errorf("status after edit = %q", got)
 	}
-	doc = page(t, a.srv, "/blog/svezhiy-post", http.StatusOK)
+	doc = page(t, a.srv, blogPath+"/svezhiy-post", http.StatusOK)
 	if got := text(doc.Find("main h1")); got != "Свежий пост" {
 		t.Errorf("site h1 after draft edit = %q", got)
 	}
@@ -154,7 +154,7 @@ func TestE2EAdminPostScheduled(t *testing.T) {
 	if got := a.postStatus("Анонс"); !strings.HasPrefix(got, "Запланирован на ") {
 		t.Errorf("status = %q", got)
 	}
-	if resp, _ := a.get("/blog/anons"); resp.StatusCode != http.StatusNotFound {
+	if resp, _ := a.get(blogPath + "/anons"); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("scheduled post on site: status %d", resp.StatusCode)
 	}
 	_, body := a.get(edit)
@@ -168,7 +168,7 @@ func TestE2EAdminPostScheduled(t *testing.T) {
 	if resp, _ := a.submit(edit, form, "publish", nil); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("publish: status %d", resp.StatusCode)
 	}
-	page(t, a.srv, "/blog/anons", http.StatusOK)
+	page(t, a.srv, blogPath+"/anons", http.StatusOK)
 	if got := a.blogTitles(); len(got) < 2 || got[0] != seedPostTitles[0] || got[1] != "Анонс" {
 		t.Errorf("blog order = %q", got)
 	}
@@ -251,7 +251,7 @@ func TestE2EAdminPostValidation(t *testing.T) {
 func TestE2EAdminPostUnpublishDelete(t *testing.T) {
 	a := newPageAdmin(t)
 	edit := a.createPost(newPostForm("Временный", "vremennyy", "", ""), "publish")
-	page(t, a.srv, "/blog/vremennyy", http.StatusOK)
+	page(t, a.srv, blogPath+"/vremennyy", http.StatusOK)
 
 	// Опубликованный пост не удаляется: подтверждение и POST — 409.
 	if resp, _ := a.get(edit + "/delete"); resp.StatusCode != http.StatusConflict {
@@ -266,7 +266,7 @@ func TestE2EAdminPostUnpublishDelete(t *testing.T) {
 	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != edit+"?unpublished=1" {
 		t.Fatalf("unpublish: status %d, Location %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
-	page(t, a.srv, "/blog/vremennyy", http.StatusNotFound)
+	page(t, a.srv, blogPath+"/vremennyy", http.StatusNotFound)
 	if got := a.postStatus("Временный"); got != "Черновик" {
 		t.Errorf("status after unpublish = %q", got)
 	}
@@ -312,11 +312,11 @@ func TestE2EAdminPostCover(t *testing.T) {
 	if err := site.db.QueryRow(`SELECT count(*) FROM post_images WHERE post_id = ? AND image_id = ?`, id, img).Scan(&n); err != nil || n != 2 {
 		t.Errorf("post_images for cover = %d, %v; want 2 (draft and published)", n, err)
 	}
-	doc = page(t, a.srv, "/blog", http.StatusOK)
+	doc = page(t, a.srv, blogPath, http.StatusOK)
 	if doc.Find(`.post-card:contains("С обложкой") .post-card-cover picture`).Length() != 1 {
 		t.Error("blog: no cover in the card")
 	}
-	doc = page(t, a.srv, "/blog/s-oblozhkoy", http.StatusOK)
+	doc = page(t, a.srv, blogPath+"/s-oblozhkoy", http.StatusOK)
 	if src, _ := doc.Find(".post-cover img").Attr("src"); !strings.HasPrefix(src, "/media/"+img+"/") {
 		t.Errorf("post cover src = %q", src)
 	}
@@ -368,7 +368,7 @@ func TestE2EAdminPostFields(t *testing.T) {
 		t.Errorf("saved: lead %q, excerpt %q, cover_alt %q", f.Get("lead"), f.Get("excerpt"), f.Get("cover_alt"))
 	}
 
-	doc := page(t, a.srv, "/blog/s-lidom", http.StatusOK)
+	doc := page(t, a.srv, blogPath+"/s-lidom", http.StatusOK)
 	if got := text(doc.Find("article .post-lead")); got != "Подзаголовок\nв две строки" {
 		t.Errorf("lead on site = %q", got)
 	}
@@ -378,7 +378,7 @@ func TestE2EAdminPostFields(t *testing.T) {
 	if d, _ := doc.Find(`meta[name="description"]`).Attr("content"); d != "Анонс вручную" {
 		t.Errorf("description = %q", d)
 	}
-	doc = page(t, a.srv, "/blog", http.StatusOK)
+	doc = page(t, a.srv, blogPath, http.StatusOK)
 	if got := text(doc.Find(`.post-card:contains("С лидом") .post-card-body > p:last-child`)); got != "Анонс вручную" {
 		t.Errorf("card summary = %q", got)
 	}
@@ -450,7 +450,7 @@ func TestE2EAdminCategories(t *testing.T) {
 	if f := a.formByID(edit, "category-form"); f.Get("slug") != "novosti" {
 		t.Errorf("generated slug = %q", f.Get("slug"))
 	}
-	page(t, a.srv, "/blog/category/novosti", http.StatusOK)
+	page(t, a.srv, blogPath+"/category/novosti", http.StatusOK)
 
 	for _, header := range []http.Header{nil, htmx} {
 		resp, html := a.submit("/admin/categories", url.Values{"name": {"Ещё Go"}, "slug": {"go"}}, "", header)
@@ -474,7 +474,7 @@ func TestE2EAdminCategories(t *testing.T) {
 	if resp, _ := a.submit(goEdit, form, "", nil); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("rename: status %d", resp.StatusCode)
 	}
-	doc = page(t, a.srv, "/blog/post-13", http.StatusOK)
+	doc = page(t, a.srv, blogPath+"/post-13", http.StatusOK)
 	if got := text(doc.Find("article .post-meta a")); got != "Язык Go" {
 		t.Errorf("post category after rename = %q", got)
 	}
@@ -503,7 +503,7 @@ func TestE2EAdminCategories(t *testing.T) {
 	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/admin/categories?deleted=1" {
 		t.Errorf("delete: status %d, Location %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
-	page(t, a.srv, "/blog/category/novosti", http.StatusNotFound)
+	page(t, a.srv, blogPath+"/category/novosti", http.StatusNotFound)
 }
 
 // Внешний ключ защищает категорию и в обход админки: удалить используемую напрямую нельзя.

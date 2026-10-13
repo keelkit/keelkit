@@ -22,7 +22,9 @@ import (
 	"github.com/voffkin/keelkit/reference/internal/web"
 )
 
-// BlogPath — лента блога на сайте.
+// BlogPath — раздел постов на сайте: лента, посты (BlogPath/slug) и ленты категорий (BlogPath/category/slug).
+// Один сегмент пути; другой адрес раздела (например /news) — правка только этой константы
+// (reference/AGENTS.md, «Адрес раздела постов»).
 const BlogPath = "/blog"
 
 // Ограничения вывода.
@@ -64,7 +66,7 @@ type listView struct {
 	HasNext  bool
 }
 
-// Blog — GET /blog: опубликованные посты, новые сверху, по perPage на странице (?page=N).
+// Blog — GET BlogPath: опубликованные посты, новые сверху, по perPage на странице (?page=N).
 func (h *Handler) Blog(w http.ResponseWriter, r *http.Request) {
 	page, ok := pageNumber(r)
 	if !ok {
@@ -80,7 +82,7 @@ func (h *Handler) Blog(w http.ResponseWriter, r *http.Request) {
 	h.renderList(w, r, listView{Title: "Блог", Path: BlogPath, Page: page}, rows)
 }
 
-// Category — GET /blog/category/{slug}: опубликованные посты категории; нет категории — 404.
+// Category — GET BlogPath/category/{slug}: опубликованные посты категории; нет категории — 404.
 func (h *Handler) Category(w http.ResponseWriter, r *http.Request) {
 	page, ok := pageNumber(r)
 	if !ok {
@@ -144,13 +146,14 @@ func (h *Handler) card(ctx context.Context, e entry) (card, error) {
 	return card{entry: e, Cover: cover, Summary: summary(e, list, summaryLen)}, nil
 }
 
-// Show — GET /blog/{slug}: опубликованный пост, дата публикации которого наступила. Иначе — 301 на текущий адрес
-// поста, если slug был у него раньше (post_redirects) и пост на сайте, или 404.
+// Show — GET BlogPath/{slug...}: опубликованный пост, дата публикации которого наступила. Иначе — 301 на текущий
+// адрес поста, если путь — его старый адрес (post_redirects: прежний slug или адрес, вписанный в форме поста; путь
+// любой, в том числе не по правилам slug и с «/») и пост на сайте, или 404.
 func (h *Handler) Show(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	p, err := h.q.GetPublishedPostBySlug(r.Context(), GetPublishedPostBySlugParams{Slug: slug, Now: nowDB()})
 	if errors.Is(err, sql.ErrNoRows) {
-		h.redirectOld(w, r, slug)
+		h.redirectOld(w, r, strings.Trim(slug, "/"))
 		return
 	}
 	if err != nil {
@@ -165,7 +168,7 @@ func (h *Handler) Show(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, http.StatusOK, View(v))
 }
 
-// redirectOld — 301 со старого slug на текущий адрес поста, видимого на сайте; такого нет — 404.
+// redirectOld — 301 со старого адреса (путь после BlogPath/ без «/» по краям) на текущий адрес поста, видимого на сайте; такого нет — 404.
 func (h *Handler) redirectOld(w http.ResponseWriter, r *http.Request, slug string) {
 	target, err := h.q.RedirectTarget(r.Context(), RedirectTargetParams{OldSlug: slug, Now: nowDB()})
 	if errors.Is(err, sql.ErrNoRows) {

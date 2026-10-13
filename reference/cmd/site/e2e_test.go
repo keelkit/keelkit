@@ -108,8 +108,8 @@ func TestE2EHome(t *testing.T) {
 	}
 	// Меню из seed (internal/menu): в шапке — страницы и блог с категориями подпунктами, в подвале — страница
 	// с подпунктом и свой адрес.
-	if got, want := menuLinks(doc.Find(".site-nav")), "О проекте /about, Контакты /contacts, Блог /blog "+
-		"[Go /blog/category/go, Веб /blog/category/web, Заметки /blog/category/notes]"; got != want {
+	if got, want := menuLinks(doc.Find(".site-nav")), "О проекте /about, Контакты /contacts, Блог "+blogPath+" "+
+		"[Go "+blogPath+"/category/go, Веб "+blogPath+"/category/web, Заметки "+blogPath+"/category/notes]"; got != want {
 		t.Errorf("main menu = %q, want %q", got, want)
 	}
 	if got, want := menuLinks(doc.Find(".footer-nav")), "О проекте /about [Контакты /contacts], RSS /rss.xml"; got != want {

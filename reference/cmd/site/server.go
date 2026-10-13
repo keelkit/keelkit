@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/voffkin/keelkit/modules/images"
 
@@ -29,7 +30,7 @@ import (
 // reservedSlugs — первые сегменты путей, занятые маршрутами newMux. Страница с таким slug была бы не видна,
 // поэтому админка их не принимает. Новый маршрут верхнего уровня — новая запись здесь; если маршрут — поддерево
 // (/static/), сам путь без слеша тоже нужно занять, иначе его заберёт GET /{slug} (проверяет e2e).
-var reservedSlugs = []string{"admin", "static", "media", "healthz", "blog"}
+var reservedSlugs = []string{"admin", "static", "media", "healthz", strings.TrimPrefix(posts.BlogPath, "/")}
 
 // newMux — все маршруты сайта. HTML-маршруты оборачиваются в html: данные шапки в контексте запроса.
 // Маршруты админки — ещё и в adminOnly: защита от межсайтовых запросов (http.CrossOriginProtection),
@@ -88,7 +89,7 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 	mux.Handle("GET /{$}", html(http.HandlerFunc(pagesH.Home)))
 	mux.Handle("GET /{slug}", html(http.HandlerFunc(pagesH.Show)))
 	mux.Handle("GET "+posts.BlogPath, html(http.HandlerFunc(postsH.Blog)))
-	mux.Handle("GET "+posts.BlogPath+"/{slug}", html(http.HandlerFunc(postsH.Show)))
+	mux.Handle("GET "+posts.BlogPath+"/{slug...}", html(http.HandlerFunc(postsH.Show)))
 	mux.Handle("GET "+posts.BlogPath+"/category/{slug}", html(http.HandlerFunc(postsH.Category)))
 
 	mux.Handle("GET /admin/login", adminOnly(adminH.LoginForm))

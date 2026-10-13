@@ -153,9 +153,11 @@ templ Form(f postForm) {
 					aria-describedby="slug-hint"
 				}
 			/>
-			<span class="field-hint" id="slug-hint">Адрес поста: /blog/slug — латиница, цифры и дефисы. Пусто — составится из заголовка. Новый адрес появится на сайте после публикации.</span>
+			<span class="field-hint" id="slug-hint">{ "Адрес поста: " + BlogPath + "/slug — латиница, цифры и дефисы. Пусто — составится из заголовка. Новый адрес появится на сайте после публикации." }</span>
 			@fieldError(f, "slug")
 		</label>
+		@textField(f, "old_paths", "Старые адреса", f.OldPaths, 2, maxOldPaths*(maxOldPathLen+1),
+			"По адресу в строке — путь после "+BlogPath+"/, например old_slug или 2019/05/post.html. С них сайт перенаправит (301) на пост, пока он опубликован. Прежний slug попадает сюда сам при смене адреса.")
 		<label>
 			Категория
 			<select

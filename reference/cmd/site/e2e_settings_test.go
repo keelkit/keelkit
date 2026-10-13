@@ -172,7 +172,7 @@ func TestE2EAdminSettingsShareImage(t *testing.T) {
 	img := imgs["small.jpg"]
 
 	// Лента блога своей картинки не имеет.
-	if og := (head{page(t, a.srv, "/blog", http.StatusOK)}).og("og:image"); og != "" {
+	if og := (head{page(t, a.srv, blogPath, http.StatusOK)}).og("og:image"); og != "" {
 		t.Fatalf("blog og:image before settings = %q", og)
 	}
 	edit := a.createPost(newPostForm("Без обложки", "bez-oblozhki", "", ""), "publish")
@@ -191,14 +191,14 @@ func TestE2EAdminSettingsShareImage(t *testing.T) {
 		t.Fatalf("save: status %d\n%.500s", resp.StatusCode, body)
 	}
 
-	h := head{page(t, a.srv, "/blog", http.StatusOK)}
+	h := head{page(t, a.srv, blogPath, http.StatusOK)}
 	if og := h.og("og:image"); !strings.HasPrefix(og, testBaseURL+"/media/"+img+"/") || !strings.HasSuffix(og, ".jpg") {
 		t.Errorf("blog og:image = %q, want the share image", og)
 	}
 	if alt := h.og("og:image:alt"); alt != "" {
 		t.Errorf("og:image:alt of the default image = %q", alt)
 	}
-	h = head{page(t, a.srv, "/blog/bez-oblozhki", http.StatusOK)}
+	h = head{page(t, a.srv, blogPath+"/bez-oblozhki", http.StatusOK)}
 	if og := h.og("og:image"); !strings.Contains(og, "/media/"+img+"/") {
 		t.Errorf("post without cover: og:image = %q", og)
 	}
@@ -209,7 +209,7 @@ func TestE2EAdminSettingsShareImage(t *testing.T) {
 	if resp, _ := a.submit(edit, f, "publish", nil); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("publish cover: status %d", resp.StatusCode)
 	}
-	if og := (head{page(t, a.srv, "/blog/bez-oblozhki", http.StatusOK)}).og("og:image"); !strings.Contains(og, "/media/"+cover+"/") {
+	if og := (head{page(t, a.srv, blogPath+"/bez-oblozhki", http.StatusOK)}).og("og:image"); !strings.Contains(og, "/media/"+cover+"/") {
 		t.Errorf("post with cover: og:image = %q", og)
 	}
 
@@ -236,7 +236,7 @@ func TestE2EAdminSettingsShareImage(t *testing.T) {
 func TestE2ECookieBanner(t *testing.T) {
 	srv := e2eServer(t, true)
 
-	doc := page(t, srv, "/blog?page=2", http.StatusOK)
+	doc := page(t, srv, blogPath+"?page=2", http.StatusOK)
 	banner := doc.Find(".cookie-banner")
 	if banner.Length() != 1 {
 		t.Fatal("no cookie banner")
@@ -244,12 +244,12 @@ func TestE2ECookieBanner(t *testing.T) {
 	if action, _ := banner.Find("form").Attr("action"); action != web.CookieNoticePath {
 		t.Errorf("form action = %q", action)
 	}
-	if back, _ := banner.Find(`input[name="back"]`).Attr("value"); back != "/blog?page=2" {
+	if back, _ := banner.Find(`input[name="back"]`).Attr("value"); back != blogPath+"?page=2" {
 		t.Errorf("back = %q", back)
 	}
 
 	for back, want := range map[string]string{
-		"/blog?page=2":          "/blog?page=2",
+		blogPath + "?page=2":    blogPath + "?page=2",
 		"//evil.example/":       "/",
 		"/\\evil.example/":      "/",
 		"https://evil.example/": "/",

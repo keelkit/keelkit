@@ -159,3 +159,26 @@ SELECT cat.name, cat.slug FROM categories cat
 WHERE EXISTS (SELECT 1 FROM post_contents c
               WHERE c.category_id = cat.id AND c.kind = 'published' AND c.publish_date <= sqlc.arg(now))
 ORDER BY cat.name, cat.id;
+
+-- name: ListOldPaths :many
+-- Post form, "old addresses": paths under the blog that redirect to the post.
+SELECT slug FROM post_redirects WHERE post_id = ? ORDER BY slug;
+
+-- name: DeleteOldPaths :exec
+DELETE FROM post_redirects WHERE post_id = ?;
+
+-- name: InsertOldPath :exec
+INSERT INTO post_redirects (slug, post_id) VALUES (?, ?)
+ON CONFLICT (slug) DO UPDATE SET post_id = excluded.post_id;
+
+-- name: PublishedSlugOwner :one
+-- Old-address check: title of the post published under this slug.
+SELECT d.title FROM post_contents c
+JOIN post_contents d ON d.post_id = c.post_id AND d.kind = 'draft'
+WHERE c.kind = 'published' AND c.slug = ?;
+
+-- name: OldPathOwner :one
+-- Old-address check: the post this path already redirects to.
+SELECT r.post_id, d.title FROM post_redirects r
+JOIN post_contents d ON d.post_id = r.post_id AND d.kind = 'draft'
+WHERE r.slug = ?;

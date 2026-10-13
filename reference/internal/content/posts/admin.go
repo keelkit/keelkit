@@ -79,6 +79,7 @@ type postForm struct {
 	PublishDate string // как в поле datetime-local (часовой пояс сервера); пусто — «в момент публикации»
 	Blocks      []blocks.Block
 	SEO         seofields.Fields
+	OldPaths    string // поле «Старые адреса»: по пути в строке (oldpaths.go)
 
 	// Сохранённое состояние (от него зависят ссылки, статус и кнопки).
 	Published     bool   // есть опубликованная копия
@@ -93,7 +94,8 @@ type postForm struct {
 	Flash      string
 	Unsaved    bool // форму изменила кнопка блока (↑, ↓, «Скрыть»…), но не сохранила
 
-	publishDB string // PublishDate в формате БД после validate
+	publishDB string   // PublishDate в формате БД после validate
+	oldPaths  []string // OldPaths после validate
 }
 
 // List — GET /admin/posts.
@@ -142,7 +144,7 @@ func (a *Admin) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	saved.Title, saved.Slug, saved.Cover, saved.CategoryID, saved.PublishDate, saved.Blocks = "", "", "", 0, "", nil
-	saved.Lead, saved.Excerpt, saved.CoverAlt, saved.SEO = "", "", "", seofields.Fields{}
+	saved.Lead, saved.Excerpt, saved.CoverAlt, saved.SEO, saved.OldPaths = "", "", "", seofields.Fields{}, ""
 	a.submit(w, r, saved)
 }
 
@@ -187,7 +189,14 @@ func (a *Admin) submit(w http.ResponseWriter, r *http.Request, f postForm) {
 		admin.ServerError(w, r, err)
 		return
 	}
-	if validate(&f, cover != nil, seoImage != nil) {
+	ok := validate(&f, cover != nil, seoImage != nil)
+	if ok {
+		if ok, err = a.checkOldPaths(ctx, &f); err != nil {
+			admin.ServerError(w, r, err)
+			return
+		}
+	}
+	if ok {
 		publish := action == "publish"
 		id, err := a.save(ctx, f, publish, time.Now())
 		switch {
@@ -261,6 +270,10 @@ func (a *Admin) save(ctx context.Context, f postForm, publish bool, now time.Tim
 		}
 	}
 	if err := replaceImages(ctx, q, id, kindDraft, ids); err != nil {
+		return 0, err
+	}
+	// До публикации: её прежний slug добавится к старым адресам из формы.
+	if err := replaceOldPaths(ctx, q, id, f.oldPaths); err != nil {
 		return 0, err
 	}
 	if publish {
@@ -540,6 +553,12 @@ func (a *Admin) load(w http.ResponseWriter, r *http.Request) (postForm, bool) {
 		Lead: draft.Lead, Excerpt: draft.Excerpt, CoverAlt: draft.CoverAlt,
 		SEO: seofields.FromDB(draft.SeoTitle, draft.SeoDescription, draft.SeoImage),
 	}
+	old, err := a.q.ListOldPaths(ctx, id)
+	if err != nil {
+		admin.ServerError(w, r, err)
+		return postForm{}, false
+	}
+	f.OldPaths = strings.Join(old, "\n")
 	pub, err := a.q.GetPostContent(ctx, GetPostContentParams{PostID: id, Kind: kindPublished})
 	switch {
 	case err == nil:
@@ -568,6 +587,7 @@ func (a *Admin) parseForm(w http.ResponseWriter, r *http.Request, f *postForm) b
 	f.Cover, f.PublishDate = strings.TrimSpace(r.PostFormValue("cover")), strings.TrimSpace(r.PostFormValue("publish_date"))
 	f.Lead, f.Excerpt, f.CoverAlt = r.PostFormValue("lead"), r.PostFormValue("excerpt"), r.PostFormValue("cover_alt")
 	f.SEO = seofields.Parse(r.PostForm)
+	f.OldPaths = r.PostFormValue("old_paths")
 	if s := r.PostFormValue("category"); s != "" {
 		if f.CategoryID, err = strconv.ParseInt(s, 10, 64); err != nil || f.CategoryID <= 0 {
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -623,6 +643,11 @@ func validate(f *postForm, coverFound, seoImageFound bool) bool {
 	f.SEO.Validate(errs, seoImageFound)
 	if f.CategoryID != 0 && !slices.ContainsFunc(f.Categories, func(c ListCategoryOptionsRow) bool { return c.ID == f.CategoryID }) {
 		errs["category"] = "Такой категории нет: выберите другую."
+	}
+
+	var msg string
+	if f.oldPaths, msg = parseOldPaths(f.OldPaths); msg != "" {
+		errs["old_paths"] = msg
 	}
 
 	f.publishDB = ""
@@ -736,7 +761,8 @@ type SeedPost struct {
 	CategoryID  int64 // 0 — без категории
 	PublishDate time.Time
 	Blocks      []blocks.Block
-	Publish     bool // false — только черновик
+	Publish     bool     // false — только черновик
+	OldPaths    []string // старые адреса (путь после BlogPath/), как из формы после проверки
 }
 
 // Seed — dev-данные (seed): пост; пост с таким slug черновика уже есть — ничего не делает.
@@ -752,7 +778,7 @@ func Seed(ctx context.Context, db *sql.DB, p SeedPost) error {
 	}
 	f := postForm{
 		Title: p.Title, Slug: p.Slug, Lead: p.Lead, Excerpt: p.Excerpt, Cover: p.Cover, CoverAlt: p.CoverAlt,
-		CategoryID: p.CategoryID, Blocks: p.Blocks,
+		CategoryID: p.CategoryID, Blocks: p.Blocks, oldPaths: p.OldPaths,
 	}
 	if !p.PublishDate.IsZero() {
 		f.publishDB = dbTime(p.PublishDate)

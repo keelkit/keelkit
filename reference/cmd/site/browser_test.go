@@ -305,7 +305,7 @@ func TestBrowserPostCover(t *testing.T) {
 	}
 	var covers int
 	run(t, ctx, "blog",
-		chromedp.Navigate(srv.URL+"/blog"),
+		chromedp.Navigate(srv.URL+blogPath),
 		chromedp.WaitVisible(`.post-list`, chromedp.ByQuery),
 		chromedp.Evaluate(`document.querySelectorAll('.post-card:first-child .post-card-cover picture').length`, &covers),
 	)
@@ -461,7 +461,7 @@ func TestBrowserSettingsAndCookieBanner(t *testing.T) {
 	var tel, social string
 	var banners int
 	run(t, ctx, "accept cookies",
-		chromedp.Navigate(srv.URL+"/blog"),
+		chromedp.Navigate(srv.URL+blogPath),
 		chromedp.WaitVisible(`.cookie-banner`, chromedp.ByQuery),
 		chromedp.AttributeValue(`.site-footer a[href^="tel:"]`, "href", &tel, nil, chromedp.ByQuery),
 		chromedp.Text(`.social-links li:last-child a`, &social, chromedp.ByQuery),

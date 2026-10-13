@@ -61,7 +61,7 @@ func menuField(id, field string) string { return listfield.Name(menu.ItemsField,
 func TestE2EAdminMenus(t *testing.T) {
 	a := newPageAdmin(t)
 	order := listfield.Order(menu.ItemsField)
-	const cats = "Go /blog/category/go, Веб /blog/category/web, Заметки /blog/category/notes"
+	const cats = "Go " + blogPath + "/category/go, Веб " + blogPath + "/category/web, Заметки " + blogPath + "/category/notes"
 
 	// Раздел — в группе «Сайт» бокового меню: меню из site.yaml и число пунктов.
 	_, html := a.get(menu.AdminPath)
@@ -103,7 +103,7 @@ func TestE2EAdminMenus(t *testing.T) {
 	if resp, _ := a.submit(edit, pf, "publish", nil); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("publish new slug: status %d", resp.StatusCode)
 	}
-	if got, want := a.siteMenu(".site-nav"), "О проекте /o-proekte, Контакты /contacts, Блог /blog ["+cats+"]"; got != want {
+	if got, want := a.siteMenu(".site-nav"), "О проекте /o-proekte, Контакты /contacts, Блог "+blogPath+" ["+cats+"]"; got != want {
 		t.Errorf("menu after slug change = %q, want %q", got, want)
 	}
 
@@ -128,7 +128,7 @@ func TestE2EAdminMenus(t *testing.T) {
 	}
 	a.menuSave("main", form)
 	// Подпункты вручную идут раньше подпунктов из записей.
-	if got, want := a.siteMenu(".site-nav"), "Компания /o-proekte, Блог /blog [Прайс /price, "+cats+"], Контакты /contacts"; got != want {
+	if got, want := a.siteMenu(".site-nav"), "Компания /o-proekte, Блог "+blogPath+" [Прайс /price, "+cats+"], Контакты /contacts"; got != want {
 		t.Errorf("menu after save = %q, want %q", got, want)
 	}
 
@@ -144,7 +144,7 @@ func TestE2EAdminMenus(t *testing.T) {
 	form = a.menuApply("main", form, "outdent", ids[2], nil)
 	form.Set(menuField(ids[0], "title"), "")
 	a.menuSave("main", form)
-	if got, want := a.siteMenu(".site-nav"), "О проекте /o-proekte, Блог /blog, Прайс /price, Контакты /contacts"; got != want {
+	if got, want := a.siteMenu(".site-nav"), "О проекте /o-proekte, Блог "+blogPath+", Прайс /price, Контакты /contacts"; got != want {
 		t.Errorf("menu without auto children = %q, want %q", got, want)
 	}
 
@@ -153,7 +153,7 @@ func TestE2EAdminMenus(t *testing.T) {
 	if resp, _ := post(t, a.client, a.srv.URL+contactsEdit+"/unpublish", url.Values{"csrf_token": {a.token}}, nil); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("unpublish: status %d", resp.StatusCode)
 	}
-	if got, want := a.siteMenu(".site-nav"), "О проекте /o-proekte, Блог /blog, Прайс /price"; got != want {
+	if got, want := a.siteMenu(".site-nav"), "О проекте /o-proekte, Блог "+blogPath+", Прайс /price"; got != want {
 		t.Errorf("menu with an unpublished page = %q, want %q", got, want)
 	}
 	// В подвале «Контакты» — подпункт «О проекте»: пропал только он.
@@ -262,7 +262,7 @@ func TestE2EAdminMenusValidation(t *testing.T) {
 		}
 	}
 	// Ничего не сохранилось: меню на сайте — из seed.
-	if got := a.siteMenu(".site-nav"); !strings.HasPrefix(got, "О проекте /about, Контакты /contacts, Блог /blog [") {
+	if got := a.siteMenu(".site-nav"); !strings.HasPrefix(got, "О проекте /about, Контакты /contacts, Блог "+blogPath+" [") {
 		t.Errorf("menu after errors = %q", got)
 	}
 }

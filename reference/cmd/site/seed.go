@@ -280,6 +280,9 @@ const (
 	seedFuturePost = "future-post"
 )
 
+// seedOldPath — старый адрес post-01 (путь после posts.BlogPath/): так выглядят адреса, перенесённые с другой CMS.
+const seedOldPath = "2019/05/post_01.html"
+
 // seedPostTitles — заголовки опубликованных постов, от новых к старым: пост i опубликован i+1 день назад
 // (относительно now) и попадает в категорию seedCategories[i%3]. Обложки — у каждого третьего, если есть imgs.
 var seedPostTitles = []string{
@@ -319,6 +322,9 @@ func seedBlog(ctx context.Context, db *sql.DB, imgs map[string]string, now time.
 			Title: title, Slug: fmt.Sprintf("post-%02d", len(seedPostTitles)-i), CategoryID: cats[i%len(cats)],
 			PublishDate: now.Add(-time.Duration(i+1) * day), Publish: true,
 			Blocks: []blocks.Block{textBlock("intro", seedPostBody(title))},
+		}
+		if p.Slug == "post-01" {
+			p.OldPaths = []string{seedOldPath} // адрес со старой CMS, не по правилам slug
 		}
 		if i%3 == 0 {
 			p.Cover = covers[(i/3)%len(covers)]

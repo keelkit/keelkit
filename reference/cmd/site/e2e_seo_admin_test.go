@@ -40,10 +40,10 @@ func TestE2EAdminPostSEO(t *testing.T) {
 	if title != "Пост для поиска — Keelkit — эталонный сайт" || desc != "Ручной анонс поста." || image {
 		t.Errorf("auto snippet: title %q, desc %q, image %v", title, desc, image)
 	}
-	if u != "example.test/blog/post-dlya-poiska" {
+	if u != "example.test"+blogPath+"/post-dlya-poiska" {
 		t.Errorf("snippet url = %q", u)
 	}
-	h := head{page(t, a.srv, "/blog/post-dlya-poiska", http.StatusOK)}
+	h := head{page(t, a.srv, blogPath+"/post-dlya-poiska", http.StatusOK)}
 	if got := text(h.doc.Find("title")); got != "Пост для поиска — Keelkit — эталонный сайт" {
 		t.Errorf("auto <title> = %q", got)
 	}
@@ -75,7 +75,7 @@ func TestE2EAdminPostSEO(t *testing.T) {
 	if resp, _ := a.submit(edit, a.postForm(edit), "publish", nil); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("publish: status %d", resp.StatusCode)
 	}
-	h = head{page(t, a.srv, "/blog/post-dlya-poiska", http.StatusOK)}
+	h = head{page(t, a.srv, blogPath+"/post-dlya-poiska", http.StatusOK)}
 	if got := text(h.doc.Find("title")); got != "Заголовок для поиска" || h.og("og:title") != "Заголовок для поиска" {
 		t.Errorf("<title> %q, og:title %q", got, h.og("og:title"))
 	}
@@ -89,7 +89,7 @@ func TestE2EAdminPostSEO(t *testing.T) {
 		t.Errorf("h1 = %q: SEO title must not change the page", got)
 	}
 	// Анонс в ленте и RSS остаётся своим: SEO-описание — только для <head>.
-	if got := text(page(t, a.srv, "/blog", http.StatusOK).Find(`.post-card:contains("Пост для поиска") .post-card-body > p:last-child`)); got != "Ручной анонс поста." {
+	if got := text(page(t, a.srv, blogPath, http.StatusOK).Find(`.post-card:contains("Пост для поиска") .post-card-body > p:last-child`)); got != "Ручной анонс поста." {
 		t.Errorf("card summary = %q", got)
 	}
 
@@ -111,7 +111,7 @@ func TestE2EAdminPostSEO(t *testing.T) {
 	if resp, _ := a.submit(edit, f, "publish", nil); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("publish cleared: status %d", resp.StatusCode)
 	}
-	h = head{page(t, a.srv, "/blog/post-dlya-poiska", http.StatusOK)}
+	h = head{page(t, a.srv, blogPath+"/post-dlya-poiska", http.StatusOK)}
 	if got := text(h.doc.Find("title")); got != "Пост для поиска — Keelkit — эталонный сайт" || h.og("og:title") != "Пост для поиска" {
 		t.Errorf("cleared: <title> %q, og:title %q", got, h.og("og:title"))
 	}

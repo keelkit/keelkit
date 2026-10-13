@@ -92,31 +92,31 @@ func TestE2ESitemap(t *testing.T) {
 	a.create(newPageForm("Только черновик", "draft-only"), "save")
 
 	locs := sitemapLocs(t, a.srv)
-	for _, path := range []string{"/", "/about", "/blog", "/blog/post-01", "/blog/post-13"} {
+	for _, path := range []string{"/", "/about", blogPath, blogPath + "/post-01", blogPath + "/post-13"} {
 		if _, ok := locs[testBaseURL+path]; !ok {
 			t.Errorf("sitemap: no %s", path)
 		}
 	}
-	for _, path := range []string{"/home", "/draft-only", "/blog/" + seedDraftPost, "/blog/" + seedFuturePost} {
+	for _, path := range []string{"/home", "/draft-only", blogPath + "/" + seedDraftPost, blogPath + "/" + seedFuturePost} {
 		if _, ok := locs[testBaseURL+path]; ok {
 			t.Errorf("sitemap lists %s", path)
 		}
 	}
 	if want := len(seedPages(nil)) + 1 + 13; len(locs) != want {
-		t.Errorf("sitemap: %d URLs, want %d (pages, /blog, 13 posts)", len(locs), want)
+		t.Errorf("sitemap: %d URLs, want %d (pages, the feed, 13 posts)", len(locs), want)
 	}
 	for loc, lastmod := range locs {
 		if !strings.HasPrefix(loc, testBaseURL+"/") {
 			t.Errorf("sitemap: %s is not under BASE_URL", loc)
 		}
-		if strings.HasPrefix(loc, testBaseURL+"/blog") {
+		if strings.HasPrefix(loc, testBaseURL+blogPath) {
 			if _, err := time.Parse(time.RFC3339, lastmod); err != nil {
 				t.Errorf("sitemap: %s lastmod %q: %v", loc, lastmod, err)
 			}
 		}
 	}
-	if locs[testBaseURL+"/blog"] != locs[testBaseURL+"/blog/post-13"] {
-		t.Errorf("sitemap: /blog lastmod %q, want the newest post's %q", locs[testBaseURL+"/blog"], locs[testBaseURL+"/blog/post-13"])
+	if locs[testBaseURL+blogPath] != locs[testBaseURL+blogPath+"/post-13"] {
+		t.Errorf("sitemap: feed lastmod %q, want the newest post's %q", locs[testBaseURL+blogPath], locs[testBaseURL+blogPath+"/post-13"])
 	}
 }
 
@@ -155,7 +155,7 @@ func TestE2EFeed(t *testing.T) {
 		if strings.Contains(it.Link, seedDraftPost) || strings.Contains(it.Link, seedFuturePost) {
 			t.Errorf("feed lists %s", it.Link)
 		}
-		if !strings.HasPrefix(it.Link, testBaseURL+"/blog/") || it.Title == "" || it.Description == "" || it.Category == "" {
+		if !strings.HasPrefix(it.Link, testBaseURL+blogPath+"/") || it.Title == "" || it.Description == "" || it.Category == "" {
 			t.Errorf("item %d: %+v", i, it)
 		}
 		if !strings.HasPrefix(it.GUID, "post-") {
@@ -183,7 +183,7 @@ func TestE2EFeed(t *testing.T) {
 	if covers != 5 {
 		t.Errorf("items with a cover: %d, want 5 (every third seed post)", covers)
 	}
-	if first := ch.Items[0].Link; first != testBaseURL+"/blog/post-13" {
+	if first := ch.Items[0].Link; first != testBaseURL+blogPath+"/post-13" {
 		t.Errorf("first item %s, want the newest post", first)
 	}
 	if got := ch.Items[0].Description; got != seedPostExcerpt {
@@ -224,13 +224,13 @@ func TestE2EHeadMeta(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	for path, want := range map[string]string{
-		"/":                   "/",
-		"/about":              "/about",
-		"/blog":               "/blog",
-		"/blog?page=2":        "/blog?page=2",
-		"/blog/post-13":       "/blog/post-13",
-		"/blog/category/go":   "/blog/category/go",
-		"/blog/post-13?x=foo": "/blog/post-13",
+		"/":                         "/",
+		"/about":                    "/about",
+		blogPath:                    blogPath,
+		blogPath + "?page=2":        blogPath + "?page=2",
+		blogPath + "/post-13":       blogPath + "/post-13",
+		blogPath + "/category/go":   blogPath + "/category/go",
+		blogPath + "/post-13?x=foo": blogPath + "/post-13",
 	} {
 		h := head{page(t, srv, path, http.StatusOK)}
 		if got := h.canonical(); got != testBaseURL+want {
@@ -251,7 +251,7 @@ func TestE2EHeadMeta(t *testing.T) {
 	}
 
 	// Пост с обложкой (post-13 — первый в seed, у каждого третьего обложка): article, дата, картинка JPEG.
-	h := head{page(t, srv, "/blog/post-13", http.StatusOK)}
+	h := head{page(t, srv, blogPath+"/post-13", http.StatusOK)}
 	if h.og("og:type") != "article" || h.og("og:title") != text(h.doc.Find("main h1")) {
 		t.Errorf("post: og:type %q, og:title %q", h.og("og:type"), h.og("og:title"))
 	}
@@ -318,8 +318,8 @@ func TestE2EOldSlugRedirects(t *testing.T) {
 	if resp, _ := a.submit(edit, form, "publish", nil); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("publish: status %d", resp.StatusCode)
 	}
-	assertRedirect(t, a.srv, "/blog/post-01", "/blog/renamed-post")
-	if _, ok := sitemapLocs(t, a.srv)[testBaseURL+"/blog/post-01"]; ok {
+	assertRedirect(t, a.srv, blogPath+"/post-01", blogPath+"/renamed-post")
+	if _, ok := sitemapLocs(t, a.srv)[testBaseURL+blogPath+"/post-01"]; ok {
 		t.Error("sitemap lists the old post address")
 	}
 
@@ -327,15 +327,15 @@ func TestE2EOldSlugRedirects(t *testing.T) {
 	if resp, _ := a.submit(edit+"/unpublish", nil, "", nil); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("unpublish: status %d", resp.StatusCode)
 	}
-	page(t, a.srv, "/blog/post-01", http.StatusNotFound)
-	page(t, a.srv, "/blog/renamed-post", http.StatusNotFound)
+	page(t, a.srv, blogPath+"/post-01", http.StatusNotFound)
+	page(t, a.srv, blogPath+"/renamed-post", http.StatusNotFound)
 	form = a.postForm(edit)
 	form.Set("slug", "third-slug")
 	if resp, _ := a.submit(edit, form, "publish", nil); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("republish: status %d", resp.StatusCode)
 	}
-	assertRedirect(t, a.srv, "/blog/post-01", "/blog/third-slug")
-	assertRedirect(t, a.srv, "/blog/renamed-post", "/blog/third-slug")
+	assertRedirect(t, a.srv, blogPath+"/post-01", blogPath+"/third-slug")
+	assertRedirect(t, a.srv, blogPath+"/renamed-post", blogPath+"/third-slug")
 
 	// Возврат к прежнему slug: адрес снова открывает пост, а не редирект на самого себя.
 	form = a.postForm(edit)
@@ -343,8 +343,8 @@ func TestE2EOldSlugRedirects(t *testing.T) {
 	if resp, _ := a.submit(edit, form, "publish", nil); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("publish back: status %d", resp.StatusCode)
 	}
-	page(t, a.srv, "/blog/post-01", http.StatusOK)
-	assertRedirect(t, a.srv, "/blog/third-slug", "/blog/post-01")
+	page(t, a.srv, blogPath+"/post-01", http.StatusOK)
+	assertRedirect(t, a.srv, blogPath+"/third-slug", blogPath+"/post-01")
 
 	// Страница: about → about-us; старый slug заняла новая страница — она и открывается.
 	pageEdit := a.editLink("О проекте")
@@ -358,4 +358,86 @@ func TestE2EOldSlugRedirects(t *testing.T) {
 	if got := text(page(t, a.srv, "/about", http.StatusOK).Find("main h1")); got != "Новая about" {
 		t.Errorf("/about h1 = %q, want the page that took the slug", got)
 	}
+}
+
+// Старые адреса поста из формы: любой путь под разделом (перенос с другой CMS) — 301 на пост, пока он опубликован;
+// адрес опубликованного поста, раздела категорий или чужой старый адрес — ошибка формы.
+func TestE2EPostOldPaths(t *testing.T) {
+	a := newPageAdmin(t)
+	post := func(slug string) (edit, title string) {
+		var id string
+		if err := a.site.db.QueryRow(`SELECT post_id, title FROM post_contents WHERE kind = 'published' AND slug = ?`, slug).Scan(&id, &title); err != nil {
+			t.Fatal(err)
+		}
+		return "/admin/posts/" + id, title
+	}
+	edit, title02 := post("post-02")
+	other, title03 := post("post-03")
+	save := func(path, oldPaths, slug, action string) (response, *goquery.Document) {
+		t.Helper()
+		form := a.postForm(path)
+		form.Set("old_paths", oldPaths)
+		if slug != "" {
+			form.Set("slug", slug)
+		}
+		resp, html := a.submit(path, form, action, nil)
+		return resp, parse(t, html)
+	}
+	oldPaths := func(path string) string {
+		t.Helper()
+		_, html := a.get(path)
+		return parse(t, html).Find(`textarea[name="old_paths"]`).Text()
+	}
+
+	// Сохранение черновика: адреса сразу ведут на опубликованный пост; повторы и «/» по краям убраны,
+	// %-кодирование раскрыто, в форме — по алфавиту.
+	in := "old_slug\n/2019/05/post.html/\n\n old_slug \n%D0%BD%D0%BE%D0%B2%D0%BE%D1%81%D1%82%D1%8C"
+	if resp, _ := save(edit, in, "", "save"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("save: status %d", resp.StatusCode)
+	}
+	if got, want := oldPaths(edit), "2019/05/post.html\nold_slug\nновость"; got != want {
+		t.Errorf("old paths in the form = %q, want %q", got, want)
+	}
+	for _, path := range []string{"/old_slug", "/old_slug/", "/2019/05/post.html", "/%D0%BD%D0%BE%D0%B2%D0%BE%D1%81%D1%82%D1%8C"} {
+		assertRedirect(t, a.srv, blogPath+path, blogPath+"/post-02")
+	}
+	assertRedirect(t, a.srv, blogPath+"/"+seedOldPath, blogPath+"/post-01") // из seed
+
+	// Ошибки: поле подсвечено, ничего не сохранено.
+	for _, tc := range []struct{ path, in, err string }{
+		{edit, "post-03", "«post-03» — адрес опубликованного поста «" + title03 + "»: он открывается сам, редирект не нужен."},
+		{edit, "post-02", "«post-02» — адрес опубликованного поста «" + title02 + "»: он открывается сам, редирект не нужен."},
+		{edit, "category/go", "«category/go»: адреса category/… заняты лентами категорий."},
+		{edit, "https://old.example/news/x", "«https://old.example/news/x»: укажите путь без домена: часть адреса после " + blogPath + "/."},
+		{edit, "x?id=1", "«x?id=1»: без ?параметров и #якоря: сайт сравнивает только путь."},
+		{edit, "/", "«/»: нужен путь после " + blogPath + "/."},
+		{other, "old_slug", "«old_slug» уже ведёт на пост «" + title02 + "»: сначала уберите его там."},
+	} {
+		resp, doc := save(tc.path, tc.in, "", "save")
+		if resp.StatusCode != http.StatusUnprocessableEntity || text(doc.Find("#old_paths-error")) != tc.err {
+			t.Errorf("%q: status %d, error %q; want 422, %q", tc.in, resp.StatusCode, text(doc.Find("#old_paths-error")), tc.err)
+		}
+	}
+	assertRedirect(t, a.srv, blogPath+"/old_slug", blogPath+"/post-02")
+
+	// Публикация с новым slug: адреса из формы остаются, прежний slug добавляется к ним сам.
+	if resp, _ := save(edit, "old_slug", "post-02-new", "publish"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("publish: status %d", resp.StatusCode)
+	}
+	if got, want := oldPaths(edit), "old_slug\npost-02"; got != want {
+		t.Errorf("old paths after publish = %q, want %q", got, want)
+	}
+	assertRedirect(t, a.srv, blogPath+"/old_slug", blogPath+"/post-02-new")
+	assertRedirect(t, a.srv, blogPath+"/post-02", blogPath+"/post-02-new")
+	page(t, a.srv, blogPath+"/2019/05/post.html", http.StatusNotFound)
+
+	// Убрать адрес: редиректа больше нет; теперь его может взять другой пост.
+	if resp, _ := save(edit, "post-02", "", "save"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("save: status %d", resp.StatusCode)
+	}
+	page(t, a.srv, blogPath+"/old_slug", http.StatusNotFound)
+	if resp, _ := save(other, "old_slug", "", "save"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("save other: status %d", resp.StatusCode)
+	}
+	assertRedirect(t, a.srv, blogPath+"/old_slug", blogPath+"/post-03")
 }

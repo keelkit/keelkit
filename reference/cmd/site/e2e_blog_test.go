@@ -9,7 +9,12 @@ import (
 	"testing"
 
 	"github.com/PuerkitoBio/goquery"
+
+	"github.com/voffkin/keelkit/reference/internal/content/posts"
 )
+
+// blogPath — раздел постов: тесты не вписывают его адрес, чтобы смена posts.BlogPath не требовала их правки.
+const blogPath = posts.BlogPath
 
 // cardTitles — заголовки постов в ленте по порядку.
 func cardTitles(doc *goquery.Document) []string {
@@ -22,22 +27,22 @@ func TestE2EBlog(t *testing.T) {
 	srv := e2eServer(t, true)
 
 	// Первая страница: 10 новых постов из 13 опубликованных, новые сверху; ссылка на следующую страницу.
-	doc := page(t, srv, "/blog", http.StatusOK)
+	doc := page(t, srv, blogPath, http.StatusOK)
 	if got := text(doc.Find("title")); got != "Блог — Keelkit — эталонный сайт" {
 		t.Errorf("title = %q", got)
 	}
-	if href, _ := doc.Find(`.site-nav a[aria-current="page"]`).Attr("href"); href != "/blog" {
-		t.Errorf("current nav item = %q, want /blog", href)
+	if href, _ := doc.Find(`.site-nav a[aria-current="page"]`).Attr("href"); href != blogPath {
+		t.Errorf("current nav item = %q, want %q", href, blogPath)
 	}
 	titles := cardTitles(doc)
 	if len(titles) != perPageBlog || titles[0] != seedPostTitles[0] || titles[9] != seedPostTitles[9] {
 		t.Fatalf("page 1 titles = %q", titles)
 	}
 	first := doc.Find(".post-card").First()
-	if href, _ := first.Find("h2 a").Attr("href"); href != "/blog/post-13" {
+	if href, _ := first.Find("h2 a").Attr("href"); href != blogPath+"/post-13" {
 		t.Errorf("first post link = %q", href)
 	}
-	if href, _ := first.Find(".post-meta a").Attr("href"); href != "/blog/category/go" || text(first.Find(".post-meta a")) != "Go" {
+	if href, _ := first.Find(".post-meta a").Attr("href"); href != blogPath+"/category/go" || text(first.Find(".post-meta a")) != "Go" {
 		t.Errorf("first post category = %q %q", text(first.Find(".post-meta a")), href)
 	}
 	if dt, ok := first.Find(".post-meta time").Attr("datetime"); !ok || dt == "" || text(first.Find(".post-meta time")) == "" {
@@ -54,16 +59,16 @@ func TestE2EBlog(t *testing.T) {
 	if doc.Find(`.pagination a[rel="prev"]`).Length() != 0 {
 		t.Error("page 1: prev link")
 	}
-	if href, _ := doc.Find(`.pagination a[rel="next"]`).Attr("href"); href != "/blog?page=2" {
+	if href, _ := doc.Find(`.pagination a[rel="next"]`).Attr("href"); href != blogPath+"?page=2" {
 		t.Errorf("next link = %q", href)
 	}
 
-	// Вторая страница: оставшиеся 3, ссылка назад — на /blog без ?page.
-	doc = page(t, srv, "/blog?page=2", http.StatusOK)
+	// Вторая страница: оставшиеся 3, ссылка назад — на ленту без ?page.
+	doc = page(t, srv, blogPath+"?page=2", http.StatusOK)
 	if got := cardTitles(doc); len(got) != 3 || got[2] != "Первый пост" {
 		t.Errorf("page 2 titles = %q", got)
 	}
-	if href, _ := doc.Find(`.pagination a[rel="prev"]`).Attr("href"); href != "/blog" {
+	if href, _ := doc.Find(`.pagination a[rel="prev"]`).Attr("href"); href != blogPath {
 		t.Errorf("prev link = %q", href)
 	}
 	if doc.Find(`.pagination a[rel="next"]`).Length() != 0 {
@@ -74,7 +79,7 @@ func TestE2EBlog(t *testing.T) {
 	}
 
 	// Черновик и пост с датой в будущем в ленту не попадают.
-	for _, path := range []string{"/blog", "/blog?page=2"} {
+	for _, path := range []string{blogPath, blogPath + "?page=2"} {
 		_, body := fetch(t, srv.Client(), srv.URL+path)
 		for _, slug := range []string{seedDraftPost, seedFuturePost} {
 			if strings.Contains(body, slug) {
@@ -84,7 +89,7 @@ func TestE2EBlog(t *testing.T) {
 	}
 
 	// Несуществующие страницы ленты — 404.
-	for _, path := range []string{"/blog?page=3", "/blog?page=0", "/blog?page=x", "/blog?page="} {
+	for _, path := range []string{blogPath + "?page=3", blogPath + "?page=0", blogPath + "?page=x", blogPath + "?page="} {
 		page(t, srv, path, http.StatusNotFound)
 	}
 }
@@ -96,11 +101,11 @@ func TestE2EBlogCategory(t *testing.T) {
 	srv := e2eServer(t, true)
 
 	// Категория Go — каждый третий опубликованный пост seed (5 из 13).
-	doc := page(t, srv, "/blog/category/go", http.StatusOK)
+	doc := page(t, srv, blogPath+"/category/go", http.StatusOK)
 	if got := text(doc.Find("main h1")); got != "Go" {
 		t.Errorf("h1 = %q", got)
 	}
-	if href, _ := doc.Find(".breadcrumbs a").Attr("href"); href != "/blog" {
+	if href, _ := doc.Find(".breadcrumbs a").Attr("href"); href != blogPath {
 		t.Errorf("breadcrumbs = %q", href)
 	}
 	titles := cardTitles(doc)
@@ -118,20 +123,20 @@ func TestE2EBlogCategory(t *testing.T) {
 	}
 
 	// Пост из будущего — в категории notes, но не виден.
-	_, body := fetch(t, srv.Client(), srv.URL+"/blog/category/notes")
+	_, body := fetch(t, srv.Client(), srv.URL+blogPath+"/category/notes")
 	if strings.Contains(body, seedFuturePost) {
 		t.Error("category notes lists the future post")
 	}
 
-	page(t, srv, "/blog/category/nope", http.StatusNotFound)
-	page(t, srv, "/blog/category/go?page=2", http.StatusNotFound)
-	page(t, srv, "/blog/category", http.StatusNotFound) // поста со slug category нет
+	page(t, srv, blogPath+"/category/nope", http.StatusNotFound)
+	page(t, srv, blogPath+"/category/go?page=2", http.StatusNotFound)
+	page(t, srv, blogPath+"/category", http.StatusNotFound) // поста со slug category нет
 }
 
 func TestE2EPost(t *testing.T) {
 	srv := e2eServer(t, true)
 
-	doc := page(t, srv, "/blog/post-13", http.StatusOK)
+	doc := page(t, srv, blogPath+"/post-13", http.StatusOK)
 	if got := text(doc.Find("main h1")); got != seedPostTitles[0] {
 		t.Errorf("h1 = %q", got)
 	}
@@ -144,7 +149,7 @@ func TestE2EPost(t *testing.T) {
 	if got := text(doc.Find("article .post-lead")); got != seedPostLead {
 		t.Errorf("lead = %q", got)
 	}
-	if href, _ := doc.Find("article .post-meta a").Attr("href"); href != "/blog/category/go" {
+	if href, _ := doc.Find("article .post-meta a").Attr("href"); href != blogPath+"/category/go" {
 		t.Errorf("category link = %q", href)
 	}
 	if got := text(doc.Find("#block-intro h2")); got != "Подробнее" {
@@ -155,7 +160,7 @@ func TestE2EPost(t *testing.T) {
 	}
 
 	// Без лида и анонса: лида нет, описание — начало текста.
-	doc = page(t, srv, "/blog/post-12", http.StatusOK)
+	doc = page(t, srv, blogPath+"/post-12", http.StatusOK)
 	if doc.Find(".post-lead").Length() != 0 {
 		t.Error("post without a lead has .post-lead")
 	}
@@ -164,6 +169,6 @@ func TestE2EPost(t *testing.T) {
 	}
 
 	for _, slug := range []string{seedDraftPost, seedFuturePost, "nope"} {
-		page(t, srv, "/blog/"+slug, http.StatusNotFound)
+		page(t, srv, blogPath+"/"+slug, http.StatusNotFound)
 	}
 }
