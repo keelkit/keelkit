@@ -71,18 +71,18 @@ templ status(published, changed bool, publishedDate string) {
 // FormPage — страница создания или редактирования поста: форма и рядом живой предпросмотр (admin.Live, Admin.Live).
 templ FormPage(f postForm) {
 	@admin.Layout(formTitle(f)) {
-		@admin.Live(AdminPath+"/live", "post-form") {
-			<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Посты</a></p>
-			<div class="admin-title">
-				<h1>{ formTitle(f) }</h1>
-				if f.ID != 0 {
-					@status(f.Published, f.Changed, f.PublishedDate)
-					<a href={ templ.SafeURL(viewPath(f.ID)) }>Предпросмотр черновика</a>
-					if f.Published && !scheduled(f.PublishedDate) {
-						<a href={ templ.SafeURL(PublicPath(f.PublishedSlug)) }>Открыть на сайте</a>
-					}
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Посты</a></p>
+		<div class="admin-title">
+			<h1>{ formTitle(f) }</h1>
+			if f.ID != 0 {
+				@status(f.Published, f.Changed, f.PublishedDate)
+				<a href={ templ.SafeURL(viewPath(f.ID)) }>Предпросмотр черновика</a>
+				if f.Published && !scheduled(f.PublishedDate) {
+					<a href={ templ.SafeURL(PublicPath(f.PublishedSlug)) }>Открыть на сайте</a>
 				}
-			</div>
+			}
+		</div>
+		@admin.Live(AdminPath+"/live", "post-form") {
 			if f.Flash != "" {
 				<p class="flash" role="status">{ f.Flash }</p>
 			}
