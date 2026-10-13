@@ -41,6 +41,8 @@ func TestCheck(t *testing.T) {
 		"<p>&lt;script&gt;alert(&#39;" + m + "&#39;)&lt;/script&gt;</p>",
 		`<a href="/about">` + m + `</a>`,
 		"<pre><code>javascript:" + m + "</code></pre>",
+		`<meta name="description" content="javascript:alert('` + m + `')">`,
+		`<img src="/x.webp" alt="javascript:` + m + `">`,
 	}
 	for _, src := range safe {
 		if got := testkit.Check(src); len(got) != 0 {

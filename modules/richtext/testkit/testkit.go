@@ -61,7 +61,7 @@ func Run(t *testing.T, render func(t *testing.T, markdown string) string) {
 }
 
 // Check ищет в HTML исполняемый код с меткой Marker: элементы script/style/iframe/object/embed,
-// обработчики событий, атрибут style и адреса javascript:, vbscript: и data:. Возвращает найденное.
+// обработчики событий, атрибут style и адреса javascript:, vbscript: и data: в атрибутах-адресах (urlAttrs). Возвращает найденное.
 func Check(src string) []string {
 	var problems []string
 	z := html.NewTokenizer(strings.NewReader(src))
@@ -93,12 +93,19 @@ func Check(src string) []string {
 					problems = append(problems, "обработчик "+a.Key+" у <"+tok.Data+">")
 				case a.Key == "style":
 					problems = append(problems, "атрибут style у <"+tok.Data+">")
-				case dangerousURL(a.Val):
+				case urlAttrs[a.Key] && dangerousURL(a.Val):
 					problems = append(problems, "адрес "+a.Key+"="+a.Val+" у <"+tok.Data+">")
 				}
 			}
 		}
 	}
+}
+
+// urlAttrs — атрибуты, значение которых браузер открывает как адрес. В остальных (alt, title, content у meta)
+// текст «javascript:…» безопасен: так выглядит, например, описание страницы из PlainText.
+var urlAttrs = map[string]bool{
+	"href": true, "src": true, "action": true, "formaction": true, "xlink:href": true,
+	"data": true, "poster": true, "background": true, "cite": true, "srcset": true,
 }
 
 // dangerousURL сообщает, что адрес исполняет код. Браузер пропускает управляющие символы и пробелы

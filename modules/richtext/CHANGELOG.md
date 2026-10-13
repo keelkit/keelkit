@@ -5,6 +5,13 @@
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-10-13
+
+### Fixed
+- `testkit.Check` проверяет схемы `javascript:`, `vbscript:`, `data:` только в атрибутах-адресах (`href`, `src`,
+  `action` и т. п.): текст «javascript:…» в `content` у `<meta name="description">` или в `alt` — не ошибка.
+  Раньше контрактный тест падал на странице, где описание собрано из `PlainText`.
+
 ## [0.1.0] — 2026-10-13
 
 Первый выпуск: код `reference/internal/richtext` вынесен в модуль, чтобы исправления санитайзера доезжали
