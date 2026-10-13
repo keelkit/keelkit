@@ -2,7 +2,7 @@ name: CI
 
 # Пока только ручной запуск (решение человека, см. «CI» в AGENTS.md): те же проверки перед релизом
 # выполняет локально make check, его вызывает make release. Автозапуск (push в main, pull_request)
-# и доступ к приватным модулям (KEELKIT_DEPLOY_KEY или GITHUB_TOKEN) — этап 11 в PLAN.md.
+# и доступ к приватным модулям (KEELKIT_DEPLOY_KEY или GITHUB_TOKEN) — этап 14 в PLAN.md.
 on:
   workflow_dispatch:
 

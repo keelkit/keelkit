@@ -279,16 +279,16 @@ make dev   # сайт по-прежнему работает (модуль ещ�
 - [ ] ~~S3-совместимое хранилище~~ — отложено (решение человека): появится за тем же интерфейсом `Storage`, когда понадобится сайту
 - [x] `testkit/`: контрактные тесты для сайта (загрузка → варианты доступны через handler → повторная обработка ничего не ломает)
 - [x] `CHANGELOG.md`, `UPGRADE.md`
-- [x] Цель `make release MODULE=images VERSION=v0.1.0`: проверяет CHANGELOG, UPGRADE, чистое дерево, зелёный CI (до этапа 11 — локальный `make check`); ставит тег `modules/images/v0.1.0`
+- [x] Цель `make release MODULE=images VERSION=v0.1.0`: проверяет CHANGELOG, UPGRADE, чистое дерево, зелёный CI (до этапа 14 — локальный `make check`); ставит тег `modules/images/v0.1.0`
 - [x] `make deps-check` (`go list -m -u all` + govulncheck) — в корне и в `reference/`, шаг CI
 - [x] Релиз `spec v0.1.0` (`make release MODULE=spec VERSION=v0.1.0`)
 - [x] В `reference/Makefile` — цель `spec-validate` через `go run github.com/voffkin/keelkit/spec/cmd/spec-validate@v0.1.0` (заработает после релиза `spec`)
 - [x] Приватный репозиторий `https://github.com/voffkin/keelkit` (создаёт человек): `git remote add origin`, push `main` и тегов
 - [x] `GOPRIVATE` и SSH-подмена адресов (`GIT_CONFIG_*`) экспортируются в обоих `Makefile` — глобальные настройки не нужны
-- [x] ~~CI: deploy key в секрете `KEELKIT_DEPLOY_KEY`~~ — перенесено в этап 11 (решение человека): до него CI на GitHub
+- [x] ~~CI: deploy key в секрете `KEELKIT_DEPLOY_KEY`~~ — перенесено в этап 14 (решение человека; сначала — в этап 11): до него CI на GitHub
   запускается только вручную, а `make release` вместо зелёного CI запускает локально `make check MODULE=<name>`
 - [x] `make release` отказывается ставить уже существующий тег (приватные модули не защищены `sum.golang.org`)
-- [x] Релиз `modules/images v0.1.0` (проверки — локально `make check`, CI на GitHub отложен до этапа 11)
+- [x] Релиз `modules/images v0.1.0` (проверки — локально `make check`, CI на GitHub отложен до этапа 14)
 
 ### Проверка
 ```sh
@@ -326,7 +326,7 @@ make images-demo IN=modules/images/testdata   # демо-страница раб
 - [x] Ограничить число одновременных обработок (большое фото — ~400 МБ памяти) — решено на этапе 7: `Config.MaxConcurrent` в сервисе модуля
 - [x] Seed: 4 изображения из `testdata` модуля (`cmd/site/seeddata/`, embed); вставка в «О проекте» — этап 8.5
 - [x] Запуск `testkit` модуля в тестах сайта; e2e сценарий «загрузка изображения» (и браузерный тест загрузки через htmx)
-- [x] `make check MODULE=reference` проходит (`test-isolated` — с `GOWORK=off`, модуль скачивается по SSH); CI на GitHub — этап 11
+- [x] `make check MODULE=reference` проходит (`test-isolated` — с `GOWORK=off`, модуль скачивается по SSH); CI на GitHub — этап 14
 
 ### Проверка
 ```sh
@@ -803,27 +803,23 @@ make check
 
 ---
 
-## Этап 11. Эксплуатация и полный CI
+## Этап 11. Эксплуатация
 
-Цель: сайт можно развернуть, резервировать и безопасно обновлять.
+Цель: сайт можно развернуть, резервировать и безопасно обновлять. Полный CI и тест миграции на реалистичных
+данных перенесены в этап 14 (решение человека, 2026-10-14): этапам 12–13 они не нужны, а устройство развёртывания —
+часть эталона, которую `create-site` копирует в новые сайты, поэтому оно остаётся здесь.
 
 - [x] `make build` — один статический бинарник (`CGO_ENABLED=0`), версия вшита через `-ldflags`
 - [x] `make backup` — снимок БД + архив загрузок (`uploads/` и `files/`); пример cron-строки в `reference/AGENTS.md`
 - [ ] `deploy/site.service` (systemd), опциональный `Dockerfile`; описание litestream как опции
-- [ ] CI: path-фильтры (`modules/<X>` и `spec/` → джобы модуля и `reference/`), `lint`, `test`, `test-isolated`, `generate-check`, `deps-check`, для `reference/` — ещё `e2e`, всё с `GOWORK=off`
-- [ ] Вернуть автозапуск CI (`push` в `main`, `pull_request`; до этапа 11 — только `workflow_dispatch`, проверки — локально `make check`)
-- [ ] Доступ CI к приватным модулям: deploy key `KEELKIT_DEPLOY_KEY` или `GITHUB_TOKEN` (открытое решение в `AGENTS.md`, решает человек)
-- [ ] `make release` снова требует зелёный CI для HEAD (через `gh`; токену нужен доступ к `voffkin/keelkit`: Actions — read) — в дополнение к `make check` или вместо неё
-- [ ] Тест миграции на копии реалистичных данных (seed + сгенерированные 1000 постов) — заготовка для будущих миграций данных
 
 ### Проверка
 ```sh
 make build && file reference/bin/site        # статический бинарник
-DATA_DIR=/tmp/kk ./reference/bin/site migrate && DATA_DIR=/tmp/kk ./reference/bin/site serve
-curl -s localhost:9090/healthz               # version = git-хеш/тег, не "dev"
+DATA_DIR=/tmp/kk ./reference/bin/site migrate && DATA_DIR=/tmp/kk BASE_URL=http://localhost:8080 ./reference/bin/site serve
+curl -s localhost:8080/healthz               # version = git-хеш/тег, не "dev"
 make backup && ls reference/backups/         # .db и .tar.gz
 docker build -t keelkit-reference reference/ && docker run -p 8080:8080 keelkit-reference   # опционально
-# PR с правкой только в reference/ → в Actions не запускаются джобы modules/images
 ```
 
 ---
@@ -865,6 +861,26 @@ make evals SKILL=upgrade-site     # копия reference на v0.1.0 → обн�
 - Второй сайт: `make dev` открывается, `make test e2e` зелёные, в `go.mod` — опубликованная версия `images` без `replace`.
 - Список расхождений со структурой `reference/` пуст или каждое расхождение объяснено.
 - Итоги ретроспективы записаны и согласованы.
+
+---
+
+## Этап 14. Полный CI
+
+Цель: проверки на чистой Linux-машине при каждом изменении, релиз — только с зелёным CI. Перенесено из этапа 11
+(решение человека, 2026-10-14): до этого проверки — локально `make check`, его вызывает `make release`.
+
+- [ ] CI: path-фильтры (`modules/<X>` и `spec/` → джобы модуля и `reference/`), `lint`, `test`, `test-isolated`, `generate-check`, `deps-check`, для `reference/` — ещё `e2e` и `e2e-browser`, всё с `GOWORK=off`
+- [ ] Вернуть автозапуск CI (`push` в `main`, `pull_request`; до этапа 14 — только `workflow_dispatch`, проверки — локально `make check`)
+- [ ] Доступ CI к приватным модулям: deploy key `KEELKIT_DEPLOY_KEY` или `GITHUB_TOKEN` (открытое решение в `AGENTS.md`, решает человек); CI сайтов в отдельных репозиториях — свой deploy key
+- [ ] `make release` снова требует зелёный CI для HEAD (через `gh`; токену нужен доступ к `voffkin/keelkit`: Actions — read) — в дополнение к `make check` или вместо неё
+- [ ] Тест миграции на копии реалистичных данных (seed + сгенерированные 1000 постов) — заготовка для будущих миграций данных;
+      понадобится раньше — делается вместе с первой такой миграцией
+
+### Проверка
+```sh
+# PR с правкой только в reference/ → в Actions не запускаются джобы modules/images
+# push в main → CI зелёный; make release MODULE=images VERSION=… DRY_RUN=1 отказывает при красном CI
+```
 
 ---
 
