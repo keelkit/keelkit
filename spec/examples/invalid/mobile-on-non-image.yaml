@@ -1,0 +1,9 @@
+# expect: /content/posts/fields/title/mobile: 'mobile' is allowed only for fields of type image
+spec_version: 1
+site:
+  name: my-blog
+  languages: [ru]
+content:
+  posts:
+    fields:
+      title: { type: string, mobile: true }

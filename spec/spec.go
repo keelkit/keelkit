@@ -342,6 +342,10 @@ func fieldIssues(path string, fields *yaml.Node, r fieldRules) []Issue {
 			issues = append(issues, issueAt(fpath+"/to", to, fmt.Sprintf(
 				"ref target %q is not a content type; known types: %s", to.Value, strings.Join(r.types, ", "))))
 		}
+		if mobile := child(field, "mobile"); fieldType != "image" && mobile != nil {
+			issues = append(issues, issueAt(fpath+"/mobile", mobile, fmt.Sprintf(
+				"'mobile' is allowed only for fields of type image, got type %s", fieldType)))
+		}
 		if allow := child(field, "allow"); fieldType != "blocks" && allow != nil {
 			issues = append(issues, issueAt(fpath+"/allow", allow, fmt.Sprintf(
 				"'allow' is allowed only for fields of type blocks, got type %s", fieldType)))

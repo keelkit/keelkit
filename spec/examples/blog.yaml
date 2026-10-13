@@ -20,7 +20,7 @@ content:
       slug:     { type: slug, required: true }
       summary:  { type: text }
       body:     { type: richtext }
-      cover:    { type: image }
+      cover:    { type: image, mobile: true }
       category: { type: ref, to: categories }
     features: [publish_date, draft, rss, sitemap]
   categories:
