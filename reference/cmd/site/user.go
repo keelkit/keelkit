@@ -3,37 +3,30 @@ package main
 import (
 	"bufio"
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"net/mail"
 	"os"
 	"strings"
 
 	"golang.org/x/term"
 
-	"github.com/voffkin/keelkit/reference/internal/admin"
+	"github.com/voffkin/keelkit/modules/auth"
 )
-
-// errUserExists — пользователь с таким email уже есть.
-var errUserExists = errors.New("пользователь с таким email уже существует")
 
 // userCreate — site user create EMAIL: создаёт пользователя админки. Пароль спрашивается дважды
 // через readPassword (в терминале — без эха).
 func userCreate(ctx context.Context, cfg config, email string, readPassword func(prompt string) (string, error)) error {
-	addr, err := mail.ParseAddress(email)
-	if err != nil || addr.Name != "" || addr.Address != strings.TrimSpace(email) {
-		return fmt.Errorf("некорректный email %q", email)
+	if err := auth.CheckEmail(email); err != nil {
+		return err
 	}
-	email = admin.NormalizeEmail(addr.Address)
 
 	password, err := readPassword("Пароль: ")
 	if err != nil {
 		return err
 	}
-	if err := admin.CheckPasswordPolicy(password); err != nil {
+	if err := auth.CheckPasswordPolicy(password); err != nil {
 		return err
 	}
 	again, err := readPassword("Повторите пароль: ")
@@ -50,22 +43,14 @@ func userCreate(ctx context.Context, cfg config, email string, readPassword func
 	}
 	defer func() { _ = db.Close() }()
 
-	q := admin.New(db)
-	switch _, err := q.GetUserByEmail(ctx, email); {
-	case err == nil:
-		return fmt.Errorf("%w: %s", errUserExists, email)
-	case !errors.Is(err, sql.ErrNoRows):
-		return fmt.Errorf("get user (выполнена ли make migrate?): %w", err)
-	}
-	hash, err := admin.HashPassword(ctx, password)
-	if err != nil {
+	u, err := auth.NewService(db, auth.Config{}).CreateUser(ctx, email, password)
+	if errors.Is(err, auth.ErrUserExists) {
 		return err
 	}
-	id, err := q.CreateUser(ctx, admin.CreateUserParams{Email: email, PasswordHash: hash})
 	if err != nil {
-		return fmt.Errorf("create user: %w", err)
+		return fmt.Errorf("create user (выполнена ли make migrate?): %w", err)
 	}
-	slog.Info("user created", "id", id, "email", email)
+	slog.Info("user created", "id", u.ID, "email", u.Email)
 	return nil
 }
 

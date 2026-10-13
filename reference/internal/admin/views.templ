@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/voffkin/keelkit/modules/auth"
+
 	"github.com/voffkin/keelkit/reference/internal/web"
 	"github.com/voffkin/keelkit/reference/static"
 )
@@ -15,8 +17,10 @@ import (
 // htmx-config разрешает подменять разметку ответом 422: так приходят ошибки валидации форм.
 templ Layout(title string) {
 	{{ site := web.SiteFrom(ctx) }}
-	{{ s, signedIn := sessionFrom(ctx) }}
-	{{ path := requestPath(ctx) }}
+	{{ user, signedIn := auth.UserFrom(ctx) }}
+	{{ csrf := auth.CSRFToken(ctx) }}
+	{{ s := shellFrom(ctx) }}
+	{{ path := s.path }}
 	<!DOCTYPE html>
 	<html lang="ru">
 		<head>
@@ -34,7 +38,7 @@ templ Layout(title string) {
 		<body
 			class="admin"
 			if signedIn {
-				hx-headers={ csrfHeaders(s.csrf) }
+				hx-headers={ csrfHeaders(csrf) }
 			}
 		>
 			<header class="site-header admin-header">
@@ -52,9 +56,9 @@ templ Layout(title string) {
 							<span>На сайт</span>
 						</a>
 						<form class="logout" method="post" action={ templ.SafeURL(logoutPath) }>
-							<input type="hidden" name={ csrfField } value={ s.csrf }/>
-							<span class="admin-avatar" aria-hidden="true">{ initial(s.user.Email) }</span>
-							<span class="admin-user">{ s.user.Email }</span>
+							<input type="hidden" name={ auth.CSRFField } value={ csrf }/>
+							<span class="admin-avatar" aria-hidden="true">{ initial(user.Email) }</span>
+							<span class="admin-user">{ user.Email }</span>
 							<button type="submit" class="admin-chip">
 								@icon("logout")
 								<span>Выйти</span>
@@ -109,7 +113,7 @@ templ LoginPage(f loginForm) {
 				<p class="form-error" role="alert">{ f.Error }</p>
 			}
 			<form method="post" action={ templ.SafeURL(loginPath) } class="form">
-				<input type="hidden" name={ csrfField } value={ f.CSRF }/>
+				<input type="hidden" name={ auth.CSRFField } value={ f.CSRF }/>
 				<input type="hidden" name="next" value={ f.Next }/>
 				<label>
 					Email
@@ -234,7 +238,7 @@ templ icon(name string) {
 
 // CSRFInput — скрытое поле с CSRF-токеном сессии для форм админки (только внутри RequireUser).
 templ CSRFInput() {
-	<input type="hidden" name={ csrfField } value={ CSRFToken(ctx) }/>
+	<input type="hidden" name={ auth.CSRFField } value={ auth.CSRFToken(ctx) }/>
 }
 
 // htmxConfig — настройки htmx админки: ответ 422 (ошибки валидации) подменяет разметку, как 2xx;
@@ -251,6 +255,6 @@ func initial(s string) string {
 
 // csrfHeaders — значение hx-headers: JSON с CSRF-токеном.
 func csrfHeaders(token string) string {
-	b, _ := json.Marshal(map[string]string{csrfHeader: token})
+	b, _ := json.Marshal(map[string]string{auth.CSRFHeader: token})
 	return string(b)
 }

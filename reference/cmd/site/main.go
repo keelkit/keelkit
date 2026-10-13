@@ -25,6 +25,7 @@ import (
 	"syscall"
 	"time"
 
+	authmigrations "github.com/voffkin/keelkit/modules/auth/migrations"
 	"github.com/voffkin/keelkit/modules/images"
 	imagesmigrations "github.com/voffkin/keelkit/modules/images/migrations"
 
@@ -38,6 +39,7 @@ var version = "dev"
 // migrationSources — миграции в порядке применения: модули в порядке из site.yaml, затем сайт.
 var migrationSources = []database.Source{
 	{Name: "images", FS: imagesmigrations.FS, Table: imagesmigrations.Table},
+	{Name: "auth", FS: authmigrations.FS, Table: authmigrations.Table},
 	{Name: "site", FS: migrations.FS, Table: "goose_site_version"},
 }
 
@@ -52,6 +54,9 @@ type config struct {
 	// BASE_URL: адрес сайта (схема и хост, без слеша в конце) для canonical, Open Graph, sitemap, RSS и robots.txt.
 	// Обязателен для serve: адрес из заголовка Host подделывается и попал бы в кэши поисковиков.
 	BaseURL string
+
+	// now — текущее время для входа и сессий (модуль auth); только для тестов, по умолчанию time.Now.
+	now func() time.Time
 }
 
 func loadConfig() (config, error) {

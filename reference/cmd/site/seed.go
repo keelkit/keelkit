@@ -5,13 +5,14 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/voffkin/keelkit/modules/auth"
 	"github.com/voffkin/keelkit/modules/images"
 
-	"github.com/voffkin/keelkit/reference/internal/admin"
 	"github.com/voffkin/keelkit/reference/internal/blocks"
 	"github.com/voffkin/keelkit/reference/internal/content/categories"
 	"github.com/voffkin/keelkit/reference/internal/content/pages"
@@ -86,12 +87,8 @@ func seedContent(ctx context.Context, db *sql.DB, imgs map[string]string) error 
 		return err
 	}
 
-	hash, err := admin.HashPassword(ctx, seedAdminPassword)
-	if err != nil {
-		return err
-	}
-	err = admin.New(db).InsertUserIfMissing(ctx, admin.InsertUserIfMissingParams{Email: seedAdminEmail, PasswordHash: hash})
-	if err != nil {
+	_, err = auth.NewService(db, auth.Config{}).CreateUser(ctx, seedAdminEmail, seedAdminPassword)
+	if err != nil && !errors.Is(err, auth.ErrUserExists) {
 		return fmt.Errorf("seed user: %w", err)
 	}
 	return nil
@@ -135,11 +132,11 @@ func seedImages(ctx context.Context, media *images.Service) (map[string]string, 
 	return ids, nil
 }
 
-// Пользователь админки для разработки. Пароль короче политики CheckPasswordPolicy — это нормально:
-// seed пишет в БД напрямую и в проде не запускается.
+// Пользователь админки для разработки (seed в проде не запускается). Пароль проходит политику модуля auth:
+// от 8 символов.
 const (
 	seedAdminEmail    = "admin@example.com"
-	seedAdminPassword = "admin"
+	seedAdminPassword = "adminadmin"
 )
 
 // seedPage — страница для seed: заголовок, slug и блоки.

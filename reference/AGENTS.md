@@ -6,16 +6,17 @@
 ## Версии
 
 - Go: `go 1.26.0` в `go.mod` (актуальный релиз минус один минор), тулчейн `go1.27.2`.
-- Модули Keelkit: `github.com/voffkin/keelkit/modules/images` v0.1.0 (в `site.yaml` — `modules: { images: v0 }`),
-  `github.com/voffkin/keelkit/modules/richtext` v0.1.1 (без таблиц и миграций).
+- Модули Keelkit: `github.com/voffkin/keelkit/modules/images` v0.1.0, `github.com/voffkin/keelkit/modules/richtext` v0.1.1
+  (без таблиц и миграций), `github.com/voffkin/keelkit/modules/auth` v0.1.0 (таблицы `users`, `sessions`);
+  в `site.yaml` — `modules: { images: v0, richtext: v0, auth: v0 }`.
   Их зависимости приходят транзитивно: `golang.org/x/image`, `github.com/gen2brain/webp` (+ `ebitengine/purego`);
-  goldmark, bluemonday, `golang.org/x/net`.
+  goldmark, bluemonday, `golang.org/x/net`; `golang.org/x/crypto` (argon2id).
 - Тег сборки `nodynamic` (`BUILD_TAGS` в `Makefile`, экспортируется через `GOFLAGS`): кодек WebP не подгружает
   системную libwebp, а всегда работает на коде, транслированном в Go. Обработка изображений даёт одинаковый результат
   на любой машине, бинарник не зависит от библиотек хоста. Сборка и тесты без `make` — с `-tags nodynamic`.
 - Зависимости: `modernc.org/sqlite` v1.60.1, `github.com/pressly/goose/v3` v3.28.0 (только библиотека, CLI goose не используется),
   `github.com/a-h/templ` v0.3.1020,
-  `golang.org/x/crypto` v0.57.0 (argon2id), `golang.org/x/term` v0.46.0 (ввод пароля без эха); в тестах — `github.com/PuerkitoBio/goquery` v1.13.0,
+  `golang.org/x/term` v0.46.0 (ввод пароля без эха); в тестах — `github.com/PuerkitoBio/goquery` v1.13.0,
   `github.com/chromedp/chromedp` v0.16.0 (только браузерные тесты с тегом `browser`; его `cdproto` — псевдоверсия, теги у неё не ставятся).
 - Инструменты (версии закреплены в `Makefile`): sqlc v1.31.1; CLI templ — `TEMPL_VERSION`, обязан совпадать с библиотекой
   в `go.mod` (`make generate` проверяет это и откажется запускаться при расхождении).
@@ -95,7 +96,7 @@
   страницу, админка такие slug не принимает. Маршрут-поддерево (`/static/`) занимает и путь без слеша (`GET /static` → 404),
   иначе его забрал бы `GET /{slug}`; e2e `TestE2EReservedSlugsShadowPages` проверяет каждый slug из списка.
 - Всё остальное — оформленная 404 (`web.NotFound`).
-- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"site":{"version":12,"pending":0}}}`.
+- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"auth":{"version":1,"pending":0},"site":{"version":12,"pending":0}}}`.
 
 ## Бинарник
 
@@ -180,22 +181,26 @@
 
 ## Админка и авторизация
 
-Всё в `internal/admin/` (вынос в модуль — после второго сайта). «Простой режим»: любой пользователь из `users` —
-администратор; `users.role` зарезервирована (по умолчанию `admin`, без `CHECK`, чтобы новые роли не требовали пересборки таблицы).
+Вход, сессии и CSRF — модуль `auth` (как подключать — `modules/auth/UPGRADE.md`, v0.1.0); в `internal/admin/` —
+страница входа, оболочка админки и страницы ошибок. «Простой режим»: любой пользователь из `users` — администратор;
+`users.role` зарезервирована (по умолчанию `admin`). Таблицы `users`/`sessions` сайт не читает и не пишет запросами —
+только через `auth.Service`; их миграция — у модуля (`00003` сайта — та же схема с `IF NOT EXISTS`, для баз до этапа 10.4).
 
-- Пароли — argon2id, формат PHC (`admin.HashPassword`, `admin.VerifyPassword`); параметры — в корневом `AGENTS.md`.
-  Хеш со старыми параметрами пересчитывается при входе. Одновременно считается не больше двух хешей (по 64 МиБ).
-  Политика для новых паролей — `admin.CheckPasswordPolicy`: от 8 символов до 1024 байт. email хранится в нижнем регистре (`admin.NormalizeEmail`).
-- Сессия: cookie `session` со случайным токеном (14 дней), в `sessions` — только SHA-256 токена. При входе всегда новый токен,
-  истёкшие сессии удаляются. Cookie: `HttpOnly`, `SameSite=Lax`, `Secure` по `COOKIE_SECURE`.
+- `admin.NewHandler(db, admin.Options{…})` создаёт `auth.NewService`: `LoginPath` — `/admin/login`, cookie `Secure`
+  по `COOKIE_SECURE` (`InsecureCookies`), `Forbidden` — `ForbiddenPage`, `ServerError` — `admin.ServerError`,
+  `Now` — `Options.Now` (в тестах — `config.now`).
+- Что делает модуль: пароли argon2id (хеш со старыми параметрами пересчитывается при входе), политика — от 8 символов
+  до 1024 байт (`auth.CheckPasswordPolicy`), email в нижнем регистре; сессия — cookie `session` на 14 дней, в БД —
+  SHA-256 токена, при входе всегда новый токен; cookie `HttpOnly`, `SameSite=Lax`; 5 неудач за 15 минут для email —
+  блокировка до конца окна (счётчики в памяти процесса); для неизвестного email пароль сверяется с фиктивным хешем.
 - Маршруты админки оборачиваются в `newMux`: `adminOnly` (`http.CrossOriginProtection` + данные шапки), защищённые — ещё и
-  `signedIn` (`adminH.RequireUser`): без сессии — 303 на `/admin/login?next=…` (для GET), небезопасный метод без CSRF-токена
-  сессии — 403. Ответы админки — `Cache-Control: no-store`, страницы — `noindex`.
-- CSRF-токен сессии: в формах — скрытое поле `csrf_token` (`admin.CSRFToken(ctx)`), в htmx — заголовок `X-CSRF-Token`
-  (layout админки ставит `hx-headers` на `<body>`). Форма входа — double submit cookie `admin_csrf`.
-- Вход: 5 неудач за 15 минут для одного email → блокировка до конца окна (429, `Retry-After`); счётчики в памяти процесса.
-  Неверный email и неверный пароль дают одно сообщение; для неизвестного email пароль сверяется с фиктивным хешем.
-- `next` после входа — только путь внутри `/admin` (`safeNext`), иначе дашборд.
+  `signedIn` (`adminH.RequireUser`: `RequireUser` модуля и данные меню оболочки в контексте): без сессии — 303 на
+  `/admin/login?next=…` (для GET), небезопасный метод без CSRF-токена сессии — 403. Ответы админки — `Cache-Control: no-store`, страницы — `noindex`.
+- Вход (`admin.Handler.Login`): `auth.Service.Login`, ошибки — в форме: `ErrLoginCSRF` 403 «Форма устарела»,
+  `*auth.LockedError` 429 (минуты из `RetryAfter`), `ErrBadCredentials` 422 — одно сообщение для неверного email и пароля.
+  `next` после входа — только путь внутри `/admin` (`auth.SafeNext`), иначе дашборд.
+- CSRF-токен сессии: в формах — скрытое поле `auth.CSRFField` (`admin.CSRFInput()`), в htmx — заголовок `auth.CSRFHeader`
+  (layout админки ставит `hx-headers` на `<body>`). Форма входа — double submit cookie (`auth.Service.LoginCSRF`).
 - Пакет не знает о типах контента: счётчики дашборда передаёт `adminCounters` в `cmd/site/server.go` через `admin.Options.Counters`
   (`Counter.URL` — ссылка на раздел), пункты меню — `admin.Options.Sections` (группа «Контент»). Новый тип контента добавляет туда
   счётчик и раздел. Разделы всего сайта (настройки, меню) — `admin.Options.SiteSections`, группа «Сайт» ниже.
@@ -204,7 +209,8 @@
   `admin.CSRFInput()` (скрытое поле токена), `admin.NotFound`, `admin.ServerError`, `admin.Redirect` (303 или
   `HX-Redirect` после успешного POST), `admin.IsHTMX`.
 - htmx в админке: `<meta name="htmx-config">` разрешает подмену разметки ответом 422 (по умолчанию htmx не подменяет 4xx).
-- Dev-пользователь из seed: `admin@example.com` / `admin` (короче политики — seed пишет напрямую и в проде не запускается).
+- Пользователи: `site user create` (`make user-create`) и seed — `auth.Service.CreateUser`. Dev-пользователь из seed:
+  `admin@example.com` / `adminadmin` (seed в проде не запускается).
 - Не получается войти: проверить dev-пользователем (вход работает?); затем раскладку при `make user-create` и не остался ли
   запущенным сервер со старой БД после `make reset` (порт 9090 занят — `make dev` после seed падает с «address already in use»).
   После 5 неудач email заблокирован на 15 минут; перезапуск сервера снимает блокировку.
@@ -452,7 +458,7 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
 
 ## Тесты
 
-- Unit-тесты — рядом с пакетом (`internal/database`, `internal/admin`, `internal/slug`, `internal/blocks`, `internal/menu`,
+- Unit-тесты — рядом с пакетом (`internal/database`, `internal/slug`, `internal/blocks`, `internal/menu`,
   `internal/listfield`).
 - e2e — `cmd/site/e2e_test.go`, функции `TestE2E*`: `httptest.NewServer(newMux(db, config{}))` над БД после `migrate` и `seed`,
   HTML разбирается goquery. Хелперы `fetch` (тело уже прочитано и закрыто) и `page` (статус, `Content-Type`, документ).
@@ -461,6 +467,10 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
 - `TestImagesContract` (`cmd/site/images_test.go`) — контрактные тесты модуля (`testkit.Run`) на интеграции сайта:
   `migratedSite` (миграции модуля и сайта, загрузки во временной папке) и маршруты `newMux`. При обновлении модуля
   они первыми покажут, что интеграция сломалась.
+- `TestAuthContract` (`cmd/site/auth_test.go`) — контрактные тесты модуля `auth`: настоящие страницы входа и админки
+  из `newMux` с cookie `Secure`, время сайта (`config.now`) задаёт testkit — проверяются вход, выход, CSRF, блокировка,
+  истечение сессии. `TestMigrationAuthOverSiteTables` (`migrations_test.go`) — база до этапа 10.4 (таблицы создала
+  миграция сайта) мигрирует, пользователь входит.
 - `TestRichtextContract` (`cmd/site/richtext_test.go`) — контрактные тесты модуля `richtext`: Markdown публикуется текстовым
   блоком страницы (`pages.SeedPublished`), testkit проверяет HTML, который отдаёт сервер (XSS-примеры обезврежены).
 - Хелпер `migratedSite(t, withSeed)` (`main_test.go`) — БД после `migrate`, сервис изображений и `handler(cfg)`;
@@ -525,9 +535,10 @@ cmd/site/migrations_test.go # миграции, меняющие данные, �
 cmd/site/spec_test.go       # site.yaml ↔ код (модули, блоки, features, поля настроек, меню)
 cmd/site/images_test.go     # контрактные тесты модуля images (testkit)
 cmd/site/richtext_test.go   # контрактные тесты модуля richtext (testkit)
+cmd/site/auth_test.go       # контрактные тесты модуля auth (testkit)
 cmd/site/browser_test.go    # браузерные тесты (тег browser, make e2e-browser)
 db/migrations/              # миграции сайта (goose) + embed.go
-internal/admin/             # админка: вход, сессии, CSRF, ограничение попыток, оболочка, дашборд
+internal/admin/             # админка: страница входа и оболочка (модуль auth), меню, дашборд, страницы ошибок
 internal/blocks/            # поля blocks: типы блоков, JSON, форма, вывод на сайте
 internal/listfield/         # поля list: id элементов, действия ↑ ↓ «Убрать» «Добавить», имена формы, JSON
 internal/content/pages/     # тип контента pages: queries.sql, sqlc, handlers.go, views.templ, admin.go, admin.templ

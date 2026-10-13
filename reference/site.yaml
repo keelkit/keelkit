@@ -8,6 +8,7 @@ site:
 modules:
   images: v0
   richtext: v0
+  auth: v0
 # Настройки сайта — одна запись (site_settings, раздел «Настройки» в админке, пакет internal/settings);
 # правки сразу на сайте. TestSpecSettingsMatchCode сверяет поля с колонками таблицы (и их порядок: новое поле — в конец).
 settings:

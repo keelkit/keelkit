@@ -13,6 +13,8 @@ import (
 
 	"github.com/pressly/goose/v3"
 
+	"github.com/voffkin/keelkit/modules/auth"
+
 	"github.com/voffkin/keelkit/reference/internal/blocks"
 	"github.com/voffkin/keelkit/reference/internal/database"
 )
@@ -203,4 +205,50 @@ func TestMigrationPageContents(t *testing.T) {
 	if got := text(doc.Find(`.admin-table tr:has(a:contains("О проекте")) .status`)); got != "Опубликована" {
 		t.Errorf("published status = %q", got)
 	}
+}
+
+// База, созданная до этапа 10.4: users и sessions создала миграция сайта 00003, модуля auth ещё не было.
+// Штатный migrate применяет миграцию модуля поверх существующих таблиц (IF NOT EXISTS), пользователи целы и входят.
+func TestMigrationAuthOverSiteTables(t *testing.T) {
+	ctx := context.Background()
+	cfg := testConfig(t)
+	db, err := openDB(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	for _, src := range migrationSources {
+		if src.Name == "auth" {
+			continue
+		}
+		p, err := goose.NewProvider(goose.DialectSQLite3, db, src.FS,
+			goose.WithTableName(src.Table), goose.WithDisableGlobalRegistry(true))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.Up(ctx); err != nil {
+			t.Fatalf("%s: %v", src.Name, err)
+		}
+	}
+	// Пользователь в прежней схеме: та же таблица, тот же формат хеша.
+	if _, err := auth.NewService(db, auth.Config{}).CreateUser(ctx, seedAdminEmail, seedAdminPassword); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := migrate(ctx, cfg); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	schemas, err := database.Status(ctx, db, migrationSources)
+	if err != nil || database.Pending(schemas) != 0 {
+		t.Fatalf("pending after migrate: %+v, %v", schemas, err)
+	}
+
+	media, closeMedia, err := openMedia(db, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeMedia()
+	srv := httptest.NewServer(newMux(db, media, config{BaseURL: testBaseURL}))
+	defer srv.Close()
+	loginOK(t, adminClient(t), srv)
 }

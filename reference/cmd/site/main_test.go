@@ -9,11 +9,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/voffkin/keelkit/modules/auth"
 	"github.com/voffkin/keelkit/modules/images"
-
-	"github.com/voffkin/keelkit/reference/internal/admin"
 )
 
 // testConfig — каталоги данных и снимков во временной папке теста.
@@ -249,8 +249,8 @@ func TestUserCreate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("user not stored: %v", err)
 	}
-	if ok, _, err := admin.VerifyPassword(ctx, hash, "long enough"); !ok || err != nil || role != "admin" {
-		t.Errorf("stored user: password ok %v (err %v), role %q", ok, err, role)
+	if !strings.HasPrefix(hash, "$argon2id$") || role != "admin" { // пароль сверяют тесты модуля auth
+		t.Errorf("stored user: hash %q, role %q; want argon2id, admin", hash, role)
 	}
 
 	tests := []struct {
@@ -258,10 +258,10 @@ func TestUserCreate(t *testing.T) {
 		answers     []string
 		wantErr     error
 	}{
-		{"duplicate", "editor@example.com", []string{"long enough", "long enough"}, errUserExists},
+		{"duplicate", "editor@example.com", []string{"long enough", "long enough"}, auth.ErrUserExists},
 		{"bad email", "not-an-email", nil, nil},
 		{"named email", "Bob <bob@example.com>", nil, nil},
-		{"short password", "a@example.com", []string{"short"}, admin.ErrPasswordLength},
+		{"short password", "a@example.com", []string{"short"}, auth.ErrPasswordLength},
 		{"mismatch", "a@example.com", []string{"long enough", "long enougH"}, nil},
 	}
 	for _, tt := range tests {

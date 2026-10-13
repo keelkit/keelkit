@@ -42,11 +42,3 @@ sql:
         package: menu
         out: internal/menu
         omit_unused_structs: true
-  - engine: sqlite
-    schema: db/migrations
-    queries: internal/admin/queries.sql
-    gen:
-      go:
-        package: admin
-        out: internal/admin
-        omit_unused_structs: true

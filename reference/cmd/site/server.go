@@ -46,6 +46,7 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 	mediaAdmin := media.NewAdmin(imgs, imageUsage(db))
 	adminH := admin.NewHandler(db, admin.Options{
 		SecureCookies: cfg.CookieSecure,
+		Now:           cfg.now,
 		Counters:      adminCounters(db),
 		Sections: []admin.Section{
 			{Title: "Страницы", URL: pages.AdminPath, Icon: "pages"},

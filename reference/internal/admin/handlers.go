@@ -1,22 +1,24 @@
-// Package admin — админка сайта: вход по паролю, сессии, CSRF-защита, оболочка (меню, дашборд).
+// Package admin — оболочка админки сайта: страница входа, меню, дашборд, страницы ошибок.
 //
-// «Простой режим»: любой пользователь из таблицы users — администратор с полным доступом;
-// поле role зарезервировано под роли. Авторизация живёт здесь до выноса в модуль (после второго сайта).
+// Пользователи, пароли, сессии и CSRF-токены — модуль auth (github.com/voffkin/keelkit/modules/auth):
+// пакет рисует форму входа и вызывает его Service. «Простой режим»: любой пользователь — администратор.
 //
 // Пакет не знает о типах контента: счётчики дашборда передаёт cmd/site через Options.Counters.
 package admin
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 	"math"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/a-h/templ"
+
+	"github.com/voffkin/keelkit/modules/auth"
 
 	"github.com/voffkin/keelkit/reference/internal/web"
 )
@@ -26,13 +28,6 @@ const (
 	dashboardPath = "/admin"
 	loginPath     = "/admin/login"
 	logoutPath    = "/admin/logout"
-)
-
-// Ограничение попыток входа: после loginMaxFailures неудач за loginWindow вход для email блокируется
-// до конца окна.
-const (
-	loginMaxFailures = 5
-	loginWindow      = 15 * time.Minute
 )
 
 // Counter — счётчик на дашборде: «Страниц: 3». URL — ссылка на раздел (необязательно).
@@ -54,6 +49,8 @@ type Section struct {
 type Options struct {
 	// SecureCookies — флаг Secure у cookie. Выключается только для локальной разработки по http.
 	SecureCookies bool
+	// Now — текущее время для модуля auth (срок сессии, блокировка входа); для тестов. По умолчанию time.Now.
+	Now func() time.Time
 	// Counters — счётчики контента для дашборда.
 	Counters func(context.Context) ([]Counter, error)
 	// Sections — разделы типов контента в меню, по порядку.
@@ -64,19 +61,45 @@ type Options struct {
 
 // Handler — хендлеры и middleware админки.
 type Handler struct {
-	q       *Queries
-	opts    Options
-	limiter *limiter
-	now     func() time.Time
+	auth *auth.Service
+	opts Options
 }
 
-func NewHandler(db DBTX, opts Options) *Handler {
-	return &Handler{
-		q:       New(db),
-		opts:    opts,
-		limiter: newLimiter(loginMaxFailures, loginWindow),
-		now:     time.Now,
-	}
+func NewHandler(db *sql.DB, opts Options) *Handler {
+	h := &Handler{opts: opts}
+	h.auth = auth.NewService(db, auth.Config{
+		LoginPath:       loginPath,
+		InsecureCookies: !opts.SecureCookies,
+		Forbidden: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h.render(w, r, http.StatusForbidden, ForbiddenPage())
+		}),
+		ServerError: ServerError,
+		Now:         opts.Now,
+	})
+	return h
+}
+
+// shell — данные оболочки для меню: разделы и путь запроса (текущий пункт).
+type shell struct {
+	sections []Section // разделы меню (Options.Sections)
+	site     []Section // разделы группы «Сайт» (Options.SiteSections)
+	path     string
+}
+
+type shellKey struct{}
+
+func shellFrom(ctx context.Context) shell {
+	s, _ := ctx.Value(shellKey{}).(shell)
+	return s
+}
+
+// RequireUser пропускает только вошедших пользователей (auth.Service.RequireUser: сессия, CSRF-токен
+// для небезопасных методов) и кладёт в контекст данные меню оболочки.
+func (h *Handler) RequireUser(next http.Handler) http.Handler {
+	return h.auth.RequireUser(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s := shell{sections: h.opts.Sections, site: h.opts.SiteSections, path: r.URL.Path}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), shellKey{}, s)))
+	}))
 }
 
 // loginForm — данные формы входа.
@@ -90,18 +113,18 @@ type loginForm struct {
 // LoginForm — GET /admin/login. Вошедшего пользователя отправляет на дашборд.
 func (h *Handler) LoginForm(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if _, ok, err := h.currentSession(r); err != nil {
+	if _, ok, err := h.auth.CurrentUser(r); err != nil {
 		h.serverError(w, r, err)
 		return
 	} else if ok {
 		http.Redirect(w, r, dashboardPath, http.StatusSeeOther)
 		return
 	}
-	form := loginForm{CSRF: h.loginCSRF(w, r), Next: safeNext(r.URL.Query().Get("next"))}
+	form := loginForm{CSRF: h.auth.LoginCSRF(w, r), Next: auth.SafeNext(r.URL.Query().Get("next"), dashboardPath)}
 	h.render(w, r, http.StatusOK, LoginPage(form))
 }
 
-// Login — POST /admin/login: проверка CSRF-токена, ограничения попыток и пароля, создание сессии.
+// Login — POST /admin/login: проверки и сессия — auth.Service.Login, здесь — ответ формой или редирект.
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
@@ -110,57 +133,38 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	form := loginForm{
-		Email: NormalizeEmail(r.PostFormValue("email")),
-		Next:  safeNext(r.PostFormValue("next")),
-		CSRF:  h.loginCSRF(w, r),
+		Email: auth.NormalizeEmail(r.PostFormValue("email")),
+		Next:  auth.SafeNext(r.PostFormValue("next"), dashboardPath),
 	}
 
-	// Токен формы должен совпасть с cookie: чужой сайт не может отправить форму входа от имени браузера.
-	if !tokensEqual(form.CSRF, r.PostFormValue(csrfField)) {
-		slog.Warn("login: csrf token mismatch")
-		form.Error = "Форма устарела. Отправьте её ещё раз."
-		h.render(w, r, http.StatusForbidden, LoginPage(form))
+	_, err := h.auth.Login(w, r, form.Email, r.PostFormValue("password"))
+	var (
+		locked *auth.LockedError
+		status int
+	)
+	switch {
+	case err == nil:
+		http.Redirect(w, r, form.Next, http.StatusSeeOther)
 		return
-	}
-
-	if left, locked := h.limiter.blocked(form.Email); locked {
-		minutes := int(math.Ceil(left.Minutes()))
-		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(left.Seconds()))))
-		form.Error = fmt.Sprintf("Слишком много неудачных попыток входа. Попробуйте через %d мин.", minutes)
-		h.render(w, r, http.StatusTooManyRequests, LoginPage(form))
-		return
-	}
-
-	user, err := h.authenticate(r.Context(), form.Email, r.PostFormValue("password"))
-	if errors.Is(err, errBadCredentials) {
-		h.limiter.fail(form.Email)
-		slog.Warn("login failed", "email", form.Email, "remote_addr", r.RemoteAddr)
-		form.Error = "Неверный email или пароль."
-		h.render(w, r, http.StatusUnprocessableEntity, LoginPage(form))
-		return
-	}
-	if err != nil {
+	case errors.Is(err, auth.ErrLoginCSRF):
+		status, form.Error = http.StatusForbidden, "Форма устарела. Отправьте её ещё раз."
+	case errors.As(err, &locked):
+		status = http.StatusTooManyRequests
+		form.Error = fmt.Sprintf("Слишком много неудачных попыток входа. Попробуйте через %d мин.",
+			int(math.Ceil(locked.RetryAfter.Minutes())))
+	case errors.Is(err, auth.ErrBadCredentials):
+		status, form.Error = http.StatusUnprocessableEntity, "Неверный email или пароль."
+	default:
 		h.serverError(w, r, err)
 		return
 	}
-	h.limiter.reset(form.Email)
-
-	if err := h.endSession(w, r); err != nil {
-		h.serverError(w, r, err)
-		return
-	}
-	if err := h.startSession(r.Context(), w, user.ID); err != nil {
-		h.serverError(w, r, err)
-		return
-	}
-	http.SetCookie(w, h.cookie(loginCSRFCookie, "", loginPath, -1))
-	slog.Info("login", "user_id", user.ID, "remote_addr", r.RemoteAddr)
-	http.Redirect(w, r, form.Next, http.StatusSeeOther)
+	form.CSRF = h.auth.LoginCSRF(w, r)
+	h.render(w, r, status, LoginPage(form))
 }
 
 // Logout — POST /admin/logout (внутри RequireUser: CSRF-токен уже проверен).
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
-	if err := h.endSession(w, r); err != nil {
+	if err := h.auth.Logout(w, r); err != nil {
 		h.serverError(w, r, err)
 		return
 	}
