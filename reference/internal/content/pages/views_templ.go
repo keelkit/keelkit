@@ -28,6 +28,7 @@ type viewData struct {
 	SEO      seofields.Fields
 	SEOImage *images.Image // картинка SEO.Image; nil — подстановка
 	Preview  bool          // предпросмотр черновика: плашка со ссылкой в редактор
+	Live     bool          // живой предпросмотр в редакторе (Admin.Live): без плашки, редактор рядом
 }
 
 // View — публичная страница. Данные для поисковиков — viewMeta: заданные вручную (SEO) или подстановка. Предпросмотр черновика видит только админка — с плашкой
@@ -65,7 +66,7 @@ func View(p viewData) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			if p.Preview {
+			if p.Preview && !p.Live {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<p class=\"draft-banner\" role=\"status\">Предпросмотр черновика: так страница будет выглядеть после публикации. <a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -73,7 +74,7 @@ func View(p viewData) templ.Component {
 				var templ_7745c5c3_Var3 templ.SafeURL
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(EditPath(p.ID)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 32, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 33, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -91,7 +92,7 @@ func View(p viewData) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(p.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 36, Col: 16}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 37, Col: 16}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -161,7 +162,7 @@ func HomeEmpty() templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(site.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 46, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 47, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -179,7 +180,7 @@ func HomeEmpty() templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(site.Description)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 48, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 49, Col: 37}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -197,7 +198,7 @@ func HomeEmpty() templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(HomeSlug)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 50, Col: 157}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/content/pages/views.templ`, Line: 51, Col: 157}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {

@@ -455,6 +455,38 @@ func (a *Admin) View(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, http.StatusOK, View(v))
 }
 
+// Live — POST /admin/posts/live (static/live-preview.js): пост из присланной формы так, как его покажет сайт, —
+// для живого предпросмотра в редакторе: с лидом, датой (если она верно введена) и категорией. Ничего не сохраняет
+// и не проверяет; id не нужен — работает и для нового поста.
+func (a *Admin) Live(w http.ResponseWriter, r *http.Request) {
+	var f postForm
+	if !a.parseForm(w, r, &f) {
+		return
+	}
+	ctx := r.Context()
+	v, err := a.viewData(ctx, f)
+	if err != nil {
+		admin.ServerError(w, r, err)
+		return
+	}
+	v.Lead = plainText(f.Lead)
+	if d, ok := parseInput(f.PublishDate); ok {
+		v.PublishDate = d
+	}
+	if f.CategoryID != 0 {
+		cats, err := a.q.ListCategoryOptions(ctx)
+		if err != nil {
+			admin.ServerError(w, r, err)
+			return
+		}
+		if i := slices.IndexFunc(cats, func(c ListCategoryOptionsRow) bool { return c.ID == f.CategoryID }); i >= 0 {
+			v.CategoryName, v.CategorySlug = cats[i].Name, cats[i].Slug
+		}
+	}
+	v.Preview, v.Live = true, true
+	web.Render(w, r, http.StatusOK, View(v))
+}
+
 // SEO — POST /admin/posts/seo (htmx): превью сниппета из присланной формы поста.
 func (a *Admin) SEO(w http.ResponseWriter, r *http.Request) {
 	var f postForm

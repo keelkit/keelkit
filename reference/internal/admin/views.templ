@@ -34,6 +34,7 @@ templ Layout(title string) {
 			<meta name="htmx-config" content={ htmxConfig }/>
 			<script src={ static.Path("htmx-2.0.11.min.js") } defer></script>
 			<script src={ static.Path("editor.js") } defer></script>
+			<script src={ static.Path("live-preview.js") } defer></script>
 		</head>
 		<body
 			class="admin"
@@ -103,6 +104,43 @@ templ Layout(title string) {
 		</body>
 	</html>
 }
+
+// Live — редактор записи с живым предпросмотром: слева children (форма с id formID), справа запись в шаблоне
+// сайта — ответ на POST url с полями формы, обновляется при вводе (static/live-preview.js). Панель, граница
+// и вкладки скрыты (hidden), пока их не включит скрипт: без JavaScript остаётся одна форма.
+templ Live(url, formID string) {
+	<div class="live" data-live-url={ url } data-live-form={ formID }>
+		<div class="live-tabs" role="group" aria-label="Что показать" hidden>
+			<button type="button" class="secondary" data-live-tab="editor" aria-pressed="true">Редактор</button>
+			<button type="button" class="secondary" data-live-tab="preview" aria-pressed="false">Предпросмотр</button>
+		</div>
+		<div class="live-editor">
+			{ children... }
+		</div>
+		<div class="live-gutter" role="separator" aria-orientation="vertical" aria-label="Граница редактора и предпросмотра: стрелки влево и вправо" tabindex="0" hidden></div>
+		<aside class="live-pane" aria-label="Предпросмотр" hidden>
+			<div class="live-bar">
+				<div class="live-widths" role="group" aria-label="Ширина экрана">
+					for _, d := range liveDevices {
+						<button type="button" data-live-width={ strconv.Itoa(d.width) } aria-pressed="false">{ d.title }</button>
+					}
+				</div>
+				<span class="live-zoom"></span>
+				<span class="live-status"></span>
+				<button type="button" class="live-reload link-button">Обновить</button>
+			</div>
+			<div class="live-stage">
+				<iframe class="live-frame" title="Предпросмотр записи"></iframe>
+			</div>
+		</aside>
+	</div>
+}
+
+// liveDevices — ширины экрана в предпросмотре; первая — по умолчанию.
+var liveDevices = []struct {
+	title string
+	width int
+}{{"Компьютер", 1440}, {"Планшет", 768}, {"Телефон", 390}}
 
 // LoginPage — форма входа.
 templ LoginPage(f loginForm) {

@@ -260,6 +260,7 @@ type viewData struct {
 	Cover    *images.Image
 	SEOImage *images.Image // картинка SEO (seo_image); nil — подстановка
 	Preview  bool          // предпросмотр черновика: плашка со ссылкой в редактор
+	Live     bool          // живой предпросмотр в редакторе (Admin.Live): без плашки, редактор рядом
 }
 
 // seo — SEO поста, заданное вручную.

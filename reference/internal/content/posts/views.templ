@@ -75,7 +75,7 @@ templ meta(e entry) {
 // админка — с плашкой и ссылкой в редактор, без canonical и с noindex.
 templ View(p viewData) {
 	@web.LayoutMeta(viewMeta(p)) {
-		if p.Preview {
+		if p.Preview && !p.Live {
 			<p class="draft-banner" role="status">
 				Предпросмотр черновика: так пост будет выглядеть после публикации.
 				<a href={ templ.SafeURL(EditPath(p.PostID)) }>Вернуться к редактированию</a>

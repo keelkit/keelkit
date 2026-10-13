@@ -65,39 +65,41 @@ templ status(published, changed bool) {
 	}
 }
 
-// FormPage — страница создания или редактирования.
+// FormPage — страница создания или редактирования: форма и рядом живой предпросмотр (admin.Live, Admin.Live).
 templ FormPage(f pageForm) {
 	@admin.Layout(formTitle(f)) {
-		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Страницы</a></p>
-		<div class="admin-title">
-			<h1>{ formTitle(f) }</h1>
-			if f.ID != 0 {
-				@status(f.Published, f.Changed)
-				<a href={ templ.SafeURL(viewPath(f.ID)) }>Предпросмотр черновика</a>
-				if f.Published {
-					<a href={ templ.SafeURL(PublicPath(f.PublishedSlug)) }>Открыть на сайте</a>
-				}
-			}
-		</div>
-		if f.Flash != "" {
-			<p class="flash" role="status">{ f.Flash }</p>
-		}
-		@Form(f)
-		if f.ID != 0 {
-			<div class="danger-zone">
-				if f.Published && f.PublishedSlug != HomeSlug {
-					<form method="post" action={ templ.SafeURL(EditPath(f.ID) + "/unpublish") } class="form-actions">
-						@admin.CSRFInput()
-						<button type="submit" class="secondary">Снять с публикации</button>
-						<span class="field-hint">Страница пропадёт с сайта и из меню; черновик останется здесь.</span>
-					</form>
-				}
-				if !f.Published {
-					<p><a class="danger-link" href={ templ.SafeURL(EditPath(f.ID) + "/delete") }>Удалить страницу</a></p>
-				} else {
-					<p class="field-hint">{ deleteHint(f.PublishedSlug) }</p>
+		@admin.Live(AdminPath+"/live", "page-form") {
+			<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Страницы</a></p>
+			<div class="admin-title">
+				<h1>{ formTitle(f) }</h1>
+				if f.ID != 0 {
+					@status(f.Published, f.Changed)
+					<a href={ templ.SafeURL(viewPath(f.ID)) }>Предпросмотр черновика</a>
+					if f.Published {
+						<a href={ templ.SafeURL(PublicPath(f.PublishedSlug)) }>Открыть на сайте</a>
+					}
 				}
 			</div>
+			if f.Flash != "" {
+				<p class="flash" role="status">{ f.Flash }</p>
+			}
+			@Form(f)
+			if f.ID != 0 {
+				<div class="danger-zone">
+					if f.Published && f.PublishedSlug != HomeSlug {
+						<form method="post" action={ templ.SafeURL(EditPath(f.ID) + "/unpublish") } class="form-actions">
+							@admin.CSRFInput()
+							<button type="submit" class="secondary">Снять с публикации</button>
+							<span class="field-hint">Страница пропадёт с сайта и из меню; черновик останется здесь.</span>
+						</form>
+					}
+					if !f.Published {
+						<p><a class="danger-link" href={ templ.SafeURL(EditPath(f.ID) + "/delete") }>Удалить страницу</a></p>
+					} else {
+						<p class="field-hint">{ deleteHint(f.PublishedSlug) }</p>
+					}
+				</div>
+			}
 		}
 	}
 }

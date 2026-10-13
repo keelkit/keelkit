@@ -904,3 +904,214 @@ body.admin {
 .admin .menu-item:not(:has(select option[data-children]:checked)) .menu-children {
   display: none;
 }
+
+/* Редактор с живым предпросмотром (admin.Live, static/live-preview.js). Без скрипта класса is-on нет:
+   остаётся одна форма. Слева форма, справа панель с iframe; граница перетаскивается (--live-editor-w).
+   Уже 64rem — вкладки «Редактор / Предпросмотр». */
+
+.admin .admin-main:has(> .live.is-on) {
+  max-width: none;
+}
+
+.live.is-on {
+  display: grid;
+  /* Сохранённая ширина формы не вытесняет панель, если окно стало уже. */
+  grid-template-columns: minmax(0, min(var(--live-editor-w, 50%), calc(100% - 23.375rem))) 0.875rem minmax(22.5rem, 1fr);
+  align-items: start;
+}
+
+.live-editor {
+  min-width: 0;
+}
+
+/* Превью Markdown у каждого поля не нужно, пока предпросмотр рядом: весь текст виден справа.
+   На узком экране (вкладки) превью у поля остаётся. */
+@media (min-width: 64.0625rem) {
+  .live.is-on .editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .live.is-on .editor > .preview {
+    display: none;
+  }
+}
+
+.live.is-on .block-form {
+  scroll-margin-top: calc(var(--header-h) + 1rem);
+}
+
+.live.is-on .block-form > .block-head h3 {
+  cursor: pointer;
+}
+
+.live.is-on .block-form > .block-head h3:hover {
+  color: var(--accent);
+}
+
+.live-flash {
+  animation: live-flash 1.2s ease-out;
+}
+
+@keyframes live-flash {
+  from {
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+  to {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+
+.live-gutter {
+  position: sticky;
+  top: var(--header-h);
+  align-self: stretch;
+  max-height: calc(100vh - var(--header-h));
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.live-gutter::after {
+  content: "";
+  display: block;
+  width: 2px;
+  height: 100%;
+  margin-inline: auto;
+  border-radius: 1px;
+  background: var(--border);
+}
+
+.live-gutter:hover::after,
+.live-gutter:focus-visible::after,
+.live.is-resizing .live-gutter::after {
+  background: var(--accent);
+}
+
+.live.is-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* Пока граница тянется, iframe не забирает события мыши. */
+.live.is-resizing .live-frame {
+  pointer-events: none;
+}
+
+.live-pane {
+  position: sticky;
+  top: calc(var(--header-h) + 1rem);
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--header-h) - 2rem);
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+
+.live-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8125rem;
+}
+
+.live-widths {
+  display: flex;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.live-widths button,
+.live-reload {
+  padding: 0.2rem 0.55rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.live-widths button:hover,
+.live-reload:hover {
+  background: var(--surface);
+}
+
+.live-widths button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.live-zoom,
+.live-status {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.live-reload {
+  margin-left: auto;
+  color: var(--accent);
+}
+
+.live-stage {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.live-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 0;
+  background: #fff;
+  transform-origin: 0 0;
+}
+
+.live-tabs {
+  display: none;
+}
+
+@media (max-width: 64rem) {
+  .live.is-on {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .live.is-on .live-tabs {
+    position: sticky;
+    top: var(--header-h);
+    z-index: 5;
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding-block: 0.5rem;
+    background: var(--page);
+  }
+
+  .live-tabs button[aria-pressed="true"] {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .live.is-on .live-gutter {
+    display: none;
+  }
+
+  .live.is-on:not(.show-preview) .live-pane,
+  .live.is-on.show-preview .live-editor {
+    display: none;
+  }
+
+  .live-pane {
+    top: calc(var(--header-h) + 3.5rem);
+    height: calc(100vh - var(--header-h) - 4.5rem);
+  }
+}

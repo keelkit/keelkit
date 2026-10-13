@@ -20,13 +20,14 @@ type viewData struct {
 	SEO      seofields.Fields
 	SEOImage *images.Image // картинка SEO.Image; nil — подстановка
 	Preview  bool          // предпросмотр черновика: плашка со ссылкой в редактор
+	Live     bool          // живой предпросмотр в редакторе (Admin.Live): без плашки, редактор рядом
 }
 
 // View — публичная страница. Данные для поисковиков — viewMeta: заданные вручную (SEO) или подстановка. Предпросмотр черновика видит только админка — с плашкой
 // и ссылкой в редактор, без canonical и с noindex.
 templ View(p viewData) {
 	@web.LayoutMeta(viewMeta(p)) {
-		if p.Preview {
+		if p.Preview && !p.Live {
 			<p class="draft-banner" role="status">
 				Предпросмотр черновика: так страница будет выглядеть после публикации.
 				<a href={ templ.SafeURL(EditPath(p.ID)) }>Вернуться к редактированию</a>

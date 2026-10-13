@@ -413,7 +413,7 @@ func View(p viewData) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			if p.Preview {
+			if p.Preview && !p.Live {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<p class=\"draft-banner\" role=\"status\">Предпросмотр черновика: так пост будет выглядеть после публикации. <a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

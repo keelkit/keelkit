@@ -429,6 +429,23 @@ func (a *Admin) View(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, http.StatusOK, View(v))
 }
 
+// Live — POST /admin/pages/live (static/live-preview.js): страница из присланной формы так, как её покажет сайт, —
+// для живого предпросмотра в редакторе. Ничего не сохраняет и не проверяет: показывает и недописанную форму.
+// id не нужен — работает и для новой страницы.
+func (a *Admin) Live(w http.ResponseWriter, r *http.Request) {
+	var f pageForm
+	if !a.parseForm(w, r, &f) {
+		return
+	}
+	v, err := a.viewData(r.Context(), f)
+	if err != nil {
+		admin.ServerError(w, r, err)
+		return
+	}
+	v.Preview, v.Live = true, true
+	web.Render(w, r, http.StatusOK, View(v))
+}
+
 // SEO — POST /admin/pages/seo (htmx): превью сниппета из присланной формы страницы.
 func (a *Admin) SEO(w http.ResponseWriter, r *http.Request) {
 	var f pageForm

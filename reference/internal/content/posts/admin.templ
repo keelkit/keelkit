@@ -68,37 +68,39 @@ templ status(published, changed bool, publishedDate string) {
 	}
 }
 
-// FormPage — страница создания или редактирования поста.
+// FormPage — страница создания или редактирования поста: форма и рядом живой предпросмотр (admin.Live, Admin.Live).
 templ FormPage(f postForm) {
 	@admin.Layout(formTitle(f)) {
-		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Посты</a></p>
-		<div class="admin-title">
-			<h1>{ formTitle(f) }</h1>
-			if f.ID != 0 {
-				@status(f.Published, f.Changed, f.PublishedDate)
-				<a href={ templ.SafeURL(viewPath(f.ID)) }>Предпросмотр черновика</a>
-				if f.Published && !scheduled(f.PublishedDate) {
-					<a href={ templ.SafeURL(PublicPath(f.PublishedSlug)) }>Открыть на сайте</a>
-				}
-			}
-		</div>
-		if f.Flash != "" {
-			<p class="flash" role="status">{ f.Flash }</p>
-		}
-		@Form(f)
-		if f.ID != 0 {
-			<div class="danger-zone">
-				if f.Published {
-					<form method="post" action={ templ.SafeURL(EditPath(f.ID) + "/unpublish") } class="form-actions">
-						@admin.CSRFInput()
-						<button type="submit" class="secondary">Снять с публикации</button>
-						<span class="field-hint">Пост пропадёт с сайта; черновик останется здесь.</span>
-					</form>
-					<p class="field-hint">{ deleteHint }</p>
-				} else {
-					<p><a class="danger-link" href={ templ.SafeURL(EditPath(f.ID) + "/delete") }>Удалить пост</a></p>
+		@admin.Live(AdminPath+"/live", "post-form") {
+			<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Посты</a></p>
+			<div class="admin-title">
+				<h1>{ formTitle(f) }</h1>
+				if f.ID != 0 {
+					@status(f.Published, f.Changed, f.PublishedDate)
+					<a href={ templ.SafeURL(viewPath(f.ID)) }>Предпросмотр черновика</a>
+					if f.Published && !scheduled(f.PublishedDate) {
+						<a href={ templ.SafeURL(PublicPath(f.PublishedSlug)) }>Открыть на сайте</a>
+					}
 				}
 			</div>
+			if f.Flash != "" {
+				<p class="flash" role="status">{ f.Flash }</p>
+			}
+			@Form(f)
+			if f.ID != 0 {
+				<div class="danger-zone">
+					if f.Published {
+						<form method="post" action={ templ.SafeURL(EditPath(f.ID) + "/unpublish") } class="form-actions">
+							@admin.CSRFInput()
+							<button type="submit" class="secondary">Снять с публикации</button>
+							<span class="field-hint">Пост пропадёт с сайта; черновик останется здесь.</span>
+						</form>
+						<p class="field-hint">{ deleteHint }</p>
+					} else {
+						<p><a class="danger-link" href={ templ.SafeURL(EditPath(f.ID) + "/delete") }>Удалить пост</a></p>
+					}
+				</div>
+			}
 		}
 	}
 }

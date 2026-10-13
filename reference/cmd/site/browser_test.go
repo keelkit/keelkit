@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -576,5 +577,85 @@ func TestBrowserPeopleOrder(t *testing.T) {
 	)
 	if first != "Борис Иванов" {
 		t.Errorf("site first = %q", first)
+	}
+}
+
+// liveFrame — JS-выражение: текст <main> в iframe живого предпросмотра (пусто, пока страница не загружена).
+const liveFrame = `(document.querySelector('.live-frame').contentDocument?.querySelector('main')?.textContent || '')`
+
+// Живой предпросмотр: несохранённый ввод появляется в iframe, ширина устройства, связь блоков в обе стороны,
+// вкладки на узком экране.
+func TestBrowserLivePreview(t *testing.T) {
+	srv := e2eServer(t, true)
+	ctx := browser(t)
+	browserLogin(t, ctx, srv.URL)
+
+	var shown bool
+	run(t, ctx, "open",
+		chromedp.EmulateViewport(1400, 900),
+		chromedp.Navigate(srv.URL+"/admin/pages/new"),
+		chromedp.WaitVisible(`.live.is-on .live-pane`, chromedp.ByQuery),
+		chromedp.SendKeys(`input[name="title"]`, "Живая страница", chromedp.ByQuery),
+		chromedp.SendKeys(`.block-form textarea`, "Текст из **редактора**", chromedp.ByQuery),
+		chromedp.Poll(liveFrame+`.includes('Живая страница') && `+liveFrame+`.includes('редактора')`, &shown,
+			chromedp.WithPollingTimeout(10*time.Second)),
+	)
+
+	// «Добавить блок» (htmx) тоже обновляет предпросмотр: блок «Цитата» появляется в iframe.
+	run(t, ctx, "add block",
+		chromedp.Click(`.block-add button[value="add:quote"]`, chromedp.ByQuery),
+		htmxSettled(),
+		chromedp.SendKeys(`#blocks > .block-form:last-child textarea`, "Живая цитата", chromedp.ByQuery),
+		chromedp.Poll(liveFrame+`.includes('Живая цитата')`, &shown, chromedp.WithPollingTimeout(10*time.Second)),
+	)
+
+	// «Телефон»: iframe в ширину 390 px.
+	var width string
+	run(t, ctx, "phone",
+		chromedp.Click(`[data-live-width="390"]`, chromedp.ByQuery),
+		chromedp.Evaluate(`document.querySelector('.live-frame').style.width`, &width),
+	)
+	if width != "390px" {
+		t.Errorf("phone width = %q", width)
+	}
+
+	// Щелчок по цитате в предпросмотре подсвечивает форму её блока; ссылка в предпросмотре никуда не ведёт.
+	var flashed bool
+	var href string
+	run(t, ctx, "select block",
+		chromedp.Evaluate(`document.querySelector('.live-frame').contentDocument.querySelector('.block-quote').click()`, nil),
+		chromedp.Evaluate(`document.querySelector('#blocks > .block-form:last-child').classList.contains('live-flash')`, &flashed),
+		chromedp.Evaluate(`document.querySelector('.live-frame').contentDocument.querySelector('header a').click();
+			document.querySelector('.live-frame').contentWindow.location.href`, &href),
+	)
+	if !flashed {
+		t.Error("click in preview did not select the block form")
+	}
+	if href != "about:srcdoc" {
+		t.Errorf("link in preview navigated to %q", href)
+	}
+
+	// Узкий экран: вкладки; щелчок по заголовку блока переключает на предпросмотр.
+	var editorHidden, paneVisible bool
+	run(t, ctx, "narrow",
+		chromedp.EmulateViewport(700, 900),
+		chromedp.WaitVisible(`.live-tabs`, chromedp.ByQuery),
+		chromedp.Click(`#blocks > .block-form:last-child .block-head h3`, chromedp.ByQuery),
+		chromedp.WaitVisible(`.live-pane`, chromedp.ByQuery),
+		chromedp.Evaluate(`getComputedStyle(document.querySelector('.live-editor')).display === 'none'`, &editorHidden),
+		chromedp.Evaluate(`document.querySelector('.live-stage').clientWidth > 0`, &paneVisible),
+	)
+	if !editorHidden || !paneVisible {
+		t.Errorf("narrow preview tab: editor hidden %v, pane visible %v", editorHidden, paneVisible)
+	}
+
+	// Ничего не сохранено: страницы нет в списке.
+	var list string
+	run(t, ctx, "not saved",
+		chromedp.Navigate(srv.URL+"/admin/pages"),
+		chromedp.Text(`.admin-table`, &list, chromedp.ByQuery),
+	)
+	if strings.Contains(list, "Живая страница") {
+		t.Error("live preview saved the page")
 	}
 }
