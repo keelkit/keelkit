@@ -27,7 +27,7 @@ var schemaJSON []byte
 const schemaURL = "https://raw.githubusercontent.com/voffkin/keelkit/main/spec/schema.json"
 
 // reservedFields — служебные колонки, которые генерируются для каждого типа контента и его features.
-var reservedFields = []string{"id", "created_at", "updated_at", "draft", "publish_date", "seo_title", "seo_description", "seo_image"}
+var reservedFields = []string{"id", "created_at", "updated_at", "draft", "publish_date", "seo_title", "seo_description", "seo_image", "sort_order"}
 
 // reservedSettingsFields — служебные колонки записи настроек.
 var reservedSettingsFields = []string{"id", "updated_at"}

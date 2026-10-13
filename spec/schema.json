@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/voffkin/keelkit/main/spec/schema.json",
   "title": "Keelkit site spec",
-  "description": "Спецификация сайта Keelkit (site.yaml), версия схемы 1. Правила, которые не выражаются в JSON Schema, проверяет spec-validate: ref указывает на существующий тип контента, to — только у ref, allow — только у blocks, fields — только у list, не больше одного поля slug в типе, служебные имена полей (id, created_at, updated_at, draft, publish_date, seo_title, seo_description, seo_image) запрещены, feature seo — только у типа с полем slug, в settings нет полей slug и blocks.",
+  "description": "Спецификация сайта Keelkit (site.yaml), версия схемы 1. Правила, которые не выражаются в JSON Schema, проверяет spec-validate: ref указывает на существующий тип контента, to — только у ref, allow — только у blocks, fields — только у list, не больше одного поля slug в типе, служебные имена полей (id, created_at, updated_at, draft, publish_date, seo_title, seo_description, seo_image, sort_order) запрещены, feature seo — только у типа с полем slug, в settings нет полей slug и blocks.",
   "type": "object",
   "required": ["spec_version", "site", "content"],
   "additionalProperties": false,
@@ -84,10 +84,11 @@
       "properties": {
         "fields": { "$ref": "#/$defs/fields" },
         "features": {
+          "description": "Возможности типа: draft — черновик, publish_date — дата публикации, rss, sitemap, seo — SEO записи вручную (только с полем slug), order — ручной порядок записей (кнопки ↑ ↓ в админке, тот же порядок на сайте).",
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "enum": ["draft", "publish_date", "rss", "sitemap", "seo"]
+            "enum": ["draft", "publish_date", "rss", "sitemap", "seo", "order"]
           }
         }
       }

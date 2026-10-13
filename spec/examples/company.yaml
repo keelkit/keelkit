@@ -1,4 +1,4 @@
-# Сайт компании: страницы с SEO, новости, команда списком, настройки и меню.
+# Сайт компании: страницы с SEO, новости, команда списком (в ручном порядке), настройки и меню.
 spec_version: 1
 site:
   name: acme-company
@@ -49,3 +49,4 @@ content:
           title: { type: string, required: true }
           scan:  { type: image }
           year:  { type: int }
+    features: [order]

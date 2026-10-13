@@ -180,7 +180,7 @@ SEO, sitemap и RSS на первом этапе пишутся в коде эт
 - Правила, не выражаемые в JSON Schema, проверяет валидатор: `ref` указывает на существующий тип контента,
   `to` — только у `ref`, `allow` — только у `blocks`, `fields` — только у `list`, в типе не больше одного поля `slug`,
   служебные имена полей запрещены (у типа — `id`, `created_at`, `updated_at`, `draft`, `publish_date`, `seo_title`,
-  `seo_description`, `seo_image`; в `settings` — `id`, `updated_at`; у элемента `list` — `id`), feature `seo` — только
+  `seo_description`, `seo_image`, `sort_order`; в `settings` — `id`, `updated_at`; у элемента `list` — `id`), feature `seo` — только
   у типа с полем `slug`, в `settings` нет полей `slug` и `blocks`.
 - Новое правило схемы — пример в `spec/examples/invalid/` с ожидаемым текстом ошибки (`# expect: …`).
 - Хранится в репозитории сайта как `site.yaml`.
@@ -195,7 +195,8 @@ SEO, sitemap и RSS на первом этапе пишутся в коде эт
   (с `spec v0.2.0`; `allow: [имена блоков]` — обязателен, непустой, без повторов; поля блоков описывает код сайта),
   `list` (с `spec v0.3.0`; `fields: {…}` — поля элемента: типы `string`…`ref`, без `slug`, `blocks` и вложенных `list`).
 - Features: `draft`, `publish_date`, `rss`, `sitemap`, `seo` (с `spec v0.3.0`: SEO записи вручную — поля `seo_*`
-  добавляет feature, в `fields` их не пишут; только у типа со своим адресом, то есть с полем `slug`).
+  добавляет feature, в `fields` их не пишут; только у типа со своим адресом, то есть с полем `slug`), `order`
+  (с `spec v0.5.0`: ручной порядок записей — кнопки ↑ ↓ в списке админки, тот же порядок на сайте; колонка `sort_order`).
 - `settings: { fields: {…} }` (с `spec v0.3.0`) — одна запись настроек сайта, поля как у типа контента, кроме `slug` и `blocks`.
 - `modules`: `images`, `richtext`, `auth` (последние два — с `spec v0.4.0`), значение — мажорная версия (`v0`).
 - `menus: [main, footer]` (с `spec v0.3.0`) — меню, которые редактируют в админке; устройство пунктов — код сайта.

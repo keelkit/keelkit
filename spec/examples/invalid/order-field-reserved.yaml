@@ -1,0 +1,10 @@
+# expect: /content/people/fields/sort_order: field name "sort_order" is reserved
+spec_version: 1
+site:
+  name: my-site
+  languages: [ru]
+content:
+  people:
+    fields:
+      name:       { type: string, required: true }
+      sort_order: { type: int }
