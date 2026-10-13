@@ -12,8 +12,10 @@ import (
 	"github.com/voffkin/keelkit/modules/images"
 
 	"github.com/voffkin/keelkit/reference/internal/admin"
+	"github.com/voffkin/keelkit/reference/internal/blocks"
 	"github.com/voffkin/keelkit/reference/internal/content/categories"
 	"github.com/voffkin/keelkit/reference/internal/content/pages"
+	"github.com/voffkin/keelkit/reference/internal/content/people"
 	"github.com/voffkin/keelkit/reference/internal/content/posts"
 	"github.com/voffkin/keelkit/reference/internal/database"
 	"github.com/voffkin/keelkit/reference/internal/media"
@@ -34,13 +36,15 @@ var reservedSlugs = []string{"admin", "static", "media", "healthz", "blog"}
 // а всё, кроме входа, — в adminH.RequireUser (сессия и CSRF-токен).
 // Изображения (images.Service) отдаются под web.MediaPrefix обработчиком модуля.
 func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
-	pagesH := pages.NewHandler(db, imgs)
+	lists := blockLists(people.NewHandler(db, imgs))
+	pagesH := pages.NewHandler(db, imgs, lists)
 	postsH := posts.NewHandler(db, imgs)
 	sections := menuSections(postsH)
 	html := web.WithSite(siteLoader(db, imgs, cfg.BaseURL, sections))
-	pagesAdmin := pages.NewAdmin(db, imgs, media.AdminPath, reservedSlugs, pageUsage(db))
+	pagesAdmin := pages.NewAdmin(db, imgs, media.AdminPath, reservedSlugs, pageUsage(db), lists)
 	postsAdmin := posts.NewAdmin(db, imgs, media.AdminPath)
 	categoriesAdmin := categories.NewAdmin(db, posts.CategoryPath, posts.EditPath)
+	peopleAdmin := people.NewAdmin(db, imgs, media.AdminPath)
 	settingsAdmin := settings.NewAdmin(db, imgs, media.AdminPath)
 	menuAdmin := menu.NewAdmin(db, siteMenus, sections)
 	mediaAdmin := media.NewAdmin(imgs, imageUsage(db))
@@ -52,6 +56,7 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 			{Title: "Страницы", URL: pages.AdminPath, Icon: "pages"},
 			{Title: "Посты", URL: posts.AdminPath, Icon: "posts"},
 			{Title: "Категории", URL: categories.AdminPath, Icon: "tags"},
+			{Title: "Люди", URL: people.AdminPath, Icon: "people"},
 			{Title: "Медиатека", URL: media.AdminPath, Icon: "image"},
 		},
 		SiteSections: []admin.Section{
@@ -124,6 +129,15 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 	mux.Handle("POST /admin/categories/{id}", signedIn(categoriesAdmin.Update))
 	mux.Handle("GET /admin/categories/{id}/delete", signedIn(categoriesAdmin.ConfirmDelete))
 	mux.Handle("POST /admin/categories/{id}/delete", signedIn(categoriesAdmin.Delete))
+	mux.Handle("GET "+people.AdminPath, signedIn(peopleAdmin.List))
+	mux.Handle("GET "+people.AdminPath+"/new", signedIn(peopleAdmin.New))
+	mux.Handle("POST "+people.AdminPath, signedIn(peopleAdmin.Create))
+	mux.Handle("POST "+people.AdminPath+"/order", signedIn(peopleAdmin.Order))
+	mux.Handle("POST "+people.AdminPath+"/photo", signedIn(peopleAdmin.Photo))
+	mux.Handle("GET "+people.AdminPath+"/{id}", signedIn(peopleAdmin.Edit))
+	mux.Handle("POST "+people.AdminPath+"/{id}", signedIn(peopleAdmin.Update))
+	mux.Handle("GET "+people.AdminPath+"/{id}/delete", signedIn(peopleAdmin.ConfirmDelete))
+	mux.Handle("POST "+people.AdminPath+"/{id}/delete", signedIn(peopleAdmin.Delete))
 	mux.Handle("GET "+settings.AdminPath, signedIn(settingsAdmin.Edit))
 	mux.Handle("POST "+settings.AdminPath, signedIn(settingsAdmin.Update))
 	mux.Handle("POST "+settings.AdminPath+"/image", signedIn(settingsAdmin.Image))
@@ -210,6 +224,14 @@ func menuSections(postsH *posts.Handler) []menu.Section {
 	}
 }
 
+// blockLists — источники записей блоков-списков (blocks.ListKinds): вывод на сайте и раздел админки.
+// Новый блок-список — запись здесь; TestBlockListsMatchKinds сверяет ключи с blocks.ListKinds.
+func blockLists(peopleH *people.Handler) blocks.ListSources {
+	return blocks.ListSources{
+		"people": {Render: peopleH.Cards, AdminURL: people.AdminPath},
+	}
+}
+
 // pageUsage — что ссылается на страницу (раздел страниц не даёт удалить её и показывает список): пункты меню.
 func pageUsage(db *sql.DB) pages.UsageFunc {
 	mq := menu.New(db)
@@ -270,7 +292,7 @@ func feedSource(db *sql.DB, postsH *posts.Handler) seo.FeedSource {
 // imageUsage — где используется изображение (медиатека показывает список и не даёт удалить используемое).
 // Новый тип контента со ссылками на изображения добавляет сюда свой запрос.
 func imageUsage(db *sql.DB) media.UsageFunc {
-	pq, sq, setq := pages.New(db), posts.New(db), settings.New(db)
+	pq, sq, setq, peq := pages.New(db), posts.New(db), settings.New(db), people.New(db)
 	return func(ctx context.Context, imageID string) ([]media.Usage, error) {
 		var used []media.Usage
 		inSettings, err := settings.UseImage(ctx, setq, imageID)
@@ -294,13 +316,20 @@ func imageUsage(db *sql.DB) media.UsageFunc {
 		for _, p := range postRows {
 			used = append(used, media.Usage{Title: "Пост «" + p.Title + "»", URL: posts.EditPath(p.ID)})
 		}
+		peopleRows, err := people.UsingImage(ctx, peq, imageID)
+		if err != nil {
+			return nil, fmt.Errorf("people using image: %w", err)
+		}
+		for _, p := range peopleRows {
+			used = append(used, media.Usage{Title: "Люди: " + p.Name, URL: people.EditPath(p.ID)})
+		}
 		return used, nil
 	}
 }
 
 // adminCounters — счётчики контента для дашборда админки.
 func adminCounters(db *sql.DB) func(context.Context) ([]admin.Counter, error) {
-	pq, sq, cq := pages.New(db), posts.New(db), categories.New(db)
+	pq, sq, cq, peq := pages.New(db), posts.New(db), categories.New(db), people.New(db)
 	return func(ctx context.Context) ([]admin.Counter, error) {
 		n, err := pq.CountPages(ctx)
 		if err != nil {
@@ -314,10 +343,15 @@ func adminCounters(db *sql.DB) func(context.Context) ([]admin.Counter, error) {
 		if err != nil {
 			return nil, fmt.Errorf("count categories: %w", err)
 		}
+		npe, err := peq.CountPeople(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("count people: %w", err)
+		}
 		return []admin.Counter{
 			{Label: "Страниц", Value: n, URL: pages.AdminPath},
 			{Label: "Постов", Value: np, URL: posts.AdminPath},
 			{Label: "Категорий", Value: nc, URL: categories.AdminPath},
+			{Label: "Людей", Value: npe, URL: people.AdminPath},
 		}, nil
 	}
 }

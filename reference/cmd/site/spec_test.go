@@ -19,6 +19,9 @@ import (
 // колонки seo_* в копии записи.
 var seoTypes = []string{"pages", "posts"}
 
+// orderTypes — типы с ручным порядком (feature order): колонка sort_order, кнопки ↑ ↓ в списке админки.
+var orderTypes = []string{"people"}
+
 // Строки site.yaml: тип контента («  posts:» — отступ в два пробела) и поле blocks внутри него
 // («<имя>: { type: blocks, allow: [a, b] }»). Полный разбор YAML не нужен: схему проверяет make spec-validate,
 // здесь — только совпадение списков блоков с кодом.
@@ -94,7 +97,7 @@ func TestSpecBlocksMatchCode(t *testing.T) {
 }
 
 // Типы с feature sitemap в site.yaml — ровно те, чьи адреса собирает sitemapSources (в том же порядке),
-// с feature rss — feedTypes, с feature seo — seoTypes.
+// с feature rss — feedTypes, с feature seo — seoTypes, с feature order — orderTypes (и у их таблиц есть sort_order).
 func TestSpecFeaturesMatchCode(t *testing.T) {
 	types, lines := specLines(t)
 	spec := map[string][]string{}
@@ -118,6 +121,27 @@ func TestSpecFeaturesMatchCode(t *testing.T) {
 	}
 	if !slices.Equal(spec["seo"], seoTypes) {
 		t.Errorf("site.yaml types with feature seo = %v, seoTypes = %v", spec["seo"], seoTypes)
+	}
+	if !slices.Equal(spec["order"], orderTypes) {
+		t.Errorf("site.yaml types with feature order = %v, orderTypes = %v", spec["order"], orderTypes)
+	}
+	db := migratedSite(t, false).db
+	for _, typ := range orderTypes {
+		var n int
+		err := db.QueryRowContext(context.Background(),
+			`SELECT count(*) FROM pragma_table_info(?) WHERE name = 'sort_order'`, typ).Scan(&n)
+		if err != nil || n != 1 {
+			t.Errorf("table %s: no sort_order column (err %v)", typ, err)
+		}
+	}
+}
+
+// Каждый блок-список (blocks.ListKinds) получает записи из blockLists, и в blockLists нет лишних.
+func TestBlockListsMatchKinds(t *testing.T) {
+	kinds := blocks.ListKinds()
+	code := slices.Sorted(maps.Keys(blockLists(nil)))
+	if !slices.Equal(slices.Sorted(slices.Values(kinds)), code) {
+		t.Errorf("blocks.ListKinds = %v, blockLists = %v", kinds, code)
 	}
 }
 

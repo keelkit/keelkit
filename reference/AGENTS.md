@@ -87,6 +87,10 @@
 - Раздел постов `/admin/posts` — те же маршруты, что у страниц, и `POST /admin/posts/cover` (htmx: поле обложки с превью).
 - Раздел категорий: `GET /admin/categories` (список), `GET /admin/categories/new`, `POST /admin/categories`,
   `GET|POST /admin/categories/{id}` (форма), `GET|POST /admin/categories/{id}/delete` (подтверждение, удалить).
+- Раздел людей: `GET /admin/people` (список в порядке на сайте), `POST /admin/people/order` (кнопка ↑ ↓: поле `action` —
+  `up:<id>` или `down:<id>`; без htmx — 303 на список, с htmx — таблица), `GET /admin/people/new`, `POST /admin/people`,
+  `GET|POST /admin/people/{id}` (форма), `POST /admin/people/photo` (htmx: поле фото с превью),
+  `GET|POST /admin/people/{id}/delete` (подтверждение, удалить). Своих адресов на сайте у людей нет.
 - Настройки: `GET|POST /admin/settings` (форма; «Сохранить» или кнопка списка соцсетей — поле `action`),
   `POST /admin/settings/image` (htmx: поле картинки для соцсетей с превью).
 - Меню: `GET /admin/menus` (список меню), `GET|POST /admin/menus/{name}` (форма; «Сохранить» или кнопка пункта — поле `action`).
@@ -96,7 +100,7 @@
   страницу, админка такие slug не принимает. Маршрут-поддерево (`/static/`) занимает и путь без слеша (`GET /static` → 404),
   иначе его забрал бы `GET /{slug}`; e2e `TestE2EReservedSlugsShadowPages` проверяет каждый slug из списка.
 - Всё остальное — оформленная 404 (`web.NotFound`).
-- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"auth":{"version":1,"pending":0},"site":{"version":12,"pending":0}}}`.
+- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"auth":{"version":1,"pending":0},"site":{"version":13,"pending":0}}}`.
 
 ## Бинарник
 
@@ -205,7 +209,7 @@
   (`Counter.URL` — ссылка на раздел), пункты меню — `admin.Options.Sections` (группа «Контент»). Новый тип контента добавляет туда
   счётчик и раздел. Разделы всего сайта (настройки, меню) — `admin.Options.SiteSections`, группа «Сайт» ниже.
 - Для разделов типов контента пакет экспортирует: `admin.Layout(title)` (оболочка: верхняя панель и боковое меню `.site-nav`,
-  текущий пункт — по префиксу пути; иконка пункта — `Section.Icon`: `pages`, `posts`, `tags`, `image`, `settings`, `menu`, иначе папка),
+  текущий пункт — по префиксу пути; иконка пункта — `Section.Icon`: `pages`, `posts`, `tags`, `people`, `image`, `settings`, `menu`, иначе папка),
   `admin.CSRFInput()` (скрытое поле токена), `admin.NotFound`, `admin.ServerError`, `admin.Redirect` (303 или
   `HX-Redirect` после успешного POST), `admin.IsHTMX`.
 - htmx в админке: `<meta name="htmx-config">` разрешает подмену разметки ответом 422 (по умолчанию htmx не подменяет 4xx).
@@ -226,7 +230,8 @@
 счётчик дашборда — в `adminCounters`, пункт меню — в `admin.Options.Sections`, feature `sitemap`/`rss` — см. «SEO».
 Seed блога (`seedBlog`): 3 категории, 13 опубликованных постов (`post-01`…`post-13`, даты — дни назад от запуска,
 обложки у каждого третьего; у самого нового `post-13` — лид, ручной анонс и alt обложки), черновик `draft-post`
-и `future-post` с датой через 30 дней.
+и `future-post` с датой через 30 дней. Seed людей (`seedPeople`): трое по порядку, фото у первого (`photo.jpg`);
+страница «Команда» (`/team`) — текст и блок `people` (в меню её нет).
 
 Раздел админки (образец — `pages/admin.go`):
 - Маршруты — `signedIn(...)`: сессия и CSRF уже проверены. Список, `new`, создание `POST /admin/<type>`,
@@ -256,6 +261,12 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
   Один источник для ленты, RSS и `meta description` (с этапа SEO записи — и для подстановки в пустое SEO-описание).
 - Поле `ref` (категория поста): `select` с вариантом «— без категории —»; варианты — запрос в пакете типа
   (`ListCategoryOptions`), а не импорт пакета другого типа. Несуществующий id — ошибка у поля, не число — 400.
+- Тип без своего адреса с ручным порядком (образец — `people`, feature `order` с `spec v0.5.0`): записи правят в своём
+  разделе, на сайт их выводит блок-список (см. «Блоки») на любой странице. Колонка `sort_order` (`INTEGER NOT NULL`,
+  индекс `(sort_order, id)`), новая запись — в конец (`max + 1`). Кнопки ↑ ↓ в строках списка — submit с `action`
+  (`up:<id>`, `down:<id>`) формы вокруг таблицы: сразу меняют порядок на сайте, без «Сохранить»; сервер переписывает
+  `sort_order` всех записей по порядку одной транзакцией (плотно, без повторов). У первой строки ↑ и у последней ↓
+  выключены. Типы с feature `order` — `orderTypes` (`cmd/site/spec_test.go`).
 - Справочник без черновика (образец — `categories`): форма «Сохранить» и «Отмена», правки сразу на сайте;
   удаление через подтверждение, используемую запись — 409 со списком (запрос и ошибка внешнего ключа).
   Публичную страницу справочника отдаёт тип, который на него ссылается (лента категории — пакет `posts`),
@@ -304,7 +315,18 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 Общие поля блока: `id` (стабильный: якорь `block-<id>` на сайте, имена полей формы `block-<id>-<поле>`), `type`, `hidden`
 (остаётся в данных и в админке, на сайт не выводится). Типы: `text` (Markdown), `image` (изображение, alt обязателен,
 подпись), `image_text` (изображение, alt, подпись, Markdown, `position` left/right), `quote` (цитата, автор),
-`gallery` (список изображений с alt и подписью; на сайте — лента с прокруткой на CSS scroll-snap, без JavaScript).
+`gallery` (список изображений с alt и подписью; на сайте — лента с прокруткой на CSS scroll-snap, без JavaScript),
+`people` (блок-список: все люди в порядке из их раздела).
+- Блок-список (`blocks.Listing`; страница с вступлением и карточками записей — «витрина»): выводит все записи типа
+  контента, сам полей не хранит — только место среди блоков. Записи и их вывод даёт код типа: `blocks.ListSource`
+  (`Render` — компонент со всеми записями, `AdminURL` — раздел для ссылки в форме блока); источники по имени блока —
+  `blockLists` в `cmd/site/server.go`, их получают `pages.NewHandler` и `pages.NewAdmin` (предпросмотр).
+  `ListSources.Resolve` загружает записи только видимых блоков, вывод — `blocks.View(list, res, lists)`; блок без
+  источника не выводится (предупреждение в лог). `TestBlockListsMatchKinds` сверяет `blockLists` с `blocks.ListKinds`.
+  Новый блок-список: тип контента (обычно с feature `order`), запись в `blocks.Kinds` с `newListing`, метод вывода в
+  пакете типа (`people.Handler.Cards`), запись в `blockLists`, имя — в `allow`. Свои поля блоку-списку (заголовок,
+  фильтр по категории) добавлять, когда они понадобятся сайту. Страница целиком своей вёрстки (шаблон страницы) —
+  тоже по потребности сайта, не раньше.
 - Чтение (`blocks.Unmarshal`): нет поля — нулевое значение (смысл по умолчанию задаёт тип); нет или повторный id — новый;
   неизвестный тип — `*blocks.Unknown`: на сайт не выводится (предупреждение в лог), в админке сохраняется как есть.
   Ломающее изменение полей блока — миграция данных по строгим правилам.
@@ -484,7 +506,8 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
 - e2e блога — `cmd/site/e2e_blog_test.go` (лента, страницы, категория, пост, скрытые черновик и будущий пост) и
   `cmd/site/e2e_posts_admin_test.go` (посты и категории в админке; хелперы `createPost`, `postForm`, `newPostForm`).
 - `TestSpecBlocksMatchCode` (`cmd/site/spec_test.go`) — блоки из `allow` в `site.yaml` есть в коде и совпадают со списком типа;
-  `TestSpecFeaturesMatchCode` — типы с feature `sitemap`, `rss` и `seo` совпадают с `sitemapSources`, `feedTypes` и `seoTypes`;
+  `TestSpecFeaturesMatchCode` — типы с feature `sitemap`, `rss`, `seo` и `order` совпадают с `sitemapSources`, `feedTypes`, `seoTypes`
+  и `orderTypes` (у таблиц `orderTypes` есть `sort_order`); `TestBlockListsMatchKinds` — `blockLists` совпадают с блоками-списками;
   `TestSpecSettingsMatchCode` — поля `settings` совпадают с колонками `site_settings`; `TestSpecMenusMatchCode` — `menus`
   совпадают с `siteMenus`; `TestSpecModulesMatchCode` — `modules` (с `spec v0.4.0`) совпадают с модулями Keelkit
   в `go.mod` (мажорные версии тоже), а модули с миграциями стоят в порядке `migrationSources`.
@@ -494,6 +517,8 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
 - e2e меню — `cmd/site/e2e_menus_test.go`: список меню, кнопки пунктов (формой и htmx), сохранение и вывод в шапке и
   подвале (`menuLinks`), смена slug страницы, подпункты вручную и из записей, неопубликованная страница, каждая ошибка
   поля, 400; 409 удаления страницы из меню — в `TestE2EAdminPageUnpublishDelete`.
+- e2e людей и блока people — `cmd/site/e2e_people_admin_test.go`: порядок кнопками (формой и htmx, 400/404), вывод на
+  странице «Команда», создание и ошибки полей, удаление, скрытый блок и пустой список, фото (htmx-поле, 409 медиатеки).
 - e2e SEO записи — `cmd/site/e2e_seo_admin_test.go`: превью сниппета (форма и htmx), `<title>`, описание и `og:image`
   поста и страницы (и главной), очистка — снова подстановка, ошибки полей, `seo_image` держит изображение.
 - e2e SEO — `cmd/site/e2e_seo_test.go`: sitemap и RSS разбираются `encoding/xml` (без черновиков, будущих постов и
@@ -504,7 +529,8 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
   без перезагрузки, «Добавить блок», «↑», «Скрыть» и выбор изображения у блока, выбор обложки поста, превью сниппета SEO, загрузка файла (`hx-encoding="multipart/form-data"`),
   выбор картинки и «Добавить ссылку» в настройках, «Понятно» в баннере cookies (`TestBrowserSettingsAndCookieBanner`),
   «Добавить пункт» меню, поле адреса по выбору и подпункты в шапке по фокусу (`TestBrowserMenu`),
-  панель оформления Markdown (`TestBrowserMarkdownToolbar`: кнопка, повторное нажатие, Ctrl+B, отмена, ссылка, список).
+  панель оформления Markdown (`TestBrowserMarkdownToolbar`: кнопка, повторное нажатие, Ctrl+B, отмена, ссылка, список),
+  ↓ в списке людей (`TestBrowserPeopleOrder`).
   После каждого htmx-действия — `htmxSettled()`: обработчики на новый фрагмент htmx навешивает после фазы settle,
   и клик chromedp раньше этого ушёл бы обычной отправкой формы. Запуск — `make e2e-browser`; `make test` их не собирает, линтер — собирает (`build-tags` в `.golangci.yml`).
 
@@ -531,6 +557,7 @@ cmd/site/e2e_seo_test.go          # e2e sitemap, RSS, robots.txt, <head>, ред
 cmd/site/e2e_seo_admin_test.go    # e2e SEO записи (internal/seofields) в админке и на сайте
 cmd/site/e2e_settings_test.go     # e2e настроек сайта: раздел админки, подвал, мета-теги, баннер cookies
 cmd/site/e2e_menus_test.go        # e2e меню: раздел админки, шапка и подвал
+cmd/site/e2e_people_admin_test.go # e2e людей: порядок, раздел админки, блок people на странице
 cmd/site/migrations_test.go # миграции, меняющие данные, на копии реалистичных данных
 cmd/site/spec_test.go       # site.yaml ↔ код (модули, блоки, features, поля настроек, меню)
 cmd/site/images_test.go     # контрактные тесты модуля images (testkit)
@@ -544,6 +571,7 @@ internal/listfield/         # поля list: id элементов, действ
 internal/content/pages/     # тип контента pages: queries.sql, sqlc, handlers.go, views.templ, admin.go, admin.templ
 internal/content/posts/     # посты: то же + dates.go (дата публикации); лента категории — тоже здесь
 internal/content/categories/ # категории: queries.sql, sqlc, admin.go, admin.templ (без публичных шаблонов)
+internal/content/people/    # люди (без адреса, ручной порядок): admin.go, admin.templ, handlers.go (Cards), views.templ
 internal/database/          # открытие SQLite, статус схем, снимок, применение миграций
 internal/media/             # медиатека в админке (модуль images)
 internal/menu/              # меню (menu_items): запросы, сборка для сайта (Site), раздел админки

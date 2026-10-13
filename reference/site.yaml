@@ -39,7 +39,8 @@ content:
       title: { type: string, required: true }
       slug:  { type: slug, required: true }
       # Набор блоков — дизайн сайта: поля блоков описаны в internal/blocks, здесь — только имена.
-      body:  { type: blocks, allow: [text, image, image_text, quote, gallery] }
+      # people — блок-список: выводит всех людей (тип people ниже), сам полей не хранит.
+      body:  { type: blocks, allow: [text, image, image_text, quote, gallery, people] }
     # seo — SEO записи вручную (заголовок, описание, картинка для соцсетей; пусто — подстановка),
     # только у типов со своим адресом; общий компонент internal/seofields.
     features: [draft, sitemap, seo]
@@ -60,3 +61,11 @@ content:
     fields:
       name: { type: string, required: true }
       slug: { type: slug, required: true }
+  # Люди — записи без своего адреса: на сайте их выводит блок people на любой странице (internal/content/people).
+  # order — ручной порядок: кнопки ↑ ↓ в списке админки, тот же порядок на сайте.
+  people:
+    fields:
+      name:  { type: string, required: true }
+      role:  { type: string }   # должность
+      photo: { type: image }
+    features: [order]

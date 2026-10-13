@@ -16,6 +16,7 @@ import (
 	"github.com/voffkin/keelkit/reference/internal/blocks"
 	"github.com/voffkin/keelkit/reference/internal/content/categories"
 	"github.com/voffkin/keelkit/reference/internal/content/pages"
+	"github.com/voffkin/keelkit/reference/internal/content/people"
 	"github.com/voffkin/keelkit/reference/internal/content/posts"
 	"github.com/voffkin/keelkit/reference/internal/listfield"
 	"github.com/voffkin/keelkit/reference/internal/menu"
@@ -77,6 +78,12 @@ func seedContent(ctx context.Context, db *sql.DB, imgs map[string]string) error 
 	for _, p := range seedPages(imgs) {
 		if err := pages.SeedPublished(ctx, db, p.title, p.slug, p.blocks); err != nil {
 			return fmt.Errorf("seed page %s: %w", p.slug, err)
+		}
+	}
+
+	for _, p := range seedPeople {
+		if _, err := people.Seed(ctx, db, p.name, p.role, imgs[p.photo]); err != nil {
+			return fmt.Errorf("seed person %s: %w", p.name, err)
 		}
 	}
 
@@ -209,6 +216,11 @@ func (h *Handler) Show(w http.ResponseWriter, r *http.Request) {
 - [Контакты](/contacts) — как с нами связаться.
 `)}},
 		{title: "О проекте", slug: "about", blocks: about},
+		// Страница с блоком-списком: вступление текстом, затем все люди из раздела «Люди».
+		{title: "Команда", slug: "team", blocks: []blocks.Block{
+			textBlock("team-intro", "Люди, которые делают Keelkit. Порядок задаётся в разделе «Люди» админки."),
+			{ID: "team-people", Type: "people", Content: &blocks.Listing{}},
+		}},
 		{title: "Контакты", slug: "contacts", blocks: []blocks.Block{textBlock("contacts-body", `Пишите на почту: hello@example.com.
 
 Строка ниже проверяет санитайзер: скрипт не должен выполниться и не должен попасть в HTML.
@@ -245,6 +257,14 @@ func seedGallery(imgs map[string]string) *blocks.Gallery {
 // textBlock — блок text для seed. id — читаемые и стабильные: по ним e2e находит блоки (block-<id>).
 func textBlock(id, body string) blocks.Block {
 	return blocks.Block{ID: id, Type: "text", Content: &blocks.Text{Body: body}}
+}
+
+// seedPeople — люди для блока people на странице «Команда», по порядку. Фото — у первого (если есть imgs),
+// у остальных нет: на сайте видна заглушка.
+var seedPeople = []struct{ name, role, photo string }{
+	{"Анна Петрова", "Руководитель проекта", "photo.jpg"},
+	{"Борис Иванов", "Разработчик", ""},
+	{"Вера Смирнова", "Дизайнер", ""},
 }
 
 // seedCategories — категории блога: имя и slug.

@@ -165,8 +165,8 @@ func TestE2EAdminLoginLogout(t *testing.T) {
 		t.Fatalf("GET /admin: status %d", resp.StatusCode)
 	}
 	doc := parse(t, body)
-	if got := text(doc.Find(".counter").First()); got != "Страниц: 3" {
-		t.Errorf("counter = %q, want «Страниц: 3»", got)
+	if got := text(doc.Find(".counter").First()); got != "Страниц: 4" {
+		t.Errorf("counter = %q, want «Страниц: 4»", got)
 	}
 	if got := text(doc.Find(".admin-user")); got != seedAdminEmail {
 		t.Errorf("user = %q", got)

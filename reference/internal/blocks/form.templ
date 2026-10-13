@@ -150,6 +150,16 @@ templ quoteForm(b Block, q *Quote, e FormEnv) {
 	@textField(b, "author", "Автор", q.Author, "Необязательно.", e)
 }
 
+// listingForm — у блока-списка полей нет: подсказка, откуда берутся записи, и ссылка на их раздел.
+templ listingForm(b Block, adminURL string) {
+	<p class="field-hint">
+		Здесь на сайте — все записи раздела «{ Title(b.Type) }» в порядке из раздела.
+		if adminURL != "" {
+			<a href={ templ.SafeURL(adminURL) } target="_blank">Открыть раздел</a>
+		}
+	</p>
+}
+
 templ unknownForm(b Block, u *Unknown) {
 	<input type="hidden" name={ FieldName(b.ID, "raw") } value={ u.Raw }/>
 	<p class="field-hint">

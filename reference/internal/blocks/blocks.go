@@ -33,7 +33,7 @@ type Block struct {
 	ID      string  // стабильный id: якорь на сайте (block-<ID>), имена полей формы, тесты
 	Type    string  // имя типа: Kinds, Name
 	Hidden  bool    // остаётся в данных и в админке, на сайт не выводится
-	Content Content // *Text, *Image, *ImageText, *Quote, *Gallery; *Unknown — тип, которого нет в коде
+	Content Content // *Text, *Image, *ImageText, *Quote, *Gallery, *Listing; *Unknown — тип, которого нет в коде
 }
 
 // Content — содержимое блока одного типа. Методы неэкспортируемые: типы блоков живут только в этом пакете.
@@ -42,7 +42,7 @@ type Content interface {
 	readForm(f fields)
 	// check нормализует поля и проверяет их; ошибки — поле → сообщение.
 	check(res Resolved) map[string]string
-	view(b Block, res Resolved) templ.Component
+	view(b Block, e viewEnv) templ.Component
 	form(b Block, e FormEnv) templ.Component
 	imageIDs() []string
 	plainText() []string
@@ -63,6 +63,7 @@ var Kinds = []Kind{
 	{Name: "image_text", Title: "Изображение с текстом", new: func() Content { return &ImageText{} }},
 	{Name: "quote", Title: "Цитата", new: func() Content { return &Quote{} }},
 	{Name: "gallery", Title: "Галерея", new: newGallery},
+	{Name: "people", Title: "Люди", new: newListing},
 }
 
 func kind(name string) (Kind, bool) {
@@ -71,6 +72,17 @@ func kind(name string) (Kind, bool) {
 		return Kind{}, false
 	}
 	return Kinds[i], true
+}
+
+// ListKinds — имена блоков-списков (Listing): каждому нужен источник записей в ListSources.
+func ListKinds() []string {
+	var names []string
+	for _, k := range Kinds {
+		if _, ok := k.new().(*Listing); ok {
+			names = append(names, k.Name)
+		}
+	}
+	return names
 }
 
 // Known сообщает, что тип блока есть в коде.
@@ -351,7 +363,8 @@ type FormEnv struct {
 	// BlockURL — POST: фрагмент формы блока — нового (?type=) или существующего из формы (?id=).
 	PreviewURL string
 	BlockURL   string
-	MediaURL   string // медиатека: ссылка «загрузите в медиатеку»
+	MediaURL   string      // медиатека: ссылка «загрузите в медиатеку»
+	Lists      ListSources // блоки-списки: ссылка на раздел их записей в админке
 }
 
 func (e FormEnv) err(b Block, field string) string { return e.Errors[FieldName(b.ID, field)] }
@@ -359,4 +372,44 @@ func (e FormEnv) err(b Block, field string) string { return e.Errors[FieldName(b
 // logUnknown — на сайт блок неизвестного типа не выводится; это видно в логе.
 func logUnknown(ctx context.Context, b Block) {
 	slog.WarnContext(ctx, "blocks: unknown block type skipped", "type", b.Type, "id", b.ID)
+}
+
+// ListSource — откуда блок-список берёт записи: вывод всех записей типа контента на сайте и раздел админки,
+// где их правят. Даёт код типа (internal/content/people): блоки о типах контента не знают.
+type ListSource struct {
+	Render   func(ctx context.Context) (templ.Component, error)
+	AdminURL string
+}
+
+// ListSources — источники записей по имени блока-списка; собирает cmd/site (blockLists).
+type ListSources map[string]ListSource
+
+// Lists — вывод записей видимых блоков-списков по имени блока (ListSources.Resolve).
+type Lists map[string]templ.Component
+
+// Resolve — вывод записей для видимых блоков-списков; у скрытых записи не загружаются.
+// Блок-список без источника не выводится (на сайте — пусто, в лог — предупреждение при выводе).
+func (s ListSources) Resolve(ctx context.Context, list []Block) (Lists, error) {
+	lists := Lists{}
+	for _, b := range list {
+		if _, ok := b.Content.(*Listing); !ok || b.Hidden || lists[b.Type] != nil {
+			continue
+		}
+		src, ok := s[b.Type]
+		if !ok || src.Render == nil {
+			continue
+		}
+		c, err := src.Render(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list %s: %w", b.Type, err)
+		}
+		lists[b.Type] = c
+	}
+	return lists, nil
+}
+
+// viewEnv — данные для вывода блоков на сайте.
+type viewEnv struct {
+	res   Resolved
+	lists Lists
 }

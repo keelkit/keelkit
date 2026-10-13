@@ -34,10 +34,10 @@ func (t *Text) check(Resolved) map[string]string {
 	return errs
 }
 
-func (t *Text) view(b Block, _ Resolved) templ.Component { return textView(b, t) }
-func (t *Text) form(b Block, e FormEnv) templ.Component  { return textForm(b, t, e) }
-func (t *Text) imageIDs() []string                       { return nil }
-func (t *Text) plainText() []string                      { return []string{richtext.PlainText(t.Body)} }
+func (t *Text) view(b Block, _ viewEnv) templ.Component { return textView(b, t) }
+func (t *Text) form(b Block, e FormEnv) templ.Component { return textForm(b, t, e) }
+func (t *Text) imageIDs() []string                      { return nil }
+func (t *Text) plainText() []string                     { return []string{richtext.PlainText(t.Body)} }
 
 // Image — блок image: изображение из медиатеки (id модуля images), alt обязателен, подпись — нет.
 type Image struct {
@@ -58,10 +58,10 @@ func (m *Image) check(res Resolved) map[string]string {
 	return errs
 }
 
-func (m *Image) view(b Block, res Resolved) templ.Component { return imageView(b, m, res[m.Image]) }
-func (m *Image) form(b Block, e FormEnv) templ.Component    { return imageForm(b, m, e) }
-func (m *Image) imageIDs() []string                         { return []string{m.Image} }
-func (m *Image) plainText() []string                        { return []string{m.Caption} }
+func (m *Image) view(b Block, e viewEnv) templ.Component { return imageView(b, m, e.res[m.Image]) }
+func (m *Image) form(b Block, e FormEnv) templ.Component { return imageForm(b, m, e) }
+func (m *Image) imageIDs() []string                      { return []string{m.Image} }
+func (m *Image) plainText() []string                     { return []string{m.Caption} }
 
 // ImageText — блок image_text: изображение и Markdown рядом. Position: "right" — картинка справа,
 // иначе (в том числе пусто в старых данных) — слева. Подпись под картинкой необязательна (в старых данных её нет).
@@ -99,8 +99,8 @@ func (m *ImageText) check(res Resolved) map[string]string {
 
 func (m *ImageText) right() bool { return m.Position == PositionRight }
 
-func (m *ImageText) view(b Block, res Resolved) templ.Component {
-	return imageTextView(b, m, res[m.Image])
+func (m *ImageText) view(b Block, e viewEnv) templ.Component {
+	return imageTextView(b, m, e.res[m.Image])
 }
 func (m *ImageText) form(b Block, e FormEnv) templ.Component { return imageTextForm(b, m, e) }
 func (m *ImageText) imageIDs() []string                      { return []string{m.Image} }
@@ -130,10 +130,10 @@ func (q *Quote) check(Resolved) map[string]string {
 	return errs
 }
 
-func (q *Quote) view(b Block, _ Resolved) templ.Component { return quoteView(b, q) }
-func (q *Quote) form(b Block, e FormEnv) templ.Component  { return quoteForm(b, q, e) }
-func (q *Quote) imageIDs() []string                       { return nil }
-func (q *Quote) plainText() []string                      { return []string{q.Text, q.Author} }
+func (q *Quote) view(b Block, _ viewEnv) templ.Component { return quoteView(b, q) }
+func (q *Quote) form(b Block, e FormEnv) templ.Component { return quoteForm(b, q, e) }
+func (q *Quote) imageIDs() []string                      { return nil }
+func (q *Quote) plainText() []string                     { return []string{q.Text, q.Author} }
 
 // Gallery — блок gallery: несколько изображений по порядку (на сайте — лента с прокруткой). Образец блока
 // со списком элементов (items.go): элементы с id, форма и действия над ними — как у блоков.
@@ -180,8 +180,8 @@ func (g *Gallery) check(res Resolved) map[string]string {
 	return errs
 }
 
-func (g *Gallery) view(b Block, res Resolved) templ.Component { return galleryView(b, g, res) }
-func (g *Gallery) form(b Block, e FormEnv) templ.Component    { return galleryForm(b, g, e) }
+func (g *Gallery) view(b Block, e viewEnv) templ.Component { return galleryView(b, g, e.res) }
+func (g *Gallery) form(b Block, e FormEnv) templ.Component { return galleryForm(b, g, e) }
 
 func (g *Gallery) imageIDs() []string {
 	ids := make([]string, 0, len(g.Items))
@@ -217,6 +217,21 @@ func (g *Gallery) applyItem(op, item string) (Content, bool) {
 	return &Gallery{Items: items}, ok
 }
 
+// Listing — блок-список (people): выводит все записи типа контента в порядке, заданном в их разделе админки.
+// Сам блок полей не хранит — только место на странице; записи и их вывод даёт ListSource.
+type Listing struct{}
+
+func newListing() Content { return &Listing{} }
+
+func (l *Listing) readForm(fields)                         {}
+func (l *Listing) check(Resolved) map[string]string        { return nil }
+func (l *Listing) view(b Block, e viewEnv) templ.Component { return listingView(b, e.lists[b.Type]) }
+func (l *Listing) form(b Block, e FormEnv) templ.Component {
+	return listingForm(b, e.Lists[b.Type].AdminURL)
+}
+func (l *Listing) imageIDs() []string  { return nil }
+func (l *Listing) plainText() []string { return nil }
+
 // Unknown — блок типа, которого нет в коде (тип удалили или данные из более новой версии сайта).
 // Сохраняется как есть (Raw — исходный JSON-объект), на сайт не выводится, в админке его можно только
 // переставить, скрыть или удалить.
@@ -236,7 +251,7 @@ func (u *Unknown) check(Resolved) map[string]string {
 	return nil
 }
 
-func (u *Unknown) view(b Block, _ Resolved) templ.Component { return unknownView(b) }
+func (u *Unknown) view(b Block, _ viewEnv) templ.Component { return unknownView(b) }
 func (u *Unknown) form(b Block, _ FormEnv) templ.Component {
 	return unknownForm(b, u)
 }

@@ -28,6 +28,14 @@ sql:
         omit_unused_structs: true
   - engine: sqlite
     schema: db/migrations
+    queries: internal/content/people/queries.sql
+    gen:
+      go:
+        package: people
+        out: internal/content/people
+        omit_unused_structs: true
+  - engine: sqlite
+    schema: db/migrations
     queries: internal/content/posts/queries.sql
     gen:
       go:

@@ -22,10 +22,11 @@ const (
 )
 
 // View — блоки на сайте по порядку; скрытые и неизвестные не выводятся. Якорь блока — id="block-<ID>".
-templ View(list []Block, res Resolved) {
+// lists — записи блоков-списков (ListSources.Resolve); nil — у типа контента таких блоков нет.
+templ View(list []Block, res Resolved, lists Lists) {
 	for _, b := range list {
 		if !b.Hidden {
-			@b.Content.view(b, res)
+			@b.Content.view(b, viewEnv{res: res, lists: lists})
 		}
 	}
 }
@@ -90,6 +91,18 @@ templ galleryView(b Block, g *Gallery, res Resolved) {
 	</div>
 }
 
+// listingView — блок-список: записи типа контента (вывод — код типа). Источника нет — блок не выводится, в лог —
+// предупреждение; записей нет — источник отдаёт пустой вывод.
+templ listingView(b Block, records templ.Component) {
+	if records == nil {
+		@missingList(b)
+	} else {
+		<div class={ "block", "block-list", "block-" + strings.ReplaceAll(b.Type, "_", "-") } id={ "block-" + b.ID }>
+			@records
+		</div>
+	}
+}
+
 templ quoteView(b Block, q *Quote) {
 	<figure class="block block-quote" id={ "block-" + b.ID }>
 		<blockquote>
@@ -107,6 +120,14 @@ templ quoteView(b Block, q *Quote) {
 func unknownView(b Block) templ.Component {
 	return templ.ComponentFunc(func(ctx context.Context, _ io.Writer) error {
 		logUnknown(ctx, b)
+		return nil
+	})
+}
+
+// missingList — у блока-списка нет источника записей (ListSources в cmd/site): на сайт он не выводится.
+func missingList(b Block) templ.Component {
+	return templ.ComponentFunc(func(ctx context.Context, _ io.Writer) error {
+		slog.WarnContext(ctx, "blocks: no list source", "type", b.Type, "id", b.ID)
 		return nil
 	})
 }

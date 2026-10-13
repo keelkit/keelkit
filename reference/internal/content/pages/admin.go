@@ -27,7 +27,7 @@ const AdminPath = "/admin/pages"
 
 // BodyBlocks — блоки поля body (site.yaml: pages.body.allow), в порядке кнопок «Добавить блок».
 // Что каждый из них есть в internal/blocks и совпадает с site.yaml, проверяет тест.
-var BodyBlocks = []string{"text", "image", "image_text", "quote", "gallery"}
+var BodyBlocks = []string{"text", "image", "image_text", "quote", "gallery", "people"}
 
 // Виды копии содержимого (page_contents.kind).
 const (
@@ -68,15 +68,16 @@ type Admin struct {
 	mediaURL string
 	reserved map[string]bool
 	usage    UsageFunc
+	lists    blocks.ListSources
 }
 
 // NewAdmin создаёт раздел. reserved — slug, занятые маршрутами сайта (admin, static, healthz…):
 // такая страница была бы не видна, поэтому админка их не принимает. mediaURL — раздел медиатеки
 // (ссылка «загрузите в медиатеку» у блоков с изображением). usage — что ссылается на страницу (меню): такую
-// страницу не удалить.
-func NewAdmin(db *sql.DB, media Media, mediaURL string, reserved []string, usage UsageFunc) *Admin {
+// страницу не удалить. lists — источники записей блоков-списков (предпросмотр и ссылка на раздел в форме блока).
+func NewAdmin(db *sql.DB, media Media, mediaURL string, reserved []string, usage UsageFunc, lists blocks.ListSources) *Admin {
 	a := &Admin{db: db, q: New(db), media: media, mediaURL: mediaURL, reserved: make(map[string]bool, len(reserved)),
-		usage: usage}
+		usage: usage, lists: lists}
 	for _, s := range reserved {
 		a.reserved[s] = true
 	}
@@ -423,12 +424,17 @@ func (a *Admin) viewData(ctx context.Context, f pageForm) (viewData, error) {
 	if err != nil {
 		return viewData{}, err
 	}
+	lists, err := a.lists.Resolve(ctx, f.Blocks)
+	if err != nil {
+		return viewData{}, err
+	}
 	title := strings.TrimSpace(f.Title)
 	s := slug.Make(strings.TrimSpace(f.Slug))
 	if s == "" {
 		s = slug.Make(title)
 	}
-	return viewData{ID: f.ID, Title: title, Slug: s, Blocks: f.Blocks, Resolved: res, SEO: f.SEO, SEOImage: img}, nil
+	return viewData{ID: f.ID, Title: title, Slug: s, Blocks: f.Blocks, Resolved: res, Lists: lists, SEO: f.SEO,
+		SEOImage: img}, nil
 }
 
 // Preview — POST /admin/pages/preview?field=<имя поля> (htmx): фрагмент с отрисованным Markdown поля.
@@ -581,7 +587,7 @@ func (a *Admin) env(ctx context.Context, list []blocks.Block, errs map[string]st
 	}
 	return blocks.FormEnv{
 		Errors: errs, Resolved: res, Library: lib, Allow: BodyBlocks,
-		PreviewURL: AdminPath + "/preview", BlockURL: AdminPath + "/block", MediaURL: a.mediaURL,
+		PreviewURL: AdminPath + "/preview", BlockURL: AdminPath + "/block", MediaURL: a.mediaURL, Lists: a.lists,
 	}, nil
 }
 

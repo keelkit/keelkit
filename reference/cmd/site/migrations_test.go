@@ -196,8 +196,9 @@ func TestMigrationPageContents(t *testing.T) {
 	loginOK(t, client, srv)
 	_, html := fetch(t, client, srv.URL+"/admin/pages")
 	doc := parse(t, html)
-	if rows := doc.Find(".admin-table tbody tr").Length(); rows != len(legacyPages) {
-		t.Errorf("admin list rows = %d, want %d", rows, len(legacyPages))
+	// Старые страницы и «Команда» из seed: её slug в старых данных нет.
+	if rows := doc.Find(".admin-table tbody tr").Length(); rows != len(legacyPages)+1 {
+		t.Errorf("admin list rows = %d, want %d", rows, len(legacyPages)+1)
 	}
 	if got := text(doc.Find(`.admin-table tr:has(a:contains("Черновик")) .status`)); got != "Черновик" {
 		t.Errorf("draft status = %q", got)

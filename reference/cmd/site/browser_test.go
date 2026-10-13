@@ -548,3 +548,33 @@ func TestBrowserMenu(t *testing.T) {
 		t.Errorf("last item %q; submenu before focus %v, after %v", last, subBefore, subAfter)
 	}
 }
+
+// ↓ в списке людей через htmx: таблица подменяется без перезагрузки, порядок сразу на сайте.
+func TestBrowserPeopleOrder(t *testing.T) {
+	srv := e2eServer(t, true)
+	ctx := browser(t)
+	browserLogin(t, ctx, srv.URL)
+
+	var marker bool
+	var first string
+	run(t, ctx, "move down",
+		chromedp.Navigate(srv.URL+"/admin/people"),
+		chromedp.WaitVisible(`#people-order`, chromedp.ByQuery),
+		chromedp.Evaluate(`window.keelkitMarker = true`, nil),
+		chromedp.Click(`#people-order tbody tr:first-child button[value^="down:"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`#people-order tbody tr:first-child button[value^="up:"]:disabled`, chromedp.ByQuery),
+		htmxSettled(),
+		chromedp.Text(`#people-order tbody tr:first-child td a`, &first, chromedp.ByQuery),
+		chromedp.Evaluate(`window.keelkitMarker === true`, &marker),
+	)
+	if first != "Борис Иванов" || !marker {
+		t.Errorf("first = %q, no reload %v", first, marker)
+	}
+	run(t, ctx, "site",
+		chromedp.Navigate(srv.URL+"/team"),
+		chromedp.Text(`.person:first-child .person-name`, &first, chromedp.ByQuery),
+	)
+	if first != "Борис Иванов" {
+		t.Errorf("site first = %q", first)
+	}
+}

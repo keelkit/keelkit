@@ -676,6 +676,29 @@ body.admin {
   text-decoration: underline;
 }
 
+/* Кнопки ↑ ↓ ручного порядка в списке (feature order: internal/content/people). */
+.admin .row-order {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.admin .row-order button {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--muted);
+}
+
+.admin .row-order button:hover:not(:disabled) {
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.admin .row-order button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 /* Дашборд: счётчики — карточки с крупным числом. */
 
 .admin .counters {

@@ -1,0 +1,28 @@
+package people
+
+import "github.com/voffkin/keelkit/reference/internal/web"
+
+// sizesPhoto — фото в карточке: колонка сетки .people-list (style.css) — 2 в ряд на телефоне, до 4 на широком экране.
+const sizesPhoto = "(min-width: 46rem) 10rem, 45vw"
+
+// Cards — карточки людей (вывод блока people). Имя — подпись под фото, поэтому фото декоративное (alt пустой):
+// иначе экранный диктор прочёл бы имя дважды.
+templ Cards(list []card) {
+	if len(list) > 0 {
+		<ul class="people-list">
+			for _, c := range list {
+				<li class="person">
+					if c.Photo != nil {
+						@web.Picture(c.Photo, "", sizesPhoto)
+					} else {
+						<div class="person-nophoto" aria-hidden="true"></div>
+					}
+					<p class="person-name">{ c.Name }</p>
+					if c.Role != "" {
+						<p class="person-role">{ c.Role }</p>
+					}
+				</li>
+			}
+		</ul>
+	}
+}

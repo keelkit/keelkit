@@ -1,0 +1,206 @@
+package people
+
+import (
+	"strconv"
+	"strings"
+
+	"github.com/voffkin/keelkit/reference/internal/admin"
+	"github.com/voffkin/keelkit/reference/internal/web"
+)
+
+// ListPage — список людей в админке, в порядке на сайте.
+templ ListPage(list []ListPeopleRow, deleted bool) {
+	@admin.Layout("Люди") {
+		<div class="admin-title">
+			<h1>Люди</h1>
+			<a class="button" href={ templ.SafeURL(AdminPath + "/new") }>Добавить человека</a>
+		</div>
+		if deleted {
+			<p class="flash" role="status">Удалено.</p>
+		}
+		<p class="field-hint">Порядок в этом списке — порядок на сайте: люди выводятся блоком «Люди» на страницах.</p>
+		if len(list) == 0 {
+			<p>Людей пока нет.</p>
+		} else {
+			@Table(list)
+		}
+	}
+}
+
+// Table — таблица людей с кнопками ↑ ↓ (и ответ htmx на POST …/order). Кнопки — submit с полем action:
+// без JavaScript форма уходит обычным POST и возвращается 303 на список, с htmx подменяется только таблица.
+templ Table(list []ListPeopleRow) {
+	<form
+		id="people-order"
+		class="table-wrap"
+		method="post"
+		action={ templ.SafeURL(AdminPath + "/order") }
+		hx-post={ AdminPath + "/order" }
+		hx-target="this"
+		hx-swap="outerHTML"
+	>
+		@admin.CSRFInput()
+		<table class="admin-table">
+			<thead>
+				<tr>
+					<th>№</th>
+					<th>Имя</th>
+					<th>Должность</th>
+					<th>Фото</th>
+					<th><span class="visually-hidden">Порядок</span></th>
+				</tr>
+			</thead>
+			<tbody>
+				for i, p := range list {
+					<tr id={ "person-" + strconv.FormatInt(p.ID, 10) }>
+						<td>{ strconv.Itoa(i + 1) }</td>
+						<td><a href={ templ.SafeURL(EditPath(p.ID)) }>{ p.Name }</a></td>
+						<td>{ p.Role }</td>
+						<td>
+							if p.Photo.Valid {
+								есть
+							} else {
+								<span class="muted">нет</span>
+							}
+						</td>
+						<td class="row-order">
+							<button type="submit" name="action" value={ "up:" + strconv.FormatInt(p.ID, 10) } disabled?={ i == 0 } title="Выше" aria-label={ "Переместить выше: " + p.Name }>↑</button>
+							<button type="submit" name="action" value={ "down:" + strconv.FormatInt(p.ID, 10) } disabled?={ i == len(list)-1 } title="Ниже" aria-label={ "Переместить ниже: " + p.Name }>↓</button>
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</form>
+}
+
+// FormPage — страница создания или редактирования.
+templ FormPage(f personForm) {
+	@admin.Layout(formTitle(f)) {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Люди</a></p>
+		<div class="admin-title">
+			<h1>{ formTitle(f) }</h1>
+		</div>
+		if f.Flash != "" {
+			<p class="flash" role="status">{ f.Flash }</p>
+		}
+		@Form(f)
+		if f.ID != 0 {
+			<div class="danger-zone">
+				<p><a class="danger-link" href={ templ.SafeURL(EditPath(f.ID) + "/delete") }>Удалить</a></p>
+			</div>
+		}
+	}
+}
+
+// Form — форма человека: обычный POST и htmx (с ошибками сервер возвращает только этот фрагмент, 422).
+templ Form(f personForm) {
+	<form
+		id="person-form"
+		class="form"
+		method="post"
+		action={ templ.SafeURL(formAction(f)) }
+		hx-post={ formAction(f) }
+		hx-target="this"
+		hx-swap="outerHTML"
+	>
+		@admin.CSRFInput()
+		if len(f.Errors) > 0 {
+			<p class="form-error" role="alert">Исправьте ошибки в форме.</p>
+		}
+		<label>
+			Имя
+			<input type="text" name="name" value={ f.Name } required maxlength="100" { describedBy(f, "name", false)... }/>
+			@fieldError(f, "name")
+		</label>
+		<label>
+			Должность
+			<input type="text" name="role" value={ f.Role } maxlength="200" { describedBy(f, "role", false)... }/>
+			@fieldError(f, "role")
+		</label>
+		@photoField(f)
+		<div class="form-actions">
+			<button type="submit">Сохранить</button>
+			<a href={ templ.SafeURL(AdminPath) }>Отмена</a>
+		</div>
+	</form>
+}
+
+// photoField — фото: выбор из медиатеки и превью. Смена выбора через htmx перерисовывает только это поле
+// (POST …/photo).
+templ photoField(f personForm) {
+	<div class="block-image-pick" id="photo-field">
+		<div class="block-thumb">
+			if f.Image != nil {
+				@web.Picture(f.Image, "", "8rem")
+			} else {
+				<span class="muted">Без фото</span>
+			}
+		</div>
+		<label>
+			Фото
+			<select
+				name="photo"
+				hx-post={ AdminPath + "/photo" }
+				hx-params="photo"
+				hx-trigger="change"
+				hx-target="#photo-field"
+				hx-swap="outerHTML"
+				{ describedBy(f, "photo", true)... }
+			>
+				<option value="">— без фото —</option>
+				for _, img := range photoOptions(f) {
+					<option value={ img.ID } selected?={ img.ID == f.Photo }>{ optionLabel(img) }</option>
+				}
+			</select>
+			<span class="field-hint" id="photo-hint">
+				Портрет, лучше квадратный. Новое изображение сначала загрузите в <a href={ templ.SafeURL(f.MediaURL) } target="_blank">медиатеку</a>.
+			</span>
+			@fieldError(f, "photo")
+		</label>
+	</div>
+}
+
+templ fieldError(f personForm, field string) {
+	if msg := f.Errors[field]; msg != "" {
+		<span class="field-error" id={ field + "-error" }>{ msg }</span>
+	}
+}
+
+// DeletePage — подтверждение удаления.
+templ DeletePage(f personForm) {
+	@admin.Layout("Удаление") {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Люди</a></p>
+		<h1>Удалить «{ f.Name }»?</h1>
+		<p>Человек пропадёт со всех страниц, где есть блок «Люди». Отменить удаление нельзя.</p>
+		<form method="post" action={ templ.SafeURL(EditPath(f.ID) + "/delete") } class="form-actions">
+			@admin.CSRFInput()
+			<button type="submit" class="danger">Удалить</button>
+			<a href={ templ.SafeURL(EditPath(f.ID)) }>Отмена</a>
+		</form>
+	}
+}
+
+func formTitle(f personForm) string {
+	if f.ID == 0 {
+		return "Новый человек"
+	}
+	return "Редактирование"
+}
+
+// describedBy — aria-describedby поля: подсказка (hint) и ошибка; при ошибке ещё aria-invalid.
+func describedBy(f personForm, name string, hint bool) templ.Attributes {
+	a := templ.Attributes{}
+	var ids []string
+	if hint {
+		ids = append(ids, name+"-hint")
+	}
+	if f.Errors[name] != "" {
+		a["aria-invalid"] = "true"
+		ids = append(ids, name+"-error")
+	}
+	if len(ids) > 0 {
+		a["aria-describedby"] = strings.Join(ids, " ")
+	}
+	return a
+}

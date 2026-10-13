@@ -938,6 +938,38 @@ figure.block {
   content: "— ";
 }
 
+/* Блок people (internal/content/people/views.templ): карточки — 2 в ряд на телефоне, до 4 на широком экране. */
+.people-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(10rem, 45%), 1fr));
+  gap: 1.5rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.person img,
+.person-nophoto {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.person-name {
+  margin: 0.6rem 0 0;
+  font-weight: 600;
+}
+
+.person-role {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
 /* Группы полей формы настроек (internal/settings/admin.templ). */
 .settings-group {
   display: grid;

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/a-h/templ"
+
 	"github.com/voffkin/keelkit/modules/images"
 
 	"github.com/voffkin/keelkit/reference/internal/listfield"
@@ -82,7 +84,7 @@ func TestUnmarshalOldJSON(t *testing.T) {
 	// На сайте не выводится и не роняет страницу.
 	var buf bytes.Buffer
 	list[3].Hidden = false
-	if err := View(list[3:], nil).Render(context.Background(), &buf); err != nil || buf.Len() != 0 {
+	if err := View(list[3:], nil, nil).Render(context.Background(), &buf); err != nil || buf.Len() != 0 {
 		t.Errorf("unknown block view = %q, %v", buf.String(), err)
 	}
 }
@@ -228,7 +230,7 @@ func TestViewSkipsHidden(t *testing.T) {
 		{ID: "c", Type: "quote", Content: &Quote{Text: "абзац 1\n\nабзац 2", Author: "Автор"}},
 	}
 	var buf bytes.Buffer
-	if err := View(list, nil).Render(context.Background(), &buf); err != nil {
+	if err := View(list, nil, nil).Render(context.Background(), &buf); err != nil {
 		t.Fatal(err)
 	}
 	html := buf.String()
@@ -256,7 +258,7 @@ func TestKindsHaveTitles(t *testing.T) {
 		if err := Form(b, FormEnv{}).Render(context.Background(), &buf); err != nil {
 			t.Errorf("form %s: %v", k.Name, err)
 		}
-		if err := View([]Block{b}, nil).Render(context.Background(), &buf); err != nil {
+		if err := View([]Block{b}, nil, nil).Render(context.Background(), &buf); err != nil {
 			t.Errorf("view %s: %v", k.Name, err)
 		}
 	}
@@ -385,7 +387,7 @@ func TestGalleryView(t *testing.T) {
 	}}}}
 	res := Resolved{"i1": &images.Image{ID: "i1"}, "i2": &images.Image{ID: "i2"}}
 	var buf bytes.Buffer
-	if err := View(list, res).Render(context.Background(), &buf); err != nil {
+	if err := View(list, res, nil).Render(context.Background(), &buf); err != nil {
 		t.Fatal(err)
 	}
 	html := buf.String()
@@ -394,5 +396,53 @@ func TestGalleryView(t *testing.T) {
 	}
 	if i, j := strings.Index(html, "<figcaption>Второе</figcaption>"), strings.Index(html, "<figcaption>Первое</figcaption>"); i < 0 || j < i {
 		t.Errorf("slide order:\n%s", html)
+	}
+}
+
+// Блок-список хранит только id и тип; на сайте — записи от ListSource внутри обёртки блока. Скрытый блок записи
+// не загружает, блок без источника не выводится.
+func TestListing(t *testing.T) {
+	list := []Block{{ID: "p1", Type: "people", Content: &Listing{}}, {ID: "p2", Type: "people", Hidden: true, Content: &Listing{}}}
+	data, err := Marshal(list)
+	if err != nil || data != `[{"id":"p1","type":"people"},{"hidden":true,"id":"p2","type":"people"}]` {
+		t.Fatalf("Marshal = %s, %v", data, err)
+	}
+	back, err := Unmarshal(data)
+	if err != nil || len(back) != 2 {
+		t.Fatalf("Unmarshal: %v, %d blocks", err, len(back))
+	}
+	if _, ok := back[0].Content.(*Listing); !ok {
+		t.Errorf("content = %T, want *Listing", back[0].Content)
+	}
+	if got := ListKinds(); len(got) != 1 || got[0] != "people" {
+		t.Errorf("ListKinds = %v", got)
+	}
+
+	calls := 0
+	src := ListSources{"people": {Render: func(context.Context) (templ.Component, error) {
+		calls++
+		return templ.Raw(`<ul class="people-list"></ul>`), nil
+	}}}
+	lists, err := src.Resolve(context.Background(), back)
+	if err != nil || calls != 1 {
+		t.Fatalf("Resolve: %v, %d calls", err, calls)
+	}
+	var buf bytes.Buffer
+	if err := View(back, nil, lists).Render(context.Background(), &buf); err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.String(); got != `<div class="block block-list block-people" id="block-p1"><ul class="people-list"></ul></div>` {
+		t.Errorf("View = %s", got)
+	}
+
+	buf.Reset()
+	if err := View(back, nil, nil).Render(context.Background(), &buf); err != nil || buf.Len() != 0 {
+		t.Errorf("View without source = %q, %v", buf.String(), err)
+	}
+	if lists, err := (ListSources{}).Resolve(context.Background(), back); err != nil || len(lists) != 0 {
+		t.Errorf("Resolve without source = %v, %v", lists, err)
+	}
+	if errs := Validate(back, nil); len(errs) != 0 || PlainText(back) != "" || len(ImageIDs(back)) != 0 {
+		t.Errorf("Validate = %v", errs)
 	}
 }
