@@ -37,8 +37,8 @@ func assertLiveShell(t *testing.T, html, liveURL, formID string) {
 	if live.Find(".live-pane iframe.live-frame").Length() != 1 {
 		t.Error("no iframe in .live-pane")
 	}
-	if live.Find("[data-live-width]").Length() != 3 {
-		t.Error("want 3 device width buttons")
+	if live.Find("[data-live-width]").Length() != 2 {
+		t.Error("want 2 device width buttons")
 	}
 }
 

@@ -508,7 +508,7 @@ func Live(url, formID string) templ.Component {
 var liveDevices = []struct {
 	title string
 	width int
-}{{"Компьютер", 1440}, {"Планшет", 768}, {"Телефон", 390}}
+}{{"Компьютер", 1440}, {"Телефон", 390}}
 
 // LoginPage — форма входа.
 func LoginPage(f loginForm) templ.Component {
