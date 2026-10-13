@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"maps"
 	"os"
 	"regexp"
 	"slices"
@@ -26,6 +27,8 @@ var (
 	allowRe       = regexp.MustCompile(`^\s+(\w+):\s*\{\s*type:\s*blocks,\s*allow:\s*\[([^\]]*)\]`)
 	featuresRe    = regexp.MustCompile(`^\s+features:\s*\[([^\]]*)\]`)
 	menusRe       = regexp.MustCompile(`^menus:\s*\[([^\]]*)\]`)
+	moduleRe      = regexp.MustCompile(`^  (\w+):\s*(v\d+)\s*(#.*)?$`)
+	goModRe       = regexp.MustCompile(`^\s*github\.com/voffkin/keelkit/modules/(\w+)(/v(\d+))?\s+v(\d+)\.`)
 )
 
 // specLines — строки site.yaml с типом контента, в котором они стоят (пусто — вне content).
@@ -181,5 +184,49 @@ func TestSpecMenusMatchCode(t *testing.T) {
 	}
 	if !slices.Equal(spec, code) {
 		t.Errorf("site.yaml menus = %v, siteMenus = %v", spec, code)
+	}
+}
+
+// Модули в site.yaml — ровно модули Keelkit из go.mod с теми же мажорными версиями, а модули с миграциями стоят
+// в том же порядке, что в migrationSources.
+func TestSpecModulesMatchCode(t *testing.T) {
+	var specOrder []string
+	spec := map[string]string{}
+	inModules := false
+	_, lines := specLines(t)
+	for _, line := range lines {
+		if line != "" && line[0] != ' ' && line[0] != '#' {
+			inModules = line == "modules:"
+			continue
+		}
+		if m := moduleRe.FindStringSubmatch(line); inModules && m != nil {
+			specOrder = append(specOrder, m[1])
+			spec[m[1]] = m[2]
+		}
+	}
+
+	goMod, err := os.ReadFile("../../go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := map[string]string{}
+	for line := range strings.Lines(string(goMod)) {
+		if m := goModRe.FindStringSubmatch(line); m != nil {
+			code[m[1]] = "v" + m[4]
+		}
+	}
+	if !maps.Equal(spec, code) {
+		t.Errorf("modules in site.yaml = %v, Keelkit modules in go.mod = %v", spec, code)
+	}
+
+	var migrated []string
+	for _, src := range migrationSources {
+		if src.Name != "site" {
+			migrated = append(migrated, src.Name)
+		}
+	}
+	specMigrated := slices.DeleteFunc(slices.Clone(specOrder), func(name string) bool { return !slices.Contains(migrated, name) })
+	if !slices.Equal(specMigrated, migrated) {
+		t.Errorf("modules with migrations in site.yaml order = %v, migrationSources = %v", specMigrated, migrated)
 	}
 }

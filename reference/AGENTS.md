@@ -476,7 +476,8 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
 - `TestSpecBlocksMatchCode` (`cmd/site/spec_test.go`) — блоки из `allow` в `site.yaml` есть в коде и совпадают со списком типа;
   `TestSpecFeaturesMatchCode` — типы с feature `sitemap`, `rss` и `seo` совпадают с `sitemapSources`, `feedTypes` и `seoTypes`;
   `TestSpecSettingsMatchCode` — поля `settings` совпадают с колонками `site_settings`; `TestSpecMenusMatchCode` — `menus`
-  совпадают с `siteMenus`.
+  совпадают с `siteMenus`; `TestSpecModulesMatchCode` — `modules` (с `spec v0.4.0`) совпадают с модулями Keelkit
+  в `go.mod` (мажорные версии тоже), а модули с миграциями стоят в порядке `migrationSources`.
 - e2e настроек — `cmd/site/e2e_settings_test.go`: сохранение и вывод на сайте (подвал, мета-теги, баннер), каждая ошибка
   поля (форма и htmx), соцсети (кнопки списка формой и htmx, порядок после сохранения, ошибки у элемента, 400), картинка по умолчанию в `og:image` и в превью сниппета, 409 медиатеки, согласие с cookies
   (форма, htmx, `back` только на этот сайт, запрос с чужого сайта — 403).
@@ -521,7 +522,7 @@ cmd/site/e2e_seo_admin_test.go    # e2e SEO записи (internal/seofields) в
 cmd/site/e2e_settings_test.go     # e2e настроек сайта: раздел админки, подвал, мета-теги, баннер cookies
 cmd/site/e2e_menus_test.go        # e2e меню: раздел админки, шапка и подвал
 cmd/site/migrations_test.go # миграции, меняющие данные, на копии реалистичных данных
-cmd/site/spec_test.go       # site.yaml ↔ код (блоки, features, поля настроек, меню)
+cmd/site/spec_test.go       # site.yaml ↔ код (модули, блоки, features, поля настроек, меню)
 cmd/site/images_test.go     # контрактные тесты модуля images (testkit)
 cmd/site/richtext_test.go   # контрактные тесты модуля richtext (testkit)
 cmd/site/browser_test.go    # браузерные тесты (тег browser, make e2e-browser)

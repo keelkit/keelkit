@@ -523,6 +523,8 @@ make e2e
   `CREATE TABLE IF NOT EXISTS` с той же схемой, в миграции сайта `00003` тоже `IF NOT EXISTS` (модули мигрируют раньше
   сайта, иначе `00003` упадёт на новой базе). Правка применённой миграции допустима, пока живых сайтов нет: на
   существующей базе она ничего не делает;
+- в `site.yaml` (`modules`) — все модули Keelkit из `go.mod`, в том числе `richtext` без таблиц (`spec v0.4.0`);
+  `TestSpecModulesMatchCode` сверяет список с `go.mod` и порядком `migrationSources`;
 - порядок: `richtext` (без БД — заодно проверяем путь «новый модуль → тег → `reference/`»), затем `auth`;
   у каждого — релиз `v0.1.0`, `CHANGELOG.md`, `UPGRADE.md` (что удалить в сайте, какие импорты поменять, как проверить).
 
@@ -546,7 +548,7 @@ make e2e
       вход и выход, POST без CSRF-токена отклонён, ограничение попыток, просроченная сессия, cookie `HttpOnly`/`SameSite`
 - [ ] Миграция сайта `00003` — `IF NOT EXISTS`; тест: новая база и база, созданная до этапа, мигрируют без ошибок
 - [ ] Релиз `make release MODULE=auth VERSION=v0.1.0`; `reference/` на модуле: `internal/admin` — страница входа и
-      оболочка, `site user create` через модуль; контрактный тест подключён; `make check`, `make e2e-browser`
+      оболочка, `site user create` через модуль, `auth: v0` в `site.yaml`; контрактный тест подключён; `make check`, `make e2e-browser`
 - [ ] `reference/AGENTS.md`: версии модулей `richtext` и `auth`, что где лежит
 
 ### Проверка

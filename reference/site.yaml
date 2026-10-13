@@ -3,9 +3,11 @@ spec_version: 1
 site:
   name: keelkit-reference
   languages: [ru]
-# Модули в порядке применения миграций (migrationSources в cmd/site/main.go): images, затем сайт.
+# Все модули Keelkit из go.mod, в порядке применения миграций (migrationSources в cmd/site/main.go; у richtext
+# миграций нет), затем миграции сайта. TestSpecModulesMatchCode сверяет список с go.mod и migrationSources.
 modules:
   images: v0
+  richtext: v0
 # Настройки сайта — одна запись (site_settings, раздел «Настройки» в админке, пакет internal/settings);
 # правки сразу на сайте. TestSpecSettingsMatchCode сверяет поля с колонками таблицы (и их порядок: новое поле — в конец).
 settings:
