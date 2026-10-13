@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+  <title>Keelkit</title>
+  <rect width="120" height="120" rx="16" fill="#1f3a5f"/>
+  <path d="M20 78 L60 98 L100 78" fill="none" stroke="#f4c95d" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60 22 V90" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+</svg>

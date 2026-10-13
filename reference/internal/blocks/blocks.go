@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/a-h/templ"
+	"github.com/voffkin/keelkit/modules/files"
 	"github.com/voffkin/keelkit/modules/images"
 
 	"github.com/voffkin/keelkit/reference/internal/listfield"
@@ -33,7 +34,7 @@ type Block struct {
 	ID      string  // стабильный id: якорь на сайте (block-<ID>), имена полей формы, тесты
 	Type    string  // имя типа: Kinds, Name
 	Hidden  bool    // остаётся в данных и в админке, на сайт не выводится
-	Content Content // *Text, *Image, *ImageText, *Quote, *Gallery, *Listing; *Unknown — тип, которого нет в коде
+	Content Content // *Text, *Image, *ImageText, *Quote, *Gallery, *File, *Listing; *Unknown — тип, которого нет в коде
 }
 
 // Content — содержимое блока одного типа. Методы неэкспортируемые: типы блоков живут только в этом пакете.
@@ -41,7 +42,7 @@ type Content interface {
 	// readForm читает поля блока из формы: f.Get(field) — значение поля block-<id>-<field>.
 	readForm(f fields)
 	// check нормализует поля и проверяет их; ошибки — поле → сообщение.
-	check(res Resolved) map[string]string
+	check(res Resolved, fs Files) map[string]string
 	view(b Block, e viewEnv) templ.Component
 	form(b Block, e FormEnv) templ.Component
 	imageIDs() []string
@@ -63,6 +64,7 @@ var Kinds = []Kind{
 	{Name: "image_text", Title: "Изображение с текстом", new: func() Content { return &ImageText{} }},
 	{Name: "quote", Title: "Цитата", new: func() Content { return &Quote{} }},
 	{Name: "gallery", Title: "Галерея", new: newGallery},
+	{Name: "file", Title: "Файл", new: func() Content { return &File{} }},
 	{Name: "people", Title: "Люди", new: newListing},
 }
 
@@ -282,14 +284,14 @@ func Resolve(ctx context.Context, src Images, list []Block) (Resolved, error) {
 }
 
 // Validate нормализует и проверяет блоки, в том числе скрытые. Ошибки — по имени поля формы (FieldName);
-// превышение MaxBlocks — по ключу "blocks".
-func Validate(list []Block, res Resolved) map[string]string {
+// превышение MaxBlocks — по ключу "blocks". res и fs — изображения и файлы блоков (Resolve, ResolveFiles).
+func Validate(list []Block, res Resolved, fs Files) map[string]string {
 	errs := map[string]string{}
 	if len(list) > MaxBlocks {
 		errs["blocks"] = fmt.Sprintf("Блоков больше %d: объедините часть из них.", MaxBlocks)
 	}
 	for _, b := range list {
-		for field, msg := range b.Content.check(res) {
+		for field, msg := range b.Content.check(res, fs) {
 			errs[FieldName(b.ID, field)] = msg
 		}
 	}
@@ -307,6 +309,54 @@ func ImageIDs(list []Block) []string {
 		}
 	}
 	return ids
+}
+
+// FileSource — то, что пакету нужно от модуля files (интерфейс на стороне потребителя).
+type FileSource interface {
+	Get(ctx context.Context, id string) (*files.File, error)
+}
+
+// FileLibrary — выбор файла в форме блока: файл по id и последние загруженные (files.Service).
+type FileLibrary interface {
+	FileSource
+	List(ctx context.Context, limit, offset int) ([]*files.File, error)
+}
+
+// Files — файлы блоков по id. Файла, которого нет в разделе «Файлы», здесь нет.
+type Files map[string]*files.File
+
+// fileRefs — блок, который ссылается на файлы (File).
+type fileRefs interface{ fileIDs() []string }
+
+// FileIDs — id файлов из всех блоков, включая скрытые (они тоже держат файл), без повторов: для <type>_files.
+func FileIDs(list []Block) []string {
+	var ids []string
+	for _, b := range list {
+		if r, ok := b.Content.(fileRefs); ok {
+			for _, id := range r.fileIDs() {
+				if id != "" && !slices.Contains(ids, id) {
+					ids = append(ids, id)
+				}
+			}
+		}
+	}
+	return ids
+}
+
+// ResolveFiles загружает файлы, на которые ссылаются блоки.
+func ResolveFiles(ctx context.Context, src FileSource, list []Block) (Files, error) {
+	fs := Files{}
+	for _, id := range FileIDs(list) {
+		f, err := src.Get(ctx, id)
+		if errors.Is(err, files.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("resolve file %s: %w", id, err)
+		}
+		fs[id] = f
+	}
+	return fs, nil
 }
 
 // FirstImage — первое изображение видимых блоков (картинка страницы для og:image); нет — nil.
@@ -358,12 +408,15 @@ type FormEnv struct {
 	Errors   map[string]string // ошибки Validate
 	Resolved Resolved          // выбранные изображения
 	Library  []*images.Image   // выбор изображения: последние загруженные
+	Files    Files             // выбранные файлы (блок file)
+	FileLib  []*files.File     // выбор файла: последние загруженные
 	Allow    []string          // типы для «Добавить блок» (allow из site.yaml)
 	// Адреса для htmx. PreviewURL — POST: превью Markdown одного поля (имя поля — в ?field=);
 	// BlockURL — POST: фрагмент формы блока — нового (?type=) или существующего из формы (?id=).
 	PreviewURL string
 	BlockURL   string
 	MediaURL   string      // медиатека: ссылка «загрузите в медиатеку»
+	FilesURL   string      // раздел «Файлы»: ссылка «загрузите в раздел „Файлы“»
 	Lists      ListSources // блоки-списки: ссылка на раздел их записей в админке
 }
 
@@ -411,5 +464,6 @@ func (s ListSources) Resolve(ctx context.Context, list []Block) (Lists, error) {
 // viewEnv — данные для вывода блоков на сайте.
 type viewEnv struct {
 	res   Resolved
+	files Files
 	lists Lists
 }

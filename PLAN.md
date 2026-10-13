@@ -658,13 +658,17 @@ curl -s localhost:9090/healthz               # в schema есть auth, pending 
       Сделано: `/blog` в коде и тестах — только через `posts.BlogPath` (`reservedSlugs` тоже), с `/news` проходят
       `make test` и `make e2e-browser`; поле «Старые адреса» (`posts/oldpaths.go`, по пути в строке, пути с `/`
       тоже — маршрут `{slug...}`), seed — старый адрес у `post-01`; «Адрес раздела постов» в `reference/AGENTS.md`
-- [ ] Файлы: загрузка PDF, видео (отдача частями, Range) и SVG; файл заменяется без смены адреса; используемый файл не удаляется.
+- [x] Файлы: загрузка PDF, видео (отдача частями, Range) и SVG; файл заменяется без смены адреса; используемый файл не удаляется.
       Решено (человек, 2026-10-13): модуль `modules/files` по образцу `images` (принцип 6: хранилище и граница
       безопасности) — свои таблицы и миграции, `Storage`, `Service`, `Handler`, testkit, `CHANGELOG`/`UPGRADE`;
       отдача — `http.ServeContent` (Range); SVG без очистки, но с `Content-Security-Policy: sandbox` и
       `X-Content-Type-Options: nosniff` (скрипты в файле не выполняются); лимит размера — `Config`, по умолчанию 50 МБ,
       сайт может поднять (видео). В `reference/` — раздел «Файлы» в админке, ссылка из контента — внешним ключом,
       `files` в `modules` `site.yaml` (схема spec — проверить, что имя модуля разрешено, иначе `spec v0.6.0`)
+      Сделано: `modules/files` v0.1.0 (формат по содержимому: PDF, MP4, WebM, SVG; замена только тем же форматом —
+      адрес с расширением; кэш `no-cache` + `ETag` версии), `spec` v0.6.0 (`files` в `modules`); в `reference/` —
+      раздел «Файлы» (`internal/filelib`), блок `file` (PDF — ссылка, видео — плеер, SVG — картинка), ссылки —
+      `page_files`/`post_files` (миграция `00014`), seed — страница «Документы»
 - [x] Типографика `richtext`: неразрывный пробел после коротких предлогов и союзов и перед тире
       (`internal/richtext/typography.go`, с этапа 10.4 — `modules/richtext`)
 - [x] Панель оформления Markdown в админке: жирный, курсив, зачёркнутый, ссылка, подзаголовок, списки, цитата, код —

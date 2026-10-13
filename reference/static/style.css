@@ -866,6 +866,41 @@ figure.block {
   font-size: 0.9rem;
 }
 
+/* Блок file: видео и SVG — во всю колонку (не шире своего размера у SVG), PDF — ссылка с форматом и размером. */
+.block-video video {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  background: #000;
+}
+
+.block-svg img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.file-meta {
+  margin-left: 0.5rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+/* Карточка файла в админке: видео или SVG; у PDF просмотра нет. */
+.file-preview:empty {
+  display: none;
+}
+
+.file-preview video,
+.file-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 24rem;
+  margin-bottom: 1.5rem;
+}
+
 /* Изображение с текстом: рядом на широком экране (картинка слева или справа), друг под другом на узком. */
 .block-image-text {
   display: grid;

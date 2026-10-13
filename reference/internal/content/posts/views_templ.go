@@ -499,7 +499,7 @@ func View(p viewData) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = blocks.View(p.List, p.Resolved, nil).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = blocks.View(p.List, p.Resolved, p.Files, nil).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

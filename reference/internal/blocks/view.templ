@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/voffkin/keelkit/modules/files"
 	"github.com/voffkin/keelkit/modules/images"
 	"github.com/voffkin/keelkit/modules/richtext"
 
@@ -22,11 +23,12 @@ const (
 )
 
 // View — блоки на сайте по порядку; скрытые и неизвестные не выводятся. Якорь блока — id="block-<ID>".
-// lists — записи блоков-списков (ListSources.Resolve); nil — у типа контента таких блоков нет.
-templ View(list []Block, res Resolved, lists Lists) {
+// fs — файлы блоков file (ResolveFiles); lists — записи блоков-списков (ListSources.Resolve); nil — у типа
+// контента таких блоков нет.
+templ View(list []Block, res Resolved, fs Files, lists Lists) {
 	for _, b := range list {
 		if !b.Hidden {
-			@b.Content.view(b, viewEnv{res: res, lists: lists})
+			@b.Content.view(b, viewEnv{res: res, files: fs, lists: lists})
 		}
 	}
 }
@@ -116,6 +118,43 @@ templ quoteView(b Block, q *Quote) {
 	</figure>
 }
 
+// fileView — блок file: видео — плеер (preload="metadata": файл качается частями по мере просмотра), SVG —
+// картинка, остальное (PDF) — ссылка с форматом и размером. Файла нет — блок не выводится.
+templ fileView(b Block, m *File, f *files.File) {
+	if f == nil {
+		@missingFile(b, m.File)
+	} else if f.Format.IsVideo() {
+		<figure class="block block-file block-video" id={ "block-" + b.ID }>
+			<video controls preload="metadata" src={ web.FileURL(f) }>
+				<a href={ templ.SafeURL(web.FileURL(f)) }>{ fileTitle(m, f) }</a>
+			</video>
+			if m.Title != "" {
+				<figcaption>{ m.Title }</figcaption>
+			}
+		</figure>
+	} else if f.Format == files.SVG {
+		<figure class="block block-file block-svg" id={ "block-" + b.ID }>
+			<img src={ web.FileURL(f) } alt={ m.Title } loading="lazy"/>
+		</figure>
+	} else {
+		<p class="block block-file block-download" id={ "block-" + b.ID }>
+			<a href={ templ.SafeURL(web.FileURL(f)) }>{ fileTitle(m, f) }</a>
+			<span class="file-meta">{ web.FileFormat(f.Format) }, { web.FormatBytes(f.Bytes) }</span>
+		</p>
+	}
+}
+
+// fileTitle — текст ссылки на файл: подпись блока, без неё — имя файла.
+func fileTitle(m *File, f *files.File) string {
+	if m.Title != "" {
+		return m.Title
+	}
+	if f.Name != "" {
+		return f.Name
+	}
+	return f.URLName
+}
+
 // unknownView — блок неизвестного типа на сайт не выводится, только пишется в лог.
 func unknownView(b Block) templ.Component {
 	return templ.ComponentFunc(func(ctx context.Context, _ io.Writer) error {
@@ -137,6 +176,14 @@ func missingList(b Block) templ.Component {
 func missingImage(b Block, id string) templ.Component {
 	return templ.ComponentFunc(func(ctx context.Context, _ io.Writer) error {
 		slog.WarnContext(ctx, "blocks: image not found", "block", b.ID, "image", id)
+		return nil
+	})
+}
+
+// missingFile — файла нет (как missingImage): блок не выводится, в лог — предупреждение.
+func missingFile(b Block, id string) templ.Component {
+	return templ.ComponentFunc(func(ctx context.Context, _ io.Writer) error {
+		slog.WarnContext(ctx, "blocks: file not found", "block", b.ID, "file", id)
 		return nil
 	})
 }

@@ -27,7 +27,7 @@ const AdminPath = "/admin/pages"
 
 // BodyBlocks — блоки поля body (site.yaml: pages.body.allow), в порядке кнопок «Добавить блок».
 // Что каждый из них есть в internal/blocks и совпадает с site.yaml, проверяет тест.
-var BodyBlocks = []string{"text", "image", "image_text", "quote", "gallery", "people"}
+var BodyBlocks = []string{"text", "image", "image_text", "quote", "gallery", "file", "people"}
 
 // Виды копии содержимого (page_contents.kind).
 const (
@@ -66,6 +66,8 @@ type Admin struct {
 	q        *Queries
 	media    Media
 	mediaURL string
+	files    blocks.FileLibrary
+	filesURL string
 	reserved map[string]bool
 	usage    UsageFunc
 	lists    blocks.ListSources
@@ -73,11 +75,13 @@ type Admin struct {
 
 // NewAdmin создаёт раздел. reserved — slug, занятые маршрутами сайта (admin, static, healthz…):
 // такая страница была бы не видна, поэтому админка их не принимает. mediaURL — раздел медиатеки
-// (ссылка «загрузите в медиатеку» у блоков с изображением). usage — что ссылается на страницу (меню): такую
-// страницу не удалить. lists — источники записей блоков-списков (предпросмотр и ссылка на раздел в форме блока).
-func NewAdmin(db *sql.DB, media Media, mediaURL string, reserved []string, usage UsageFunc, lists blocks.ListSources) *Admin {
-	a := &Admin{db: db, q: New(db), media: media, mediaURL: mediaURL, reserved: make(map[string]bool, len(reserved)),
-		usage: usage, lists: lists}
+// (ссылка «загрузите в медиатеку» у блоков с изображением), fls и filesURL — файлы для блока file и их раздел.
+// usage — что ссылается на страницу (меню): такую страницу не удалить. lists — источники записей блоков-списков
+// (предпросмотр и ссылка на раздел в форме блока).
+func NewAdmin(db *sql.DB, media Media, mediaURL string, fls blocks.FileLibrary, filesURL string, reserved []string,
+	usage UsageFunc, lists blocks.ListSources) *Admin {
+	a := &Admin{db: db, q: New(db), media: media, mediaURL: mediaURL, files: fls, filesURL: filesURL,
+		reserved: make(map[string]bool, len(reserved)), usage: usage, lists: lists}
 	for _, s := range reserved {
 		a.reserved[s] = true
 	}
@@ -178,6 +182,10 @@ func (a *Admin) submit(w http.ResponseWriter, r *http.Request, f pageForm) {
 		return
 	}
 	f.Env.Resolved = res
+	if f.Env.Files, err = blocks.ResolveFiles(r.Context(), a.files, f.Blocks); err != nil {
+		admin.ServerError(w, r, err)
+		return
+	}
 	seoImage, err := f.SEO.Resolve(r.Context(), a.media)
 	if err != nil {
 		admin.ServerError(w, r, err)
@@ -249,6 +257,9 @@ func (a *Admin) save(ctx context.Context, f pageForm, publish bool) (int64, erro
 	if err := replaceImages(ctx, q, id, kindDraft, ids); err != nil {
 		return 0, err
 	}
+	if err := replaceFiles(ctx, q, id, kindDraft, blocks.FileIDs(f.Blocks)); err != nil {
+		return 0, err
+	}
 	if publish {
 		if err := publishCopy(ctx, q, id); err != nil {
 			return 0, err
@@ -270,7 +281,20 @@ func replaceImages(ctx context.Context, q *Queries, id int64, kind string, ids [
 	return nil
 }
 
-// publishCopy копирует черновик и его ссылки на изображения в опубликованную копию (внутри транзакции q).
+// replaceFiles перезаписывает ссылки копии kind на файлы (блоки file).
+func replaceFiles(ctx context.Context, q *Queries, id int64, kind string, ids []string) error {
+	if err := q.DeleteContentFiles(ctx, DeleteContentFilesParams{PageID: id, Kind: kind}); err != nil {
+		return err
+	}
+	for _, f := range ids {
+		if err := q.InsertContentFile(ctx, InsertContentFileParams{PageID: id, Kind: kind, FileID: f}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// publishCopy копирует черновик и его ссылки на изображения и файлы в опубликованную копию (внутри транзакции q).
 // Прежний опубликованный slug становится редиректом на новый адрес, а опубликованный — перестаёт им быть.
 func publishCopy(ctx context.Context, q *Queries, id int64) error {
 	if err := q.RememberPublishedSlug(ctx, id); err != nil {
@@ -279,10 +303,16 @@ func publishCopy(ctx context.Context, q *Queries, id int64) error {
 	if err := q.DeleteContentImages(ctx, DeleteContentImagesParams{PageID: id, Kind: kindPublished}); err != nil {
 		return err
 	}
+	if err := q.DeleteContentFiles(ctx, DeleteContentFilesParams{PageID: id, Kind: kindPublished}); err != nil {
+		return err
+	}
 	if err := q.PublishDraft(ctx, id); err != nil {
 		return err
 	}
 	if err := q.DropRedirectToPublished(ctx, id); err != nil {
+		return err
+	}
+	if err := q.PublishDraftFiles(ctx, id); err != nil {
 		return err
 	}
 	return q.PublishDraftImages(ctx, id)
@@ -424,6 +454,10 @@ func (a *Admin) viewData(ctx context.Context, f pageForm) (viewData, error) {
 	if err != nil {
 		return viewData{}, err
 	}
+	fs, err := blocks.ResolveFiles(ctx, a.files, f.Blocks)
+	if err != nil {
+		return viewData{}, err
+	}
 	lists, err := a.lists.Resolve(ctx, f.Blocks)
 	if err != nil {
 		return viewData{}, err
@@ -433,7 +467,7 @@ func (a *Admin) viewData(ctx context.Context, f pageForm) (viewData, error) {
 	if s == "" {
 		s = slug.Make(title)
 	}
-	return viewData{ID: f.ID, Title: title, Slug: s, Blocks: f.Blocks, Resolved: res, Lists: lists, SEO: f.SEO,
+	return viewData{ID: f.ID, Title: title, Slug: s, Blocks: f.Blocks, Resolved: res, Files: fs, Lists: lists, SEO: f.SEO,
 		SEOImage: img}, nil
 }
 
@@ -540,7 +574,7 @@ func (a *Admin) parseForm(w http.ResponseWriter, r *http.Request, f *pageForm) b
 // Пустой slug составляется из заголовка; введённый вручную приводится к тому же виду (slug.Make).
 // Изображения блоков должны быть уже загружены в f.Env.Resolved; seoImageFound — картинка SEO есть в медиатеке.
 func (a *Admin) validate(f *pageForm, seoImageFound bool) bool {
-	errs := blocks.Validate(f.Blocks, f.Env.Resolved)
+	errs := blocks.Validate(f.Blocks, f.Env.Resolved, f.Env.Files)
 	f.Title = strings.TrimSpace(f.Title)
 
 	switch {
@@ -585,8 +619,16 @@ func (a *Admin) env(ctx context.Context, list []blocks.Block, errs map[string]st
 	if err != nil {
 		return blocks.FormEnv{}, err
 	}
+	fileLib, err := a.files.List(ctx, libraryLimit, 0)
+	if err != nil {
+		return blocks.FormEnv{}, err
+	}
+	fs, err := blocks.ResolveFiles(ctx, a.files, list)
+	if err != nil {
+		return blocks.FormEnv{}, err
+	}
 	return blocks.FormEnv{
-		Errors: errs, Resolved: res, Library: lib, Allow: BodyBlocks,
+		Errors: errs, Resolved: res, Library: lib, Files: fs, FileLib: fileLib, FilesURL: a.filesURL, Allow: BodyBlocks,
 		PreviewURL: AdminPath + "/preview", BlockURL: AdminPath + "/block", MediaURL: a.mediaURL, Lists: a.lists,
 	}, nil
 }

@@ -60,6 +60,20 @@ func (q *Queries) CreatePost(ctx context.Context) (int64, error) {
 	return id, err
 }
 
+const deleteContentFiles = `-- name: DeleteContentFiles :exec
+DELETE FROM post_files WHERE post_id = ? AND kind = ?
+`
+
+type DeleteContentFilesParams struct {
+	PostID int64
+	Kind   string
+}
+
+func (q *Queries) DeleteContentFiles(ctx context.Context, arg DeleteContentFilesParams) error {
+	_, err := q.db.ExecContext(ctx, deleteContentFiles, arg.PostID, arg.Kind)
+	return err
+}
+
 const deleteContentImages = `-- name: DeleteContentImages :exec
 DELETE FROM post_images WHERE post_id = ? AND kind = ?
 `
@@ -222,6 +236,21 @@ func (q *Queries) GetPublishedPostBySlug(ctx context.Context, arg GetPublishedPo
 		&i.CategorySlug,
 	)
 	return i, err
+}
+
+const insertContentFile = `-- name: InsertContentFile :exec
+INSERT INTO post_files (post_id, kind, file_id) VALUES (?, ?, ?)
+`
+
+type InsertContentFileParams struct {
+	PostID int64
+	Kind   string
+	FileID string
+}
+
+func (q *Queries) InsertContentFile(ctx context.Context, arg InsertContentFileParams) error {
+	_, err := q.db.ExecContext(ctx, insertContentFile, arg.PostID, arg.Kind, arg.FileID)
+	return err
 }
 
 const insertContentImage = `-- name: InsertContentImage :exec
@@ -624,6 +653,44 @@ func (q *Queries) OldPathOwner(ctx context.Context, slug string) (OldPathOwnerRo
 	return i, err
 }
 
+const postsUsingFile = `-- name: PostsUsingFile :many
+SELECT DISTINCT p.id, d.title
+FROM post_files f
+JOIN posts p ON p.id = f.post_id
+JOIN post_contents d ON d.post_id = p.id AND d.kind = 'draft'
+WHERE f.file_id = ?
+ORDER BY p.id
+`
+
+type PostsUsingFileRow struct {
+	ID    int64
+	Title string
+}
+
+// Files section: posts whose draft or published copy uses the file (file block).
+func (q *Queries) PostsUsingFile(ctx context.Context, fileID string) ([]PostsUsingFileRow, error) {
+	rows, err := q.db.QueryContext(ctx, postsUsingFile, fileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PostsUsingFileRow
+	for rows.Next() {
+		var i PostsUsingFileRow
+		if err := rows.Scan(&i.ID, &i.Title); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const postsUsingImage = `-- name: PostsUsingImage :many
 SELECT DISTINCT p.id, d.title
 FROM post_images i
@@ -677,6 +744,16 @@ ON CONFLICT (post_id, kind) DO UPDATE SET title = excluded.title, slug = exclude
 // Copies the draft into the published copy (insert or replace its content).
 func (q *Queries) PublishDraft(ctx context.Context, postID int64) error {
 	_, err := q.db.ExecContext(ctx, publishDraft, postID)
+	return err
+}
+
+const publishDraftFiles = `-- name: PublishDraftFiles :exec
+INSERT INTO post_files (post_id, kind, file_id)
+SELECT src.post_id, 'published', src.file_id FROM post_files AS src WHERE src.post_id = ? AND src.kind = 'draft'
+`
+
+func (q *Queries) PublishDraftFiles(ctx context.Context, postID int64) error {
+	_, err := q.db.ExecContext(ctx, publishDraftFiles, postID)
 	return err
 }
 

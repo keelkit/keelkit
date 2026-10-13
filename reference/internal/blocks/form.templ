@@ -3,6 +3,7 @@ package blocks
 import (
 	"strconv"
 
+	"github.com/voffkin/keelkit/modules/files"
 	"github.com/voffkin/keelkit/modules/images"
 
 	"github.com/voffkin/keelkit/reference/internal/web"
@@ -131,6 +132,33 @@ templ galleryForm(b Block, g *Gallery, e FormEnv) {
 			<button type="submit" name="action" value={ "item-add:" + b.ID } class="secondary" formnovalidate>Добавить изображение</button>
 		</div>
 	}
+}
+
+// fileForm — блок file: выбор файла из раздела «Файлы» и подпись.
+templ fileForm(b Block, m *File, e FormEnv) {
+	{{ name := FieldName(b.ID, "file") }}
+	<label>
+		Файл
+		<select
+			name={ name }
+			if e.err(b, "file") != "" {
+				aria-invalid="true"
+				aria-describedby={ name + "-hint " + name + "-error" }
+			} else {
+				aria-describedby={ name + "-hint" }
+			}
+		>
+			<option value="">— выберите —</option>
+			for _, f := range fileOptions(m.File, e) {
+				<option value={ f.ID } selected?={ f.ID == m.File }>{ fileOptionLabel(f) }</option>
+			}
+		</select>
+		<span class="field-hint" id={ name + "-hint" }>
+			PDF — ссылкой, видео — плеером, SVG — картинкой. Новый файл сначала загрузите в раздел <a href={ templ.SafeURL(e.FilesURL) } target="_blank">«Файлы»</a>.
+		</span>
+		@fieldError(b, "file", e)
+	</label>
+	@textField(b, "title", "Подпись", m.Title, "Текст ссылки на PDF (пусто — имя файла), подпись под видео, описание SVG (alt, обязательно).", e)
 }
 
 templ quoteForm(b Block, q *Quote, e FormEnv) {
@@ -325,4 +353,25 @@ func optionLabel(img *images.Image) string {
 		name = img.ID
 	}
 	return name + " · " + strconv.Itoa(img.Width) + "×" + strconv.Itoa(img.Height)
+}
+
+// fileOptions — файлы для выбора: FileLib и выбранный, если его там нет (загружен давно).
+func fileOptions(id string, e FormEnv) []*files.File {
+	if f := e.Files[id]; f != nil {
+		for _, l := range e.FileLib {
+			if l.ID == id {
+				return e.FileLib
+			}
+		}
+		return append([]*files.File{f}, e.FileLib...)
+	}
+	return e.FileLib
+}
+
+func fileOptionLabel(f *files.File) string {
+	name := f.Name
+	if name == "" {
+		name = f.URLName
+	}
+	return name + " · " + web.FileFormat(f.Format) + ", " + web.FormatBytes(f.Bytes)
 }

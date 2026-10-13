@@ -32,6 +32,20 @@ func (q *Queries) CreatePage(ctx context.Context) (int64, error) {
 	return id, err
 }
 
+const deleteContentFiles = `-- name: DeleteContentFiles :exec
+DELETE FROM page_files WHERE page_id = ? AND kind = ?
+`
+
+type DeleteContentFilesParams struct {
+	PageID int64
+	Kind   string
+}
+
+func (q *Queries) DeleteContentFiles(ctx context.Context, arg DeleteContentFilesParams) error {
+	_, err := q.db.ExecContext(ctx, deleteContentFiles, arg.PageID, arg.Kind)
+	return err
+}
+
 const deleteContentImages = `-- name: DeleteContentImages :exec
 DELETE FROM page_images WHERE page_id = ? AND kind = ?
 `
@@ -140,6 +154,21 @@ func (q *Queries) GetPublishedPageBySlug(ctx context.Context, slug string) (GetP
 	return i, err
 }
 
+const insertContentFile = `-- name: InsertContentFile :exec
+INSERT INTO page_files (page_id, kind, file_id) VALUES (?, ?, ?)
+`
+
+type InsertContentFileParams struct {
+	PageID int64
+	Kind   string
+	FileID string
+}
+
+func (q *Queries) InsertContentFile(ctx context.Context, arg InsertContentFileParams) error {
+	_, err := q.db.ExecContext(ctx, insertContentFile, arg.PageID, arg.Kind, arg.FileID)
+	return err
+}
+
 const insertContentImage = `-- name: InsertContentImage :exec
 INSERT INTO page_images (page_id, kind, image_id) VALUES (?, ?, ?)
 `
@@ -236,6 +265,44 @@ func (q *Queries) ListPublishedPageSlugs(ctx context.Context) ([]string, error) 
 	return items, nil
 }
 
+const pagesUsingFile = `-- name: PagesUsingFile :many
+SELECT DISTINCT p.id, d.title
+FROM page_files f
+JOIN pages p ON p.id = f.page_id
+JOIN page_contents d ON d.page_id = p.id AND d.kind = 'draft'
+WHERE f.file_id = ?
+ORDER BY p.id
+`
+
+type PagesUsingFileRow struct {
+	ID    int64
+	Title string
+}
+
+// Files section: pages whose draft or published copy uses the file (file block).
+func (q *Queries) PagesUsingFile(ctx context.Context, fileID string) ([]PagesUsingFileRow, error) {
+	rows, err := q.db.QueryContext(ctx, pagesUsingFile, fileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PagesUsingFileRow
+	for rows.Next() {
+		var i PagesUsingFileRow
+		if err := rows.Scan(&i.ID, &i.Title); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const pagesUsingImage = `-- name: PagesUsingImage :many
 SELECT DISTINCT p.id, d.title
 FROM page_images i
@@ -285,6 +352,16 @@ ON CONFLICT (page_id, kind) DO UPDATE SET title = excluded.title, slug = exclude
 // Copies the draft into the published copy (insert or replace its content).
 func (q *Queries) PublishDraft(ctx context.Context, pageID int64) error {
 	_, err := q.db.ExecContext(ctx, publishDraft, pageID)
+	return err
+}
+
+const publishDraftFiles = `-- name: PublishDraftFiles :exec
+INSERT INTO page_files (page_id, kind, file_id)
+SELECT src.page_id, 'published', src.file_id FROM page_files AS src WHERE src.page_id = ? AND src.kind = 'draft'
+`
+
+func (q *Queries) PublishDraftFiles(ctx context.Context, pageID int64) error {
+	_, err := q.db.ExecContext(ctx, publishDraftFiles, pageID)
 	return err
 }
 

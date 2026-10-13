@@ -58,6 +58,8 @@ github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWD
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
 github.com/voffkin/keelkit/modules/auth v0.1.0 h1:qYT8byH1sbr4Bg32xbom1xWfJySE1JELx3M6731NCfM=
 github.com/voffkin/keelkit/modules/auth v0.1.0/go.mod h1:MfRrlQ9RM7l8i1o8dPJdq0GY/tegx09qO+8K1JzZC4A=
+github.com/voffkin/keelkit/modules/files v0.1.0 h1:TU7q8cVs2fVuh0b14AVHStSRE0o4uI9DWo2N4VcltV4=
+github.com/voffkin/keelkit/modules/files v0.1.0/go.mod h1:LVZRKhSc2GC7/UkonzF0RzWz+mLBBMHvPsh9dwBuBdU=
 github.com/voffkin/keelkit/modules/images v0.1.0 h1:YVRF2GzZFhJdKPW4Y/KKyqJ7AtN0NqmTKSWWlnwgfSo=
 github.com/voffkin/keelkit/modules/images v0.1.0/go.mod h1:HdEkhvYr3SHqYEAuNiZz5zNliN/SjHy1IM+ZK4TXxn0=
 github.com/voffkin/keelkit/modules/richtext v0.1.1 h1:tP1oXdJrng3akmLbKektZmCBILxLPtxUFsFO3Be38QE=

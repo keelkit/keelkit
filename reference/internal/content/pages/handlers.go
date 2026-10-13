@@ -27,12 +27,14 @@ const descriptionLen = 160
 type Handler struct {
 	q      *Queries
 	images blocks.Images
+	files  blocks.FileSource
 	lists  blocks.ListSources
 }
 
-// NewHandler создаёт хендлеры. lists — источники записей блоков-списков (people): их даёт cmd/site.
-func NewHandler(db DBTX, imgs blocks.Images, lists blocks.ListSources) *Handler {
-	return &Handler{q: New(db), images: imgs, lists: lists}
+// NewHandler создаёт хендлеры. fls — файлы блоков file; lists — источники записей блоков-списков (people):
+// их даёт cmd/site.
+func NewHandler(db DBTX, imgs blocks.Images, fls blocks.FileSource, lists blocks.ListSources) *Handler {
+	return &Handler{q: New(db), images: imgs, files: fls, lists: lists}
 }
 
 // Home — GET /: опубликованная страница со slug home; пока её нет — заглушка с названием сайта.
@@ -117,13 +119,18 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, p GetPublishedP
 		web.ServerError(w, r, err)
 		return
 	}
+	fs, err := blocks.ResolveFiles(r.Context(), h.files, list)
+	if err != nil {
+		web.ServerError(w, r, err)
+		return
+	}
 	lists, err := h.lists.Resolve(r.Context(), list)
 	if err != nil {
 		web.ServerError(w, r, err)
 		return
 	}
 	v := viewData{
-		ID: p.PageID, Title: p.Title, Slug: p.Slug, Blocks: list, Resolved: res, Lists: lists,
+		ID: p.PageID, Title: p.Title, Slug: p.Slug, Blocks: list, Resolved: res, Files: fs, Lists: lists,
 		SEO: seofields.FromDB(p.SeoTitle, p.SeoDescription, p.SeoImage),
 	}
 	if v.SEOImage, err = v.SEO.Resolve(r.Context(), h.images); err != nil {

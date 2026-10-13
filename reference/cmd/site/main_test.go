@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/voffkin/keelkit/modules/auth"
+	"github.com/voffkin/keelkit/modules/files"
 	"github.com/voffkin/keelkit/modules/images"
 )
 
@@ -36,6 +37,7 @@ type testSite struct {
 	cfg   config
 	db    *sql.DB
 	media *images.Service
+	files *files.Service
 }
 
 // migratedSite — сайт после site migrate; withSeed — ещё и dev-данные без изображений (seedContent):
@@ -62,7 +64,12 @@ func migratedSite(t *testing.T, withSeed bool) testSite {
 		t.Fatal(err)
 	}
 	t.Cleanup(closeMedia)
-	return testSite{cfg: cfg, db: db, media: media}
+	fls, closeFiles, err := openFiles(db, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(closeFiles)
+	return testSite{cfg: cfg, db: db, media: media, files: fls}
 }
 
 // migratedSiteWithImages — сайт после migrate и полного seed: изображения из seed и страницы, которые на них
@@ -86,7 +93,7 @@ func (s testSite) handler(cfg config) http.Handler {
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = testBaseURL
 	}
-	return newMux(s.db, s.media, cfg)
+	return newMux(s.db, s.media, s.files, cfg)
 }
 
 func get(t *testing.T, s testSite, path string) *httptest.ResponseRecorder {
@@ -209,11 +216,13 @@ func TestHealthz(t *testing.T) {
 	if got.Status != "ok" || got.Version != version {
 		t.Errorf("got %+v, want status ok and version %q", got, version)
 	}
-	if s := got.Schema["site"]; s.Version != 13 || s.Pending != 0 {
-		t.Errorf("schema site = %+v, want version 13, pending 0", s)
+	if s := got.Schema["site"]; s.Version != 14 || s.Pending != 0 {
+		t.Errorf("schema site = %+v, want version 14, pending 0", s)
 	}
-	if s := got.Schema["images"]; s.Version != 1 || s.Pending != 0 {
-		t.Errorf("schema images = %+v, want version 1, pending 0", s)
+	for _, name := range []string{"images", "files", "auth"} {
+		if s := got.Schema[name]; s.Version != 1 || s.Pending != 0 {
+			t.Errorf("schema %s = %+v, want version 1, pending 0", name, s)
+		}
 	}
 }
 

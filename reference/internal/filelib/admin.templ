@@ -1,0 +1,204 @@
+package filelib
+
+import (
+	"strconv"
+
+	"github.com/voffkin/keelkit/modules/files"
+
+	"github.com/voffkin/keelkit/reference/internal/admin"
+	"github.com/voffkin/keelkit/reference/internal/web"
+)
+
+// ListPage — раздел «Файлы»: форма загрузки и таблица файлов.
+templ ListPage(v listView) {
+	@admin.Layout("Файлы") {
+		<h1>Файлы</h1>
+		if v.Uploaded {
+			<p class="flash" role="status">Файл загружен.</p>
+		}
+		if v.Deleted {
+			<p class="flash" role="status">Файл удалён.</p>
+		}
+		@UploadForm(v.Form, v.MaxBytes)
+		if len(v.Files) == 0 {
+			if v.Page == 1 {
+				<p>Файлов пока нет.</p>
+			} else {
+				<p>На этой странице файлов нет. <a href={ templ.SafeURL(AdminPath) }>К началу</a></p>
+			}
+		} else {
+			<div class="table-wrap">
+				<table class="admin-table files-table">
+					<thead>
+						<tr>
+							<th>Файл</th>
+							<th>Формат</th>
+							<th>Размер</th>
+							<th>Изменён</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, f := range v.Files {
+							<tr>
+								<td><a href={ templ.SafeURL(ShowPath(f.ID)) }>{ displayName(f) }</a></td>
+								<td>{ web.FileFormat(f.Format) }</td>
+								<td>{ web.FormatBytes(f.Bytes) }</td>
+								<td>{ formatTime(f.UpdatedAt) }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		if v.Page > 1 || v.HasNext {
+			<nav class="pagination" aria-label="Страницы раздела «Файлы»">
+				if v.Page > 1 {
+					<a href={ templ.SafeURL(pagePath(v.Page - 1)) } rel="prev">← Новее</a>
+				}
+				<span>Страница { strconv.Itoa(v.Page) }</span>
+				if v.HasNext {
+					<a href={ templ.SafeURL(pagePath(v.Page + 1)) } rel="next">Старше →</a>
+				}
+			</nav>
+		}
+	}
+}
+
+// UploadForm — загрузка одного файла. Через htmx ошибка (422) заменяет только эту форму; без JavaScript та же форма
+// уходит обычным POST. Пока файл загружается, кнопка недоступна.
+templ UploadForm(f uploadForm, maxBytes int64) {
+	@fileForm("upload-form", AdminPath, "Загрузить", f, maxBytes) {
+		PDF, видео MP4 или WebM, картинка SVG до { web.FormatBytes(maxBytes) }. Фотографии для страниц — в медиатеку:
+		там сайт сам сделает уменьшенные копии.
+	}
+}
+
+// ReplaceForm — замена содержимого файла: адрес и ссылки на него на сайте не меняются.
+templ ReplaceForm(file *files.File, f uploadForm, maxBytes int64) {
+	@fileForm("replace-form", ShowPath(file.ID)+"/replace", "Заменить", f, maxBytes) {
+		Файл того же формата ({ web.FileFormat(file.Format) }) до { web.FormatBytes(maxBytes) }. Адрес не изменится:
+		ссылки на сайте и снаружи откроют новый файл.
+	}
+}
+
+// fileForm — форма с одним полем файла; children — подсказка у поля.
+templ fileForm(id, action, button string, f uploadForm, maxBytes int64) {
+	<form
+		id={ id }
+		class="form upload-form"
+		method="post"
+		action={ templ.SafeURL(action) }
+		enctype="multipart/form-data"
+		hx-post={ action }
+		hx-encoding="multipart/form-data"
+		hx-target="this"
+		hx-swap="outerHTML"
+		hx-disabled-elt="find button"
+	>
+		@admin.CSRFInput()
+		<label>
+			Файл
+			<input
+				type="file"
+				name={ fileField }
+				accept={ accept }
+				required
+				if f.Error != "" {
+					aria-invalid="true"
+					aria-describedby={ id + "-hint " + id + "-error" }
+				} else {
+					aria-describedby={ id + "-hint" }
+				}
+			/>
+			<span class="field-hint" id={ id + "-hint" }>
+				{ children... }
+			</span>
+			if f.Error != "" {
+				<span class="field-error" id={ id + "-error" }>{ f.Error }</span>
+			}
+		</label>
+		<div class="form-actions">
+			<button type="submit">{ button }</button>
+			<span class="htmx-indicator muted">Загрузка…</span>
+		</div>
+	</form>
+}
+
+// ShowPage — карточка файла: адрес на сайте, просмотр, данные, замена и где используется.
+templ ShowPage(v showView) {
+	@admin.Layout(displayName(v.File)) {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Файлы</a></p>
+		<h1>{ displayName(v.File) }</h1>
+		if v.Replaced {
+			<p class="flash" role="status">Файл заменён: по прежнему адресу теперь новый файл.</p>
+		}
+		<div class="file-preview">
+			switch {
+				case v.File.Format.IsVideo():
+					<video controls preload="metadata" src={ web.FileURL(v.File) }></video>
+				case v.File.Format == files.SVG:
+					<img src={ web.FileURL(v.File) } alt=""/>
+			}
+		</div>
+		<dl class="media-meta">
+			<dt>Адрес на сайте</dt>
+			<dd><a href={ templ.SafeURL(web.FileURL(v.File)) } target="_blank"><code>{ web.FileURL(v.File) }</code></a></dd>
+			<dt>Формат</dt>
+			<dd>{ web.FileFormat(v.File.Format) }, { web.FormatBytes(v.File.Bytes) }</dd>
+			<dt>Загружен</dt>
+			<dd>{ formatTime(v.File.CreatedAt) }</dd>
+			if !v.File.UpdatedAt.Equal(v.File.CreatedAt) {
+				<dt>Заменён</dt>
+				<dd>{ formatTime(v.File.UpdatedAt) }</dd>
+			}
+		</dl>
+		<h2>Заменить файл</h2>
+		@ReplaceForm(v.File, v.Form, v.MaxBytes)
+		<h2>Где используется</h2>
+		if len(v.Used) == 0 {
+			<p class="muted">Нигде на страницах и в постах: файл можно удалить. Ссылки на него с других сайтов перестанут работать.</p>
+		} else {
+			@usageList(v.Used)
+		}
+		<p class="danger-zone">
+			if len(v.Used) == 0 {
+				<a class="danger-link" href={ templ.SafeURL(ShowPath(v.File.ID) + "/delete") }>Удалить файл</a>
+			} else {
+				<span class="field-hint">Используемый файл удалить нельзя: сначала уберите его из контента выше.</span>
+			}
+		</p>
+	}
+}
+
+templ usageList(used []Usage) {
+	<ul class="usage-list">
+		for _, u := range used {
+			<li><a href={ templ.SafeURL(u.URL) }>{ u.Title }</a></li>
+		}
+	</ul>
+}
+
+// DeletePage — подтверждение удаления.
+templ DeletePage(f *files.File) {
+	@admin.Layout("Удаление файла") {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Файлы</a></p>
+		<h1>Удалить «{ displayName(f) }»?</h1>
+		<p>Файл удалится, его адрес перестанет открываться. Отменить удаление нельзя.</p>
+		<form method="post" action={ templ.SafeURL(ShowPath(f.ID) + "/delete") } class="form-actions">
+			@admin.CSRFInput()
+			<button type="submit" class="danger">Удалить</button>
+			<a href={ templ.SafeURL(ShowPath(f.ID)) }>Отмена</a>
+		</form>
+	}
+}
+
+// DeleteBlockedPage — файл используется контентом сайта (409).
+templ DeleteBlockedPage(f *files.File, used []Usage) {
+	@admin.Layout("Удаление файла") {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Файлы</a></p>
+		<h1>«{ displayName(f) }» используется на сайте</h1>
+		<p>Файл нельзя удалить, пока на него ссылаются страницы или посты (в том числе черновики и скрытые блоки). Сначала уберите его оттуда:</p>
+		@usageList(used)
+		<p><a href={ templ.SafeURL(ShowPath(f.ID)) }>Вернуться к файлу</a></p>
+	}
+}

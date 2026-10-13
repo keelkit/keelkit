@@ -93,7 +93,7 @@ templ View(p viewData) {
 					@web.Picture(p.Cover, p.CoverAlt, sizesCover)
 				</div>
 			}
-			@blocks.View(p.List, p.Resolved, nil)
+			@blocks.View(p.List, p.Resolved, p.Files, nil)
 		</article>
 	}
 }

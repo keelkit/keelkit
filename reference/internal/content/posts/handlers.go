@@ -40,10 +40,12 @@ const (
 type Handler struct {
 	q      *Queries
 	images blocks.Images
+	files  blocks.FileSource
 }
 
-func NewHandler(db DBTX, imgs blocks.Images) *Handler {
-	return &Handler{q: New(db), images: imgs}
+// NewHandler создаёт хендлеры; fls — файлы блоков file.
+func NewHandler(db DBTX, imgs blocks.Images, fls blocks.FileSource) *Handler {
+	return &Handler{q: New(db), images: imgs, files: fls}
 }
 
 // entry — опубликованный пост из любого публичного запроса (у них одинаковые колонки).
@@ -160,7 +162,7 @@ func (h *Handler) Show(w http.ResponseWriter, r *http.Request) {
 		web.ServerError(w, r, err)
 		return
 	}
-	v, err := newViewData(r.Context(), h.images, entry(p))
+	v, err := newViewData(r.Context(), h.images, h.files, entry(p))
 	if err != nil {
 		web.ServerError(w, r, err)
 		return
@@ -254,6 +256,7 @@ type viewData struct {
 	entry
 	List     []blocks.Block
 	Resolved blocks.Resolved
+	Files    blocks.Files // файлы блоков file
 	Cover    *images.Image
 	SEOImage *images.Image // картинка SEO (seo_image); nil — подстановка
 	Preview  bool          // предпросмотр черновика: плашка со ссылкой в редактор
@@ -264,7 +267,7 @@ func (v viewData) seo() seofields.Fields {
 	return seofields.FromDB(v.SeoTitle, v.SeoDescription, v.SeoImage)
 }
 
-func newViewData(ctx context.Context, imgs blocks.Images, e entry) (viewData, error) {
+func newViewData(ctx context.Context, imgs blocks.Images, fls blocks.FileSource, e entry) (viewData, error) {
 	list, err := blocks.Unmarshal(e.Blocks)
 	if err != nil {
 		return viewData{}, err
@@ -273,11 +276,15 @@ func newViewData(ctx context.Context, imgs blocks.Images, e entry) (viewData, er
 	if err != nil {
 		return viewData{}, err
 	}
+	fs, err := blocks.ResolveFiles(ctx, fls, list)
+	if err != nil {
+		return viewData{}, err
+	}
 	cover, err := resolveCover(ctx, imgs, e.Cover.String)
 	if err != nil {
 		return viewData{}, err
 	}
-	v := viewData{entry: e, List: list, Resolved: res, Cover: cover}
+	v := viewData{entry: e, List: list, Resolved: res, Files: fs, Cover: cover}
 	if v.SEOImage, err = v.seo().Resolve(ctx, imgs); err != nil {
 		return viewData{}, err
 	}

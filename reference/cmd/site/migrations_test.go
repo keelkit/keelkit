@@ -174,7 +174,12 @@ func TestMigrationPageContents(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer closeMedia()
-	srv := httptest.NewServer(newMux(db, media, config{}))
+	fls, closeFiles, err := openFiles(db, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeFiles()
+	srv := httptest.NewServer(newMux(db, media, fls, config{}))
 	defer srv.Close()
 	if got := text(page(t, srv, "/about", http.StatusOK).Find("main article pre code.language-go")); !strings.Contains(got, "привет") {
 		t.Errorf("about: code block = %q", got)
@@ -196,9 +201,9 @@ func TestMigrationPageContents(t *testing.T) {
 	loginOK(t, client, srv)
 	_, html := fetch(t, client, srv.URL+"/admin/pages")
 	doc := parse(t, html)
-	// Старые страницы и «Команда» из seed: её slug в старых данных нет.
-	if rows := doc.Find(".admin-table tbody tr").Length(); rows != len(legacyPages)+1 {
-		t.Errorf("admin list rows = %d, want %d", rows, len(legacyPages)+1)
+	// Старые страницы, «Команда» и «Документы» из seed: их slug в старых данных нет.
+	if rows := doc.Find(".admin-table tbody tr").Length(); rows != len(legacyPages)+2 {
+		t.Errorf("admin list rows = %d, want %d", rows, len(legacyPages)+2)
 	}
 	if got := text(doc.Find(`.admin-table tr:has(a:contains("Черновик")) .status`)); got != "Черновик" {
 		t.Errorf("draft status = %q", got)
@@ -249,7 +254,12 @@ func TestMigrationAuthOverSiteTables(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer closeMedia()
-	srv := httptest.NewServer(newMux(db, media, config{BaseURL: testBaseURL}))
+	fls, closeFiles, err := openFiles(db, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeFiles()
+	srv := httptest.NewServer(newMux(db, media, fls, config{BaseURL: testBaseURL}))
 	defer srv.Close()
 	loginOK(t, adminClient(t), srv)
 }

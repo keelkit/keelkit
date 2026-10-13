@@ -27,7 +27,7 @@ const AdminPath = "/admin/posts"
 
 // BodyBlocks — блоки поля body (site.yaml: posts.body.allow), в порядке кнопок «Добавить блок».
 // Что каждый из них есть в internal/blocks и совпадает с site.yaml, проверяет тест.
-var BodyBlocks = []string{"text", "image", "image_text", "quote", "gallery"}
+var BodyBlocks = []string{"text", "image", "image_text", "quote", "gallery", "file"}
 
 // Виды копии содержимого (post_contents.kind).
 const (
@@ -59,11 +59,14 @@ type Admin struct {
 	q        *Queries
 	media    Media
 	mediaURL string
+	files    blocks.FileLibrary
+	filesURL string
 }
 
-// NewAdmin создаёт раздел. mediaURL — раздел медиатеки (ссылка «загрузите в медиатеку»).
-func NewAdmin(db *sql.DB, media Media, mediaURL string) *Admin {
-	return &Admin{db: db, q: New(db), media: media, mediaURL: mediaURL}
+// NewAdmin создаёт раздел. mediaURL — раздел медиатеки (ссылка «загрузите в медиатеку»); fls и filesURL —
+// файлы для блока file и их раздел.
+func NewAdmin(db *sql.DB, media Media, mediaURL string, fls blocks.FileLibrary, filesURL string) *Admin {
+	return &Admin{db: db, q: New(db), media: media, mediaURL: mediaURL, files: fls, filesURL: filesURL}
 }
 
 // postForm — форма поста: поля черновика и сохранённое состояние. ID == 0 — новый пост.
@@ -173,6 +176,10 @@ func (a *Admin) submit(w http.ResponseWriter, r *http.Request, f postForm) {
 		return
 	}
 	f.Env.Resolved = res
+	if f.Env.Files, err = blocks.ResolveFiles(ctx, a.files, f.Blocks); err != nil {
+		admin.ServerError(w, r, err)
+		return
+	}
 	cats, err := a.q.ListCategoryOptions(ctx)
 	if err != nil {
 		admin.ServerError(w, r, err)
@@ -272,6 +279,9 @@ func (a *Admin) save(ctx context.Context, f postForm, publish bool, now time.Tim
 	if err := replaceImages(ctx, q, id, kindDraft, ids); err != nil {
 		return 0, err
 	}
+	if err := replaceFiles(ctx, q, id, kindDraft, blocks.FileIDs(f.Blocks)); err != nil {
+		return 0, err
+	}
 	// До публикации: её прежний slug добавится к старым адресам из формы.
 	if err := replaceOldPaths(ctx, q, id, f.oldPaths); err != nil {
 		return 0, err
@@ -297,7 +307,20 @@ func replaceImages(ctx context.Context, q *Queries, id int64, kind string, ids [
 	return nil
 }
 
-// publishCopy копирует черновик и его ссылки на изображения в опубликованную копию (внутри транзакции q).
+// replaceFiles перезаписывает ссылки копии kind на файлы (блоки file).
+func replaceFiles(ctx context.Context, q *Queries, id int64, kind string, ids []string) error {
+	if err := q.DeleteContentFiles(ctx, DeleteContentFilesParams{PostID: id, Kind: kind}); err != nil {
+		return err
+	}
+	for _, f := range ids {
+		if err := q.InsertContentFile(ctx, InsertContentFileParams{PostID: id, Kind: kind, FileID: f}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// publishCopy копирует черновик и его ссылки на изображения и файлы в опубликованную копию (внутри транзакции q).
 // Прежний опубликованный slug становится редиректом на новый адрес, а опубликованный — перестаёт им быть.
 func publishCopy(ctx context.Context, q *Queries, id int64) error {
 	if err := q.RememberPublishedSlug(ctx, id); err != nil {
@@ -306,10 +329,16 @@ func publishCopy(ctx context.Context, q *Queries, id int64) error {
 	if err := q.DeleteContentImages(ctx, DeleteContentImagesParams{PostID: id, Kind: kindPublished}); err != nil {
 		return err
 	}
+	if err := q.DeleteContentFiles(ctx, DeleteContentFilesParams{PostID: id, Kind: kindPublished}); err != nil {
+		return err
+	}
 	if err := q.PublishDraft(ctx, id); err != nil {
 		return err
 	}
 	if err := q.DropRedirectToPublished(ctx, id); err != nil {
+		return err
+	}
+	if err := q.PublishDraftFiles(ctx, id); err != nil {
 		return err
 	}
 	return q.PublishDraftImages(ctx, id)
@@ -417,7 +446,7 @@ func (a *Admin) View(w http.ResponseWriter, r *http.Request) {
 			e.CategorySlug = cats[i].Slug
 		}
 	}
-	v, err := newViewData(ctx, a.media, e)
+	v, err := newViewData(ctx, a.media, a.files, e)
 	if err != nil {
 		admin.ServerError(w, r, err)
 		return
@@ -452,7 +481,7 @@ func (a *Admin) viewData(ctx context.Context, f postForm) (viewData, error) {
 	if s == "" {
 		s = slug.Make(title)
 	}
-	return newViewData(ctx, a.media, entry{
+	return newViewData(ctx, a.media, a.files, entry{
 		PostID: f.ID, Title: title, Slug: s, Blocks: data,
 		Cover:    sql.NullString{String: strings.TrimSpace(f.Cover), Valid: strings.TrimSpace(f.Cover) != ""},
 		Excerpt:  plainText(f.Excerpt),
@@ -601,7 +630,7 @@ func (a *Admin) parseForm(w http.ResponseWriter, r *http.Request, f *postForm) b
 // Изображения блоков должны быть уже загружены в f.Env.Resolved, категории — в f.Categories; coverFound —
 // выбранная обложка есть в медиатеке, seoImageFound — картинка SEO.
 func validate(f *postForm, coverFound, seoImageFound bool) bool {
-	errs := blocks.Validate(f.Blocks, f.Env.Resolved)
+	errs := blocks.Validate(f.Blocks, f.Env.Resolved, f.Env.Files)
 	f.Title = strings.TrimSpace(f.Title)
 
 	switch {
@@ -680,8 +709,16 @@ func (a *Admin) env(ctx context.Context, list []blocks.Block, errs map[string]st
 	if err != nil {
 		return blocks.FormEnv{}, err
 	}
+	fileLib, err := a.files.List(ctx, libraryLimit, 0)
+	if err != nil {
+		return blocks.FormEnv{}, err
+	}
+	fs, err := blocks.ResolveFiles(ctx, a.files, list)
+	if err != nil {
+		return blocks.FormEnv{}, err
+	}
 	return blocks.FormEnv{
-		Errors: errs, Resolved: res, Library: lib, Allow: BodyBlocks,
+		Errors: errs, Resolved: res, Library: lib, Files: fs, FileLib: fileLib, FilesURL: a.filesURL, Allow: BodyBlocks,
 		PreviewURL: AdminPath + "/preview", BlockURL: AdminPath + "/block", MediaURL: a.mediaURL,
 	}, nil
 }

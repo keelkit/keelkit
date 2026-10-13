@@ -182,3 +182,22 @@ WHERE c.kind = 'published' AND c.slug = ?;
 SELECT r.post_id, d.title FROM post_redirects r
 JOIN post_contents d ON d.post_id = r.post_id AND d.kind = 'draft'
 WHERE r.slug = ?;
+
+-- name: DeleteContentFiles :exec
+DELETE FROM post_files WHERE post_id = ? AND kind = ?;
+
+-- name: InsertContentFile :exec
+INSERT INTO post_files (post_id, kind, file_id) VALUES (?, ?, ?);
+
+-- name: PublishDraftFiles :exec
+INSERT INTO post_files (post_id, kind, file_id)
+SELECT src.post_id, 'published', src.file_id FROM post_files AS src WHERE src.post_id = ? AND src.kind = 'draft';
+
+-- name: PostsUsingFile :many
+-- Files section: posts whose draft or published copy uses the file (file block).
+SELECT DISTINCT p.id, d.title
+FROM post_files f
+JOIN posts p ON p.id = f.post_id
+JOIN post_contents d ON d.post_id = p.id AND d.kind = 'draft'
+WHERE f.file_id = ?
+ORDER BY p.id;

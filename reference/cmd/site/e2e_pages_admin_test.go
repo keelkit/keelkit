@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -172,8 +173,8 @@ func TestE2EAdminPageCreate(t *testing.T) {
 	if cur := text(doc.Find(`.site-nav a[aria-current="page"]`)); cur != "Страницы" {
 		t.Errorf("current menu item = %q", cur)
 	}
-	if n := doc.Find(".admin-table tbody tr").Length(); n != 4 {
-		t.Errorf("list rows = %d, want 4", n)
+	if n, want := doc.Find(".admin-table tbody tr").Length(), len(seedPages(nil)); n != want {
+		t.Errorf("list rows = %d, want %d", n, want)
 	}
 	if got := a.listStatus("О проекте"); got != "Опубликована" {
 		t.Errorf("seed page status = %q", got)
@@ -227,7 +228,7 @@ func TestE2EAdminPageCreate(t *testing.T) {
 		v, _ := b.Attr("value")
 		add = append(add, v)
 	})
-	if got := strings.Join(add, ","); got != "add:text,add:image,add:image_text,add:quote,add:gallery,add:people" {
+	if got := strings.Join(add, ","); got != "add:text,add:image,add:image_text,add:quote,add:gallery,add:file,add:people" {
 		t.Errorf("add buttons = %s", got)
 	}
 	if doc.Find(".danger-zone").Length() != 0 {
@@ -342,8 +343,8 @@ func TestE2EAdminPageCreate(t *testing.T) {
 	}
 
 	_, body = a.get("/admin")
-	if got := text(parse(t, body).Find(".counter").First()); got != "Страниц: 5" {
-		t.Errorf("counter = %q, want «Страниц: 5»", got)
+	if got, want := text(parse(t, body).Find(".counter").First()), "Страниц: "+strconv.Itoa(len(seedPages(nil))+1); got != want {
+		t.Errorf("counter = %q, want %q", got, want)
 	}
 
 	// Новую страницу можно и сразу опубликовать.
@@ -632,10 +633,10 @@ func TestE2EAdminPageValidation(t *testing.T) {
 		})
 	}
 
-	// Ни одна ошибочная страница не сохранилась: 4 из seed и черновик «О проекте» (o-proekte).
+	// Ни одна ошибочная страница не сохранилась: страницы seed и черновик «О проекте» (o-proekte).
 	_, html := a.get("/admin/pages")
-	if n := parse(t, html).Find(".admin-table tbody tr").Length(); n != 5 {
-		t.Errorf("list rows = %d, want 5", n)
+	if n, want := parse(t, html).Find(".admin-table tbody tr").Length(), len(seedPages(nil))+1; n != want {
+		t.Errorf("list rows = %d, want %d", n, want)
 	}
 }
 

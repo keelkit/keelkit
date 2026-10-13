@@ -26,6 +26,8 @@ import (
 	"time"
 
 	authmigrations "github.com/voffkin/keelkit/modules/auth/migrations"
+	"github.com/voffkin/keelkit/modules/files"
+	filesmigrations "github.com/voffkin/keelkit/modules/files/migrations"
 	"github.com/voffkin/keelkit/modules/images"
 	imagesmigrations "github.com/voffkin/keelkit/modules/images/migrations"
 
@@ -39,6 +41,7 @@ var version = "dev"
 // migrationSources — миграции в порядке применения: модули в порядке из site.yaml, затем сайт.
 var migrationSources = []database.Source{
 	{Name: "images", FS: imagesmigrations.FS, Table: imagesmigrations.Table},
+	{Name: "files", FS: filesmigrations.FS, Table: filesmigrations.Table},
 	{Name: "auth", FS: authmigrations.FS, Table: authmigrations.Table},
 	{Name: "site", FS: migrations.FS, Table: "goose_site_version"},
 }
@@ -97,6 +100,9 @@ func (c config) dbPath() string { return filepath.Join(c.DataDir, "site.db") }
 
 // uploadsDir — загрузки модуля images: оригиналы и варианты. Входит в бэкап вместе с БД.
 func (c config) uploadsDir() string { return filepath.Join(c.DataDir, "uploads") }
+
+// filesDir — файлы модуля files (документы, видео, SVG). Входит в бэкап вместе с БД.
+func (c config) filesDir() string { return filepath.Join(c.DataDir, "files") }
 
 func envOr(key, def string) string {
 	if v := os.Getenv(key); v != "" {
@@ -163,6 +169,19 @@ func openMedia(db *sql.DB, cfg config) (svc *images.Service, closeFn func(), err
 	return images.NewService(db, st, images.Config{}), func() { _ = st.Close() }, nil
 }
 
+// filesConfig — настройки модуля files. Лимит по умолчанию — files.DefaultMaxBytes (50 МБ); сайт с видео
+// поднимает его здесь (MaxBytes), тогда растёт и предел тела запроса в разделе «Файлы».
+var filesConfig = files.Config{}
+
+// openFiles открывает хранилище файлов и сервис файлов над БД сайта. close закрывает хранилище.
+func openFiles(db *sql.DB, cfg config) (svc *files.Service, closeFn func(), err error) {
+	st, err := files.NewDiskStorage(cfg.filesDir())
+	if err != nil {
+		return nil, nil, fmt.Errorf("files: %w", err)
+	}
+	return files.NewService(db, st, filesConfig), func() { _ = st.Close() }, nil
+}
+
 // errPendingMigrations — отказ старта: схема БД отстаёт от кода.
 var errPendingMigrations = errors.New("есть непримененные миграции")
 
@@ -192,10 +211,15 @@ func serve(ctx context.Context, cfg config) error {
 		return err
 	}
 	defer closeMedia()
+	fls, closeFiles, err := openFiles(db, cfg)
+	if err != nil {
+		return err
+	}
+	defer closeFiles()
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           newMux(db, media, cfg),
+		Handler:           newMux(db, media, fls, cfg),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

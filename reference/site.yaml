@@ -7,6 +7,7 @@ site:
 # миграций нет), затем миграции сайта. TestSpecModulesMatchCode сверяет список с go.mod и migrationSources.
 modules:
   images: v0
+  files: v0
   richtext: v0
   auth: v0
 # Настройки сайта — одна запись (site_settings, раздел «Настройки» в админке, пакет internal/settings);
@@ -40,7 +41,7 @@ content:
       slug:  { type: slug, required: true }
       # Набор блоков — дизайн сайта: поля блоков описаны в internal/blocks, здесь — только имена.
       # people — блок-список: выводит всех людей (тип people ниже), сам полей не хранит.
-      body:  { type: blocks, allow: [text, image, image_text, quote, gallery, people] }
+      body:  { type: blocks, allow: [text, image, image_text, quote, gallery, file, people] }
     # seo — SEO записи вручную (заголовок, описание, картинка для соцсетей; пусто — подстановка),
     # только у типов со своим адресом; общий компонент internal/seofields.
     features: [draft, sitemap, seo]
@@ -55,7 +56,7 @@ content:
       cover:     { type: image }
       cover_alt: { type: string }  # alt обложки; пусто — обложка декоративная
       category:  { type: ref, to: categories }
-      body:      { type: blocks, allow: [text, image, image_text, quote, gallery] }
+      body:      { type: blocks, allow: [text, image, image_text, quote, gallery, file] }
     features: [publish_date, draft, rss, sitemap, seo]
   categories:
     fields:

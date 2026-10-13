@@ -6,9 +6,10 @@
 ## Версии
 
 - Go: `go 1.26.0` в `go.mod` (актуальный релиз минус один минор), тулчейн `go1.27.2`.
-- Модули Keelkit: `github.com/voffkin/keelkit/modules/images` v0.1.0, `github.com/voffkin/keelkit/modules/richtext` v0.1.1
-  (без таблиц и миграций), `github.com/voffkin/keelkit/modules/auth` v0.1.0 (таблицы `users`, `sessions`);
-  в `site.yaml` — `modules: { images: v0, richtext: v0, auth: v0 }`.
+- Модули Keelkit: `github.com/voffkin/keelkit/modules/images` v0.1.0, `github.com/voffkin/keelkit/modules/files` v0.1.0
+  (таблицы `files_*`), `github.com/voffkin/keelkit/modules/richtext` v0.1.1 (без таблиц и миграций),
+  `github.com/voffkin/keelkit/modules/auth` v0.1.0 (таблицы `users`, `sessions`);
+  в `site.yaml` — `modules: { images: v0, files: v0, richtext: v0, auth: v0 }` (`spec` v0.6.0: `SPEC_VERSION` в `Makefile`).
   Их зависимости приходят транзитивно: `golang.org/x/image`, `github.com/gen2brain/webp` (+ `ebitengine/purego`);
   goldmark, bluemonday, `golang.org/x/net`; `golang.org/x/crypto` (argon2id).
 - Тег сборки `nodynamic` (`BUILD_TAGS` в `Makefile`, экспортируется через `GOFLAGS`): кодек WebP не подгружает
@@ -56,7 +57,7 @@
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
 | `ADDR` | `:8080` (в `make run`/`dev` — `:9090`) | адрес HTTP-сервера |
-| `DATA_DIR` | `data` | каталог с БД (`site.db`) и загрузками (`uploads/`: оригиналы и варианты изображений) |
+| `DATA_DIR` | `data` | каталог с БД (`site.db`) и загрузками (`uploads/`: оригиналы и варианты изображений; `files/`: файлы модуля `files`) |
 | `BACKUP_DIR` | `backups` | каталог снимков БД перед миграциями |
 | `COOKIE_SECURE` | `true` | флаг `Secure` у cookie админки и согласия с баннером cookies; `false` — только для разработки по http (`make run`/`make dev` передают `false`) |
 | `TZ` | часовой пояс системы | в нём показываются и вводятся даты публикации постов (в БД — UTC) |
@@ -75,6 +76,9 @@
   обычный `GET /{slug}`, поэтому в `reservedSlugs` его нет.
 - `GET /sitemap.xml`, `GET /rss.xml`, `GET /robots.txt` — пакет `internal/seo` (см. «SEO»); без данных шапки.
 - `GET /static/…` — файлы из `static/` (embed); ссылки с `?v=<хеш>` кэшируются на год, список каталога не отдаётся.
+- `GET /files/<id>/<имя>` — файлы (PDF, видео, SVG), обработчик модуля `files` (`web.FilesPrefix`): тип по формату,
+  Range, `ETag` версии и кэш с проверкой (адрес не меняется при замене), `nosniff`, у SVG — CSP `sandbox`.
+  Другое имя при верном id и `GET /files` — 404.
 - `GET /media/…` — варианты изображений, обработчик модуля `images` (`web.MediaPrefix`); кэш `immutable`, оригиналы
   не отдаются никогда. `GET /media` — 404.
 - `GET /admin/login`, `POST /admin/login`, `POST /admin/logout`, `GET /admin` (дашборд); `/admin/` → 301 на `/admin`;
@@ -95,6 +99,9 @@
 - Настройки: `GET|POST /admin/settings` (форма; «Сохранить» или кнопка списка соцсетей — поле `action`),
   `POST /admin/settings/image` (htmx: поле картинки для соцсетей с превью).
 - Меню: `GET /admin/menus` (список меню), `GET|POST /admin/menus/{name}` (форма; «Сохранить» или кнопка пункта — поле `action`).
+- Файлы: `GET /admin/files` (загрузка и таблица, `?page=N`), `POST /admin/files` (загрузка), `GET /admin/files/{id}`
+  (карточка: адрес, замена, где используется), `POST /admin/files/{id}/replace` (замена тем же форматом),
+  `GET|POST /admin/files/{id}/delete` (подтверждение, удалить; используемый — 409).
 - Медиатека: `GET /admin/media` (загрузка и сетка, `?page=N`), `POST /admin/media` (загрузка), `GET /admin/media/{id}`
   (карточка), `GET|POST /admin/media/{id}/delete` (подтверждение, удалить).
 - Зарезервированные slug — `reservedSlugs` в `cmd/site/server.go` (`admin`, `static`, `media`, `healthz` и раздел постов из
@@ -102,7 +109,7 @@
   страницу, админка такие slug не принимает. Маршрут-поддерево (`/static/`) занимает и путь без слеша (`GET /static` → 404),
   иначе его забрал бы `GET /{slug}`; e2e `TestE2EReservedSlugsShadowPages` проверяет каждый slug из списка.
 - Всё остальное — оформленная 404 (`web.NotFound`).
-- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"auth":{"version":1,"pending":0},"site":{"version":13,"pending":0}}}`.
+- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"files":{"version":1,"pending":0},"auth":{"version":1,"pending":0},"site":{"version":14,"pending":0}}}`.
 
 ## Бинарник
 
@@ -161,6 +168,27 @@
   со ссылками на изображения добавляет туда свой запрос (настройки, страницы, затем посты). Используемое изображение: на карточке — список,
   подтверждение удаления и `POST` — 409 со списком.
 
+## Файлы (модуль `files`)
+
+Как подключать модуль — `modules/files/UPGRADE.md` (v0.1.0); здесь — как это сделано в эталоне. Файлы — документы,
+видео и SVG как есть; фотографии для страниц — по-прежнему медиатека (`images`).
+- Сервис создаёт `openFiles(db, cfg)` в `cmd/site/main.go`: `files.NewDiskStorage(DATA_DIR/files)` +
+  `files.NewService(db, st, filesConfig)`; лимит — `filesConfig` (по умолчанию 50 МБ; сайт с видео задаёт `MaxBytes`).
+  Его получают `newMux` и `seed`. Таблицы `files_*` сайт не читает запросами — только через `files.Service`.
+- Раздел «Файлы» — `internal/filelib/` (группа «Контент», иконка `files`): загрузка формой `multipart/form-data`
+  (htmx и без JavaScript), ошибки модуля (`ErrTooLarge`, `ErrUnsupportedFormat`, `ErrInvalidFile`, `ErrFormatMismatch`) —
+  422 у поля; тело — `maxBody(filesAdmin.MaxUploadRequest(), …)` снаружи `signedIn` (лимит модуля + 1 МБ, считается от
+  `files.Service.MaxBytes`). Карточка — адрес на сайте, просмотр видео и SVG, форма замены (тот же формат: адрес
+  с расширением не меняется), где используется, удаление.
+- Ссылка из контента — блок `file` (см. «Блоки»): id файла в JSON блока и строка в `page_files` / `post_files`
+  (`file_id TEXT REFERENCES files_files (id)` без `ON DELETE`, миграция `00014`), перезаписываются в той же
+  транзакции, что и копия, как `<type>_images`. «Где используется» — `fileUsage` в `cmd/site/server.go`
+  (`filelib.UsageFunc`); используемый файл — 409 со списком.
+- Адрес — `web.FileURL(f)` (`/files/` + `File.Path`, уже экранирован); формат и размер для людей — `web.FileFormat`,
+  `web.FormatBytes`.
+- Seed — `cmd/site/seedfiles/` (PDF на одну страницу, SVG-логотип, MP4 на 2 секунды, 4 КБ) через `seedFiles`; id
+  дописываются в ту же карту по имени файла, что и изображения; страница «Документы» (`/documents`) — блоки file.
+
 ## Шаблоны и HTML
 
 - Шаблоны — templ (`*.templ` рядом с кодом, `*_templ.go` генерируются и коммитятся).
@@ -211,7 +239,7 @@
   (`Counter.URL` — ссылка на раздел), пункты меню — `admin.Options.Sections` (группа «Контент»). Новый тип контента добавляет туда
   счётчик и раздел. Разделы всего сайта (настройки, меню) — `admin.Options.SiteSections`, группа «Сайт» ниже.
 - Для разделов типов контента пакет экспортирует: `admin.Layout(title)` (оболочка: верхняя панель и боковое меню `.site-nav`,
-  текущий пункт — по префиксу пути; иконка пункта — `Section.Icon`: `pages`, `posts`, `tags`, `people`, `image`, `settings`, `menu`, иначе папка),
+  текущий пункт — по префиксу пути; иконка пункта — `Section.Icon`: `pages`, `posts`, `tags`, `people`, `image`, `files`, `settings`, `menu`, иначе папка),
   `admin.CSRFInput()` (скрытое поле токена), `admin.NotFound`, `admin.ServerError`, `admin.Redirect` (303 или
   `HX-Redirect` после успешного POST), `admin.IsHTMX`.
 - htmx в админке: `<meta name="htmx-config">` разрешает подмену разметки ответом 422 (по умолчанию htmx не подменяет 4xx).
@@ -233,7 +261,7 @@
 Seed блога (`seedBlog`): 3 категории, 13 опубликованных постов (`post-01`…`post-13`, даты — дни назад от запуска,
 обложки у каждого третьего; у самого нового `post-13` — лид, ручной анонс и alt обложки), черновик `draft-post`
 и `future-post` с датой через 30 дней. Seed людей (`seedPeople`): трое по порядку, фото у первого (`photo.jpg`);
-страница «Команда» (`/team`) — текст и блок `people` (в меню её нет).
+страница «Команда» (`/team`) — текст и блок `people` (в меню её нет); «Документы» (`/documents`) — блоки `file`.
 
 Раздел админки (образец — `pages/admin.go`):
 - Маршруты — `signedIn(...)`: сессия и CSRF уже проверены. Список, `new`, создание `POST /admin/<type>`,
@@ -326,7 +354,13 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
 (остаётся в данных и в админке, на сайт не выводится). Типы: `text` (Markdown), `image` (изображение, alt обязателен,
 подпись), `image_text` (изображение, alt, подпись, Markdown, `position` left/right), `quote` (цитата, автор),
 `gallery` (список изображений с alt и подписью; на сайте — лента с прокруткой на CSS scroll-snap, без JavaScript),
+`file` (файл из раздела «Файлы» и подпись: PDF — ссылка с форматом и размером, текст — подпись или имя файла; видео —
+`<video controls preload="metadata">`, подпись — под ним; SVG — `<img>`, подпись — его alt, поэтому обязательна),
 `people` (блок-список: все люди в порядке из их раздела).
+- Файлы блоков `file`: `blocks.ResolveFiles(ctx, src, list)` → `blocks.Files` (как `Resolve` для изображений);
+  `blocks.Validate(list, res, files)`, `blocks.View(list, res, files, lists)`; `blocks.FileIDs` — для `<type>_files`.
+  Форма — `FormEnv.Files` (выбранные), `FileLib` (последние загруженные, `blocks.FileLibrary` — `files.Service`),
+  `FilesURL` (ссылка на раздел). Блок со ссылками на файлы реализует `fileIDs()` (необязательный интерфейс).
 - Блок-список (`blocks.Listing`; страница с вступлением и карточками записей — «витрина»): выводит все записи типа
   контента, сам полей не хранит — только место среди блоков. Записи и их вывод даёт код типа: `blocks.ListSource`
   (`Render` — компонент со всеми записями, `AdminURL` — раздел для ссылки в форме блока); источники по имени блока —
@@ -509,6 +543,8 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
 - `TestImagesContract` (`cmd/site/images_test.go`) — контрактные тесты модуля (`testkit.Run`) на интеграции сайта:
   `migratedSite` (миграции модуля и сайта, загрузки во временной папке) и маршруты `newMux`. При обновлении модуля
   они первыми покажут, что интеграция сломалась.
+- `TestFilesContract` (`cmd/site/files_test.go`) — контрактные тесты модуля `files` на интеграции сайта (хранилище
+  в `DATA_DIR/files`, маршруты `newMux`).
 - `TestAuthContract` (`cmd/site/auth_test.go`) — контрактные тесты модуля `auth`: настоящие страницы входа и админки
   из `newMux` с cookie `Secure`, время сайта (`config.now`) задаёт testkit — проверяются вход, выход, CSRF, блокировка,
   истечение сессии. `TestMigrationAuthOverSiteTables` (`migrations_test.go`) — база до этапа 10.4 (таблицы создала
@@ -518,6 +554,10 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
 - Хелпер `migratedSite(t, withSeed)` (`main_test.go`) — БД после `migrate`, сервис изображений и `handler(cfg)`;
   `withSeed` заливает `seedContent` без изображений (их обработка ~1 с). Нужны картинки из seed — `migratedSiteWithImages(t)`
   (полный seed, возвращает id изображений по имени файла).
+- e2e файлов — `cmd/site/e2e_files_admin_test.go`: страница «Документы» (ссылка, картинка, плеер; тип, Range, CSP у SVG),
+  раздел «Файлы» (загрузка формой и htmx, ошибки, карточка, замена по тому же адресу, 409 для используемого, удаление),
+  блок file в форме страницы (выбор, ошибка «файла нет», ссылка в «где используется»). Хелпер `newFilesAdmin` —
+  seed без изображений, но с файлами.
 - e2e медиатеки — `cmd/site/e2e_media_admin_test.go`: seed, загрузка (htmx и форма), каждая ошибка проверки файла,
   тело сверх лимита, карточка, удаление, 409 для используемого изображения, постраничный вывод.
 - e2e раздела типа контента — `cmd/site/e2e_<type>_admin_test.go` (образец — `pages`): `newPageAdmin` (сайт + вошедший клиент),
@@ -566,11 +606,13 @@ cmd/site/main.go            # точка входа: конфиг, подком�
 cmd/site/server.go          # маршруты, данные шапки (siteLoader), /healthz
 cmd/site/seed.go            # dev-данные: seedContent, seedImages
 cmd/site/seeddata/          # изображения для seed (embed)
+cmd/site/seedfiles/         # файлы для seed: PDF, SVG, MP4 (embed)
 cmd/site/user.go            # site user create
 cmd/site/e2e_test.go        # e2e (TestE2E*)
 cmd/site/e2e_admin_test.go  # e2e админки
 cmd/site/e2e_pages_admin_test.go  # e2e раздела «Страницы»
 cmd/site/e2e_media_admin_test.go  # e2e медиатеки
+cmd/site/e2e_files_admin_test.go  # e2e файлов: раздел «Файлы», блок file, отдача
 cmd/site/e2e_blog_test.go         # e2e блога на сайте
 cmd/site/e2e_posts_admin_test.go  # e2e разделов «Посты» и «Категории»
 cmd/site/e2e_seo_test.go          # e2e sitemap, RSS, robots.txt, <head>, редиректов
@@ -581,6 +623,7 @@ cmd/site/e2e_people_admin_test.go # e2e людей: порядок, раздел
 cmd/site/migrations_test.go # миграции, меняющие данные, на копии реалистичных данных
 cmd/site/spec_test.go       # site.yaml ↔ код (модули, блоки, features, поля настроек, меню)
 cmd/site/images_test.go     # контрактные тесты модуля images (testkit)
+cmd/site/files_test.go      # контрактные тесты модуля files (testkit)
 cmd/site/richtext_test.go   # контрактные тесты модуля richtext (testkit)
 cmd/site/auth_test.go       # контрактные тесты модуля auth (testkit)
 cmd/site/browser_test.go    # браузерные тесты (тег browser, make e2e-browser)
@@ -594,6 +637,7 @@ internal/content/categories/ # категории: queries.sql, sqlc, admin.go, 
 internal/content/people/    # люди (без адреса, ручной порядок): admin.go, admin.templ, handlers.go (Cards), views.templ
 internal/database/          # открытие SQLite, статус схем, снимок, применение миграций
 internal/media/             # медиатека в админке (модуль images)
+internal/filelib/           # раздел «Файлы» в админке (модуль files)
 internal/menu/              # меню (menu_items): запросы, сборка для сайта (Site), раздел админки
 internal/seo/               # sitemap.xml, rss.xml, robots.txt
 internal/seofields/         # SEO записи вручную: поля, проверка, раздел формы с превью сниппета, наложение на web.Meta

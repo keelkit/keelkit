@@ -9,6 +9,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -165,8 +166,8 @@ func TestE2EAdminLoginLogout(t *testing.T) {
 		t.Fatalf("GET /admin: status %d", resp.StatusCode)
 	}
 	doc := parse(t, body)
-	if got := text(doc.Find(".counter").First()); got != "Страниц: 4" {
-		t.Errorf("counter = %q, want «Страниц: 4»", got)
+	if got, want := text(doc.Find(".counter").First()), "Страниц: "+strconv.Itoa(len(seedPages(nil))); got != want {
+		t.Errorf("counter = %q, want %q", got, want)
 	}
 	if got := text(doc.Find(".admin-user")); got != seedAdminEmail {
 		t.Errorf("user = %q", got)

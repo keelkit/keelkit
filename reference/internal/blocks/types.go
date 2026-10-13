@@ -8,6 +8,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/voffkin/keelkit/modules/files"
 	"github.com/voffkin/keelkit/modules/richtext"
 
 	"github.com/voffkin/keelkit/reference/internal/listfield"
@@ -27,7 +28,7 @@ type Text struct {
 
 func (t *Text) readForm(f fields) { t.Body = f.Get("body") }
 
-func (t *Text) check(Resolved) map[string]string {
+func (t *Text) check(Resolved, Files) map[string]string {
 	t.Body = normalizeNewlines(t.Body)
 	errs := map[string]string{}
 	checkMarkdown(errs, "body", t.Body, true)
@@ -50,7 +51,7 @@ func (m *Image) readForm(f fields) {
 	m.Image, m.Alt, m.Caption = f.Get("image"), f.Get("alt"), f.Get("caption")
 }
 
-func (m *Image) check(res Resolved) map[string]string {
+func (m *Image) check(res Resolved, _ Files) map[string]string {
 	errs := map[string]string{}
 	checkImage(errs, &m.Image, &m.Alt, res)
 	m.Caption = strings.TrimSpace(m.Caption)
@@ -84,7 +85,7 @@ func (m *ImageText) readForm(f fields) {
 	m.Body, m.Position = f.Get("body"), f.Get("position")
 }
 
-func (m *ImageText) check(res Resolved) map[string]string {
+func (m *ImageText) check(res Resolved, _ Files) map[string]string {
 	errs := map[string]string{}
 	checkImage(errs, &m.Image, &m.Alt, res)
 	m.Caption = strings.TrimSpace(m.Caption)
@@ -116,7 +117,7 @@ type Quote struct {
 
 func (q *Quote) readForm(f fields) { q.Text, q.Author = f.Get("text"), f.Get("author") }
 
-func (q *Quote) check(Resolved) map[string]string {
+func (q *Quote) check(Resolved, Files) map[string]string {
 	errs := map[string]string{}
 	q.Text = strings.TrimSpace(normalizeNewlines(q.Text))
 	q.Author = strings.TrimSpace(q.Author)
@@ -161,7 +162,7 @@ func (g *Gallery) readForm(f fields) {
 	}
 }
 
-func (g *Gallery) check(res Resolved) map[string]string {
+func (g *Gallery) check(res Resolved, _ Files) map[string]string {
 	errs := map[string]string{}
 	switch {
 	case len(g.Items) == 0:
@@ -217,6 +218,38 @@ func (g *Gallery) applyItem(op, item string) (Content, bool) {
 	return &Gallery{Items: items}, ok
 }
 
+// File — блок file: файл из раздела «Файлы» (id модуля files) и подпись. На сайте вид зависит от формата:
+// видео — плеер, SVG — картинка (подпись — её alt), PDF — ссылка с форматом и размером (подпись — текст ссылки,
+// пусто — имя файла).
+type File struct {
+	File  string `json:"file"`
+	Title string `json:"title"`
+}
+
+func (m *File) readForm(f fields) { m.File, m.Title = f.Get("file"), f.Get("title") }
+
+func (m *File) check(_ Resolved, fs Files) map[string]string {
+	errs := map[string]string{}
+	m.File = strings.TrimSpace(m.File)
+	m.Title = strings.TrimSpace(m.Title)
+	switch {
+	case m.File == "":
+		errs["file"] = "Выберите файл."
+	case fs[m.File] == nil:
+		errs["file"] = "Файла нет в разделе «Файлы»: выберите другой."
+	case fs[m.File].Format == files.SVG && m.Title == "":
+		errs["title"] = "Опишите картинку для тех, кто её не видит: подпись станет её alt."
+	}
+	checkShort(errs, "title", m.Title, "Подпись")
+	return errs
+}
+
+func (m *File) view(b Block, e viewEnv) templ.Component { return fileView(b, m, e.files[m.File]) }
+func (m *File) form(b Block, e FormEnv) templ.Component { return fileForm(b, m, e) }
+func (m *File) imageIDs() []string                      { return nil }
+func (m *File) fileIDs() []string                       { return []string{m.File} }
+func (m *File) plainText() []string                     { return []string{m.Title} }
+
 // Listing — блок-список (people): выводит все записи типа контента в порядке, заданном в их разделе админки.
 // Сам блок полей не хранит — только место на странице; записи и их вывод даёт ListSource.
 type Listing struct{}
@@ -224,7 +257,7 @@ type Listing struct{}
 func newListing() Content { return &Listing{} }
 
 func (l *Listing) readForm(fields)                         {}
-func (l *Listing) check(Resolved) map[string]string        { return nil }
+func (l *Listing) check(Resolved, Files) map[string]string { return nil }
 func (l *Listing) view(b Block, e viewEnv) templ.Component { return listingView(b, e.lists[b.Type]) }
 func (l *Listing) form(b Block, e FormEnv) templ.Component {
 	return listingForm(b, e.Lists[b.Type].AdminURL)
@@ -243,7 +276,7 @@ func (u *Unknown) MarshalJSON() ([]byte, error) { return []byte(u.Raw), nil }
 
 func (u *Unknown) readForm(f fields) { u.Raw = f.Get("raw") }
 
-func (u *Unknown) check(Resolved) map[string]string {
+func (u *Unknown) check(Resolved, Files) map[string]string {
 	var m map[string]json.RawMessage
 	if json.Unmarshal([]byte(u.Raw), &m) != nil {
 		return map[string]string{"raw": "Данные блока повреждены: удалите блок."}

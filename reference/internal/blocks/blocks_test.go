@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/a-h/templ"
 
+	"github.com/voffkin/keelkit/modules/files"
 	"github.com/voffkin/keelkit/modules/images"
 
 	"github.com/voffkin/keelkit/reference/internal/listfield"
@@ -69,7 +71,7 @@ func TestUnmarshalOldJSON(t *testing.T) {
 	if it.right() {
 		t.Error("missing position must mean left")
 	}
-	if errs := Validate(list[1:2], Resolved{"img": &images.Image{ID: "img"}}); len(errs) != 0 || it.Position != PositionLeft {
+	if errs := Validate(list[1:2], Resolved{"img": &images.Image{ID: "img"}}, nil); len(errs) != 0 || it.Position != PositionLeft {
 		t.Errorf("validate old image_text: %v, position %q", errs, it.Position)
 	}
 	u, ok := list[3].Content.(*Unknown)
@@ -84,7 +86,7 @@ func TestUnmarshalOldJSON(t *testing.T) {
 	// На сайте не выводится и не роняет страницу.
 	var buf bytes.Buffer
 	list[3].Hidden = false
-	if err := View(list[3:], nil, nil).Render(context.Background(), &buf); err != nil || buf.Len() != 0 {
+	if err := View(list[3:], nil, nil, nil).Render(context.Background(), &buf); err != nil || buf.Len() != 0 {
 		t.Errorf("unknown block view = %q, %v", buf.String(), err)
 	}
 }
@@ -126,7 +128,7 @@ func TestParseAndValidate(t *testing.T) {
 	if !list[0].Hidden || list[1].Hidden {
 		t.Error("hidden flags")
 	}
-	errs := Validate(list, Resolved{"img": &images.Image{ID: "img"}})
+	errs := Validate(list, Resolved{"img": &images.Image{ID: "img"}}, nil)
 	want := []string{"block-b2-image", "block-b2-alt", "block-b3-text"}
 	for _, k := range want {
 		if errs[k] == "" {
@@ -230,7 +232,7 @@ func TestViewSkipsHidden(t *testing.T) {
 		{ID: "c", Type: "quote", Content: &Quote{Text: "абзац 1\n\nабзац 2", Author: "Автор"}},
 	}
 	var buf bytes.Buffer
-	if err := View(list, nil, nil).Render(context.Background(), &buf); err != nil {
+	if err := View(list, nil, nil, nil).Render(context.Background(), &buf); err != nil {
 		t.Fatal(err)
 	}
 	html := buf.String()
@@ -258,7 +260,7 @@ func TestKindsHaveTitles(t *testing.T) {
 		if err := Form(b, FormEnv{}).Render(context.Background(), &buf); err != nil {
 			t.Errorf("form %s: %v", k.Name, err)
 		}
-		if err := View([]Block{b}, nil, nil).Render(context.Background(), &buf); err != nil {
+		if err := View([]Block{b}, nil, nil, nil).Render(context.Background(), &buf); err != nil {
 			t.Errorf("view %s: %v", k.Name, err)
 		}
 	}
@@ -285,7 +287,7 @@ func TestGalleryParseAndValidate(t *testing.T) {
 	if got := strings.Join(g.itemIDs(), ","); got != "b,a,c" {
 		t.Fatalf("item order = %s, want b,a,c", got)
 	}
-	errs := Validate(list, Resolved{"img": &images.Image{ID: "img"}})
+	errs := Validate(list, Resolved{"img": &images.Image{ID: "img"}}, nil)
 	want := []string{"block-g-i-c-image", "block-g-i-c-alt"}
 	for _, k := range want {
 		if errs[k] == "" {
@@ -303,7 +305,7 @@ func TestGalleryParseAndValidate(t *testing.T) {
 	}
 
 	empty := []Block{{ID: "e", Type: "gallery", Content: &Gallery{}}}
-	if errs := Validate(empty, nil); errs["block-e-items"] == "" {
+	if errs := Validate(empty, nil, nil); errs["block-e-items"] == "" {
 		t.Errorf("empty gallery: %v", errs)
 	}
 }
@@ -387,7 +389,7 @@ func TestGalleryView(t *testing.T) {
 	}}}}
 	res := Resolved{"i1": &images.Image{ID: "i1"}, "i2": &images.Image{ID: "i2"}}
 	var buf bytes.Buffer
-	if err := View(list, res, nil).Render(context.Background(), &buf); err != nil {
+	if err := View(list, res, nil, nil).Render(context.Background(), &buf); err != nil {
 		t.Fatal(err)
 	}
 	html := buf.String()
@@ -428,7 +430,7 @@ func TestListing(t *testing.T) {
 		t.Fatalf("Resolve: %v, %d calls", err, calls)
 	}
 	var buf bytes.Buffer
-	if err := View(back, nil, lists).Render(context.Background(), &buf); err != nil {
+	if err := View(back, nil, nil, lists).Render(context.Background(), &buf); err != nil {
 		t.Fatal(err)
 	}
 	if got := buf.String(); got != `<div class="block block-list block-people" id="block-p1"><ul class="people-list"></ul></div>` {
@@ -436,13 +438,66 @@ func TestListing(t *testing.T) {
 	}
 
 	buf.Reset()
-	if err := View(back, nil, nil).Render(context.Background(), &buf); err != nil || buf.Len() != 0 {
+	if err := View(back, nil, nil, nil).Render(context.Background(), &buf); err != nil || buf.Len() != 0 {
 		t.Errorf("View without source = %q, %v", buf.String(), err)
 	}
 	if lists, err := (ListSources{}).Resolve(context.Background(), back); err != nil || len(lists) != 0 {
 		t.Errorf("Resolve without source = %v, %v", lists, err)
 	}
-	if errs := Validate(back, nil); len(errs) != 0 || PlainText(back) != "" || len(ImageIDs(back)) != 0 {
+	if errs := Validate(back, nil, nil); len(errs) != 0 || PlainText(back) != "" || len(ImageIDs(back)) != 0 {
 		t.Errorf("Validate = %v", errs)
+	}
+}
+
+func TestFileBlock(t *testing.T) {
+	pdf := &files.File{ID: "pdf", Name: "Прайс.pdf", URLName: "прайс.pdf", Path: "pdf/%D0%BF.pdf", Format: files.PDF, Bytes: 1_300_000}
+	mp4 := &files.File{ID: "mp4", Name: "clip.mp4", URLName: "clip.mp4", Path: "mp4/clip.mp4", Format: files.MP4, Bytes: 10}
+	svg := &files.File{ID: "svg", Name: "logo.svg", URLName: "logo.svg", Path: "svg/logo.svg", Format: files.SVG, Bytes: 10}
+	fs := Files{"pdf": pdf, "mp4": mp4, "svg": svg}
+
+	form := url.Values{
+		"block":        {"a", "b", "c", "d", "e"},
+		"block-a-type": {"file"}, "block-a-file": {" pdf "}, "block-a-title": {""},
+		"block-b-type": {"file"}, "block-b-file": {"mp4"}, "block-b-title": {"Ролик"},
+		"block-c-type": {"file"}, "block-c-file": {"svg"}, "block-c-title": {""},
+		"block-d-type": {"file"}, "block-d-file": {""},
+		"block-e-type": {"file"}, "block-e-file": {"gone"},
+	}
+	list, err := Parse(form)
+	if err != nil {
+		t.Fatal(err)
+	}
+	errs := Validate(list, nil, fs)
+	want := map[string]string{
+		"block-c-title": "Опишите картинку для тех, кто её не видит: подпись станет её alt.",
+		"block-d-file":  "Выберите файл.",
+		"block-e-file":  "Файла нет в разделе «Файлы»: выберите другой.",
+	}
+	if len(errs) != len(want) {
+		t.Errorf("Validate = %v, want %v", errs, want)
+	}
+	for k, v := range want {
+		if errs[k] != v {
+			t.Errorf("error %s = %q, want %q", k, errs[k], v)
+		}
+	}
+	if got := FileIDs(list); !slices.Equal(got, []string{"pdf", "mp4", "svg", "gone"}) {
+		t.Errorf("FileIDs = %v", got)
+	}
+
+	list[2].Content.(*File).Title = "Логотип"
+	var buf bytes.Buffer
+	if err := View(list[:3], nil, fs, nil).Render(context.Background(), &buf); err != nil {
+		t.Fatal(err)
+	}
+	html := buf.String()
+	for _, w := range []string{
+		`<a href="/files/pdf/%D0%BF.pdf">Прайс.pdf</a>`, `PDF, 1,2 МБ`,
+		`<video controls preload="metadata" src="/files/mp4/clip.mp4">`, `<figcaption>Ролик</figcaption>`,
+		`<img src="/files/svg/logo.svg" alt="Логотип"`,
+	} {
+		if !strings.Contains(html, w) {
+			t.Errorf("view has no %q:\n%s", w, html)
+		}
 	}
 }

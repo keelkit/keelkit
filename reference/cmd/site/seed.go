@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/voffkin/keelkit/modules/auth"
+	"github.com/voffkin/keelkit/modules/files"
 	"github.com/voffkin/keelkit/modules/images"
 
 	"github.com/voffkin/keelkit/reference/internal/blocks"
@@ -41,6 +42,14 @@ func seed(ctx context.Context, cfg config) error {
 	if err != nil {
 		return err
 	}
+	fls, closeFiles, err := openFiles(db, cfg)
+	if err != nil {
+		return err
+	}
+	defer closeFiles()
+	if err := seedFiles(ctx, fls, imgs); err != nil {
+		return err
+	}
 	if err := seedContent(ctx, db, imgs); err != nil {
 		return err
 	}
@@ -50,8 +59,8 @@ func seed(ctx context.Context, cfg config) error {
 	return nil
 }
 
-// seedContent — настройки сайта, страницы, блог и пользователь админки. imgs — id изображений из seedImages по имени
-// файла; блоки с изображением, которого там нет, пропускаются. Отдельно от seedImages: обработка изображений
+// seedContent — настройки сайта, страницы, блог и пользователь админки. imgs — id изображений из seedImages и файлов
+// из seedFiles по имени файла; блоки с изображением или файлом, которого там нет, пропускаются. Отдельно от seedImages: обработка изображений
 // занимает около секунды, поэтому тестам, которым картинки не нужны, хватает seedContent(ctx, db, nil).
 func seedContent(ctx context.Context, db *sql.DB, imgs map[string]string) error {
 	social, err := listfield.Encode([]settings.Social{
@@ -139,6 +148,43 @@ func seedImages(ctx context.Context, media *images.Service) (map[string]string, 
 	return ids, nil
 }
 
+// seedFileData — файлы для раздела «Файлы»: PDF на одну страницу, SVG-логотип и видео MP4 на 2 секунды
+// (ffmpeg testsrc, 160×90).
+//
+//go:embed seedfiles
+var seedFileData embed.FS
+
+// seedFiles загружает seedFileData через модуль files и дописывает их id в ids по имени файла. Файл с тем же
+// именем уже есть — пропускается.
+func seedFiles(ctx context.Context, fls *files.Service, ids map[string]string) error {
+	existing, err := fls.List(ctx, 1000, 0)
+	if err != nil {
+		return err
+	}
+	for _, f := range existing {
+		ids[f.Name] = f.ID
+	}
+	entries, err := seedFileData.ReadDir("seedfiles")
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if ids[e.Name()] != "" {
+			continue
+		}
+		data, err := seedFileData.ReadFile("seedfiles/" + e.Name())
+		if err != nil {
+			return err
+		}
+		f, err := fls.Upload(ctx, bytes.NewReader(data), e.Name())
+		if err != nil {
+			return fmt.Errorf("seed file %s: %w", e.Name(), err)
+		}
+		ids[e.Name()] = f.ID
+	}
+	return nil
+}
+
 // Пользователь админки для разработки (seed в проде не запускается). Пароль проходит политику модуля auth:
 // от 8 символов.
 const (
@@ -153,9 +199,9 @@ type seedPage struct {
 }
 
 // seedPages — опубликованные страницы в порядке меню. «О проекте» — все типы блоков (text, image, image_text,
-// quote, gallery) и Markdown (таблица, код, ссылки); «Контакты» проверяет санитайзер: скрипт, обработчик события
-// и javascript:-ссылка не должны попасть в HTML. imgs — id изображений из seedImages по имени файла:
-// без них блоки с изображениями пропускаются.
+// quote, gallery) и Markdown (таблица, код, ссылки); «Документы» — блоки file (PDF, SVG, видео); «Контакты»
+// проверяет санитайзер: скрипт, обработчик события и javascript:-ссылка не должны попасть в HTML. imgs — id
+// изображений и файлов по имени файла: без них блоки с изображениями и файлами пропускаются.
 func seedPages(imgs map[string]string) []seedPage {
 	about := []blocks.Block{
 		textBlock("about-intro", `Keelkit — набор Go-модулей, спецификаций и скиллов для быстрого создания сайтов:
@@ -221,6 +267,7 @@ func (h *Handler) Show(w http.ResponseWriter, r *http.Request) {
 			textBlock("team-intro", "Люди, которые делают Keelkit. Порядок задаётся в разделе «Люди» админки."),
 			{ID: "team-people", Type: "people", Content: &blocks.Listing{}},
 		}},
+		{title: "Документы", slug: "documents", blocks: seedDocuments(imgs)},
 		{title: "Контакты", slug: "contacts", blocks: []blocks.Block{textBlock("contacts-body", `Пишите на почту: hello@example.com.
 
 Строка ниже проверяет санитайзер: скрипт не должен выполниться и не должен попасть в HTML.
@@ -232,6 +279,21 @@ func (h *Handler) Show(w http.ResponseWriter, r *http.Request) {
 [Опасная ссылка](javascript:alert(3))
 `)}},
 	}
+}
+
+// seedDocuments — страница «Документы»: вступление и блоки file из seedFiles (каких файлов нет — тех блоков нет).
+func seedDocuments(ids map[string]string) []blocks.Block {
+	list := []blocks.Block{textBlock("docs-intro", "Файлы из раздела «Файлы» админки: PDF — ссылкой, SVG — картинкой, видео — плеером.")}
+	for _, d := range []struct{ id, file, title string }{
+		{"docs-price", "price.pdf", "Прайс-лист"},
+		{"docs-logo", "logo.svg", "Логотип Keelkit"},
+		{"docs-clip", "clip.mp4", "Тестовое видео"},
+	} {
+		if id := ids[d.file]; id != "" {
+			list = append(list, blocks.Block{ID: d.id, Type: "file", Content: &blocks.File{File: id, Title: d.title}})
+		}
+	}
+	return list
 }
 
 // seedGallery — галерея из изображений seed (блок со списком элементов); без изображений — nil.

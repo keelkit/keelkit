@@ -95,3 +95,22 @@ WHERE slug = (SELECT c.slug FROM page_contents AS c WHERE c.page_id = ? AND c.ki
 SELECT c.slug FROM page_redirects r
 JOIN page_contents c ON c.page_id = r.page_id AND c.kind = 'published'
 WHERE r.slug = sqlc.arg(old_slug);
+
+-- name: DeleteContentFiles :exec
+DELETE FROM page_files WHERE page_id = ? AND kind = ?;
+
+-- name: InsertContentFile :exec
+INSERT INTO page_files (page_id, kind, file_id) VALUES (?, ?, ?);
+
+-- name: PublishDraftFiles :exec
+INSERT INTO page_files (page_id, kind, file_id)
+SELECT src.page_id, 'published', src.file_id FROM page_files AS src WHERE src.page_id = ? AND src.kind = 'draft';
+
+-- name: PagesUsingFile :many
+-- Files section: pages whose draft or published copy uses the file (file block).
+SELECT DISTINCT p.id, d.title
+FROM page_files f
+JOIN pages p ON p.id = f.page_id
+JOIN page_contents d ON d.page_id = p.id AND d.kind = 'draft'
+WHERE f.file_id = ?
+ORDER BY p.id;

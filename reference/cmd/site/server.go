@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/voffkin/keelkit/modules/files"
 	"github.com/voffkin/keelkit/modules/images"
 
 	"github.com/voffkin/keelkit/reference/internal/admin"
@@ -19,6 +20,7 @@ import (
 	"github.com/voffkin/keelkit/reference/internal/content/people"
 	"github.com/voffkin/keelkit/reference/internal/content/posts"
 	"github.com/voffkin/keelkit/reference/internal/database"
+	"github.com/voffkin/keelkit/reference/internal/filelib"
 	"github.com/voffkin/keelkit/reference/internal/media"
 	"github.com/voffkin/keelkit/reference/internal/menu"
 	"github.com/voffkin/keelkit/reference/internal/seo"
@@ -30,25 +32,27 @@ import (
 // reservedSlugs — первые сегменты путей, занятые маршрутами newMux. Страница с таким slug была бы не видна,
 // поэтому админка их не принимает. Новый маршрут верхнего уровня — новая запись здесь; если маршрут — поддерево
 // (/static/), сам путь без слеша тоже нужно занять, иначе его заберёт GET /{slug} (проверяет e2e).
-var reservedSlugs = []string{"admin", "static", "media", "healthz", strings.TrimPrefix(posts.BlogPath, "/")}
+var reservedSlugs = []string{"admin", "static", "media", "files", "healthz", strings.TrimPrefix(posts.BlogPath, "/")}
 
 // newMux — все маршруты сайта. HTML-маршруты оборачиваются в html: данные шапки в контексте запроса.
 // Маршруты админки — ещё и в adminOnly: защита от межсайтовых запросов (http.CrossOriginProtection),
 // а всё, кроме входа, — в adminH.RequireUser (сессия и CSRF-токен).
-// Изображения (images.Service) отдаются под web.MediaPrefix обработчиком модуля.
-func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
+// Изображения (images.Service) отдаются под web.MediaPrefix, файлы (files.Service) — под web.FilesPrefix
+// обработчиками модулей.
+func newMux(db *sql.DB, imgs *images.Service, fls *files.Service, cfg config) *http.ServeMux {
 	lists := blockLists(people.NewHandler(db, imgs))
-	pagesH := pages.NewHandler(db, imgs, lists)
-	postsH := posts.NewHandler(db, imgs)
+	pagesH := pages.NewHandler(db, imgs, fls, lists)
+	postsH := posts.NewHandler(db, imgs, fls)
 	sections := menuSections(postsH)
 	html := web.WithSite(siteLoader(db, imgs, cfg.BaseURL, sections))
-	pagesAdmin := pages.NewAdmin(db, imgs, media.AdminPath, reservedSlugs, pageUsage(db), lists)
-	postsAdmin := posts.NewAdmin(db, imgs, media.AdminPath)
+	pagesAdmin := pages.NewAdmin(db, imgs, media.AdminPath, fls, filelib.AdminPath, reservedSlugs, pageUsage(db), lists)
+	postsAdmin := posts.NewAdmin(db, imgs, media.AdminPath, fls, filelib.AdminPath)
 	categoriesAdmin := categories.NewAdmin(db, posts.CategoryPath, posts.EditPath)
 	peopleAdmin := people.NewAdmin(db, imgs, media.AdminPath)
 	settingsAdmin := settings.NewAdmin(db, imgs, media.AdminPath)
 	menuAdmin := menu.NewAdmin(db, siteMenus, sections)
 	mediaAdmin := media.NewAdmin(imgs, imageUsage(db))
+	filesAdmin := filelib.NewAdmin(fls, fileUsage(db))
 	adminH := admin.NewHandler(db, admin.Options{
 		SecureCookies: cfg.CookieSecure,
 		Now:           cfg.now,
@@ -59,6 +63,7 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 			{Title: "Категории", URL: categories.AdminPath, Icon: "tags"},
 			{Title: "Люди", URL: people.AdminPath, Icon: "people"},
 			{Title: "Медиатека", URL: media.AdminPath, Icon: "image"},
+			{Title: "Файлы", URL: filelib.AdminPath, Icon: "files"},
 		},
 		SiteSections: []admin.Section{
 			{Title: "Настройки", URL: settings.AdminPath, Icon: "settings"},
@@ -75,6 +80,8 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 	mux.Handle("GET /static", html(http.HandlerFunc(web.NotFound)))
 	mux.Handle("GET "+web.MediaPrefix, http.StripPrefix(web.MediaPrefix, imgs.Handler()))
 	mux.Handle("GET /media", html(http.HandlerFunc(web.NotFound)))
+	mux.Handle("GET "+web.FilesPrefix, http.StripPrefix(strings.TrimSuffix(web.FilesPrefix, "/"), fls.Handler()))
+	mux.Handle("GET /files", html(http.HandlerFunc(web.NotFound)))
 
 	var sitemap []seo.Source
 	for _, s := range sitemapSources(pagesH, postsH) {
@@ -151,6 +158,12 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 	mux.Handle("GET /admin/media/{id}", signedIn(mediaAdmin.Show))
 	mux.Handle("GET /admin/media/{id}/delete", signedIn(mediaAdmin.ConfirmDelete))
 	mux.Handle("POST /admin/media/{id}/delete", signedIn(mediaAdmin.Delete))
+	mux.Handle("GET "+filelib.AdminPath, signedIn(filesAdmin.List))
+	mux.Handle("POST "+filelib.AdminPath, maxBody(filesAdmin.MaxUploadRequest(), signedIn(filesAdmin.Upload)))
+	mux.Handle("GET "+filelib.AdminPath+"/{id}", signedIn(filesAdmin.Show))
+	mux.Handle("POST "+filelib.AdminPath+"/{id}/replace", maxBody(filesAdmin.MaxUploadRequest(), signedIn(filesAdmin.Replace)))
+	mux.Handle("GET "+filelib.AdminPath+"/{id}/delete", signedIn(filesAdmin.ConfirmDelete))
+	mux.Handle("POST "+filelib.AdminPath+"/{id}/delete", signedIn(filesAdmin.Delete))
 	// Остальное под /admin/ — 404 админки, но только после входа: без сессии — редирект на вход.
 	mux.Handle("/admin/", signedIn(adminH.NotFound))
 
@@ -323,6 +336,30 @@ func imageUsage(db *sql.DB) media.UsageFunc {
 		}
 		for _, p := range peopleRows {
 			used = append(used, media.Usage{Title: "Люди: " + p.Name, URL: people.EditPath(p.ID)})
+		}
+		return used, nil
+	}
+}
+
+// fileUsage — где используется файл (блоки file страниц и постов, в том числе черновики): раздел «Файлы» не даёт
+// удалить такой файл. Новый тип контента со ссылками на файлы добавляет сюда свой запрос.
+func fileUsage(db *sql.DB) filelib.UsageFunc {
+	pq, sq := pages.New(db), posts.New(db)
+	return func(ctx context.Context, fileID string) ([]filelib.Usage, error) {
+		var used []filelib.Usage
+		rows, err := pq.PagesUsingFile(ctx, fileID)
+		if err != nil {
+			return nil, fmt.Errorf("pages using file: %w", err)
+		}
+		for _, p := range rows {
+			used = append(used, filelib.Usage{Title: "Страница «" + p.Title + "»", URL: pages.EditPath(p.ID)})
+		}
+		postRows, err := sq.PostsUsingFile(ctx, fileID)
+		if err != nil {
+			return nil, fmt.Errorf("posts using file: %w", err)
+		}
+		for _, p := range postRows {
+			used = append(used, filelib.Usage{Title: "Пост «" + p.Title + "»", URL: posts.EditPath(p.ID)})
 		}
 		return used, nil
 	}
