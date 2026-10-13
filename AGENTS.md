@@ -69,7 +69,8 @@ SEO, sitemap и RSS на первом этапе пишутся в коде эт
 │   │   ├── testkit/        # контрактные тесты для сайтов: testkit.Run(t, setup)
 │   │   ├── CHANGELOG.md
 │   │   └── UPGRADE.md      # инструкции по обновлению для агентов
-│   └── richtext/           # Markdown → очищенный HTML (goldmark + bluemonday, типографика); testkit — XSS-проверки
+│   ├── richtext/           # Markdown → очищенный HTML (goldmark + bluemonday, типографика); testkit — XSS-проверки
+│   └── auth/               # пользователи, пароли (argon2id), сессии, CSRF, ограничение попыток входа; таблицы users, sessions
 ├── spec/                   # модуль спецификации (свой go.mod, теги spec/vX.Y.Z)
 │   ├── schema.json         # JSON Schema спецификации сайта (встраивается через embed)
 │   ├── spec.go             # spec.Validate: схема + смысловые правила

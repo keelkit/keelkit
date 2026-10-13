@@ -533,7 +533,7 @@ make e2e
 
 - [x] `AGENTS.md`: исключение в принципе 6 (безопасность — в модуль сразу), «Что куда», строки «Авторизация» и
       `richtext` в «Принятых решениях»
-- [ ] `AGENTS.md` по мере появления модулей: «Структура репозитория» — `modules/richtext` (есть), `modules/auth`;
+- [ ] `AGENTS.md` по мере появления модулей: «Структура репозитория» — `modules/richtext`, `modules/auth` (есть);
       «Структура сайта» — без `internal/richtext` (сделано), `internal/admin` — только оболочка админки и страница входа
       (закрывается вместе с последним пунктом этапа)
 - [x] `modules/richtext`: свой `go.mod` (goldmark, bluemonday, `x/net` — те же версии, что в `reference/`),
@@ -541,14 +541,21 @@ make e2e
       которой выводит richtext, testkit проверяет, что XSS-примеры обезврежены (сайт не обходит санитайзер)
 - [x] Релиз `make release MODULE=richtext VERSION=v0.1.0` (и v0.1.1: testkit ложно срабатывал на `<meta content>`); `reference/` на опубликованной версии, `internal/richtext`
       удалён, контрактный тест подключён; `make check`
-- [ ] `modules/auth`: API (`NewService(db, Config)`, вход, выход, сессия, `RequireUser`, `CSRFToken`/`UserFrom` из
+- [x] `modules/auth`: API (`NewService(db, Config)`, вход, выход, сессия, `RequireUser`, `CSRFToken`/`UserFrom` из
       контекста, `CreateUser`, политика пароля), запросы `database/sql` без sqlc (как в `images`), миграции
       `IF NOT EXISTS`, ограничитель попыток внутри; тесты из `reference/internal/admin` (`modernc.org/sqlite`, goose)
+      Итог: сайт вызывает `LoginCSRF`/`Login(w, r, email, password)`/`Logout`/`CurrentUser` и показывает ошибки
+      `ErrLoginCSRF`, `ErrBadCredentials`, `*LockedError` в своей форме; `Config.Forbidden` и `Config.ServerError` —
+      страницы 403/500 сайта; cookie `Secure` по умолчанию (`Config.InsecureCookies` — только для разработки);
+      `Config.Now` — для testkit (истечение сессии, окно блокировки); `SafeNext(next, base)` — в модуле;
+      `HashPassword`/`VerifyPassword` не экспортируются — пользователей создаёт только `CreateUser` с политикой пароля
 - [ ] `modules/auth/testkit`: сайт передаёт свой `http.Handler` и путь входа; проверки — без сессии редирект на вход,
       вход и выход, POST без CSRF-токена отклонён, ограничение попыток, просроченная сессия, cookie `HttpOnly`/`SameSite`
 - [ ] Миграция сайта `00003` — `IF NOT EXISTS`; тест: новая база и база, созданная до этапа, мигрируют без ошибок
 - [ ] Релиз `make release MODULE=auth VERSION=v0.1.0`; `reference/` на модуле: `internal/admin` — страница входа и
       оболочка, `site user create` через модуль, `auth: v0` в `site.yaml`; контрактный тест подключён; `make check`, `make e2e-browser`
+      Пароль dev-пользователя `make seed` (`admin`) короче политики — сменить на пароль от 8 символов (сид — через `CreateUser`,
+      `ErrUserExists` пропускается); меню оболочки (разделы, текущий путь) — своим middleware сайта, а не в сессии модуля
 - [ ] `reference/AGENTS.md`: версии модулей `richtext` (сделано) и `auth`, что где лежит
 
 ### Проверка
