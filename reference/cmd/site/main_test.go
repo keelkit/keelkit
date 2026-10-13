@@ -209,8 +209,8 @@ func TestHealthz(t *testing.T) {
 	if got.Status != "ok" || got.Version != version {
 		t.Errorf("got %+v, want status ok and version %q", got, version)
 	}
-	if s := got.Schema["site"]; s.Version != 11 || s.Pending != 0 {
-		t.Errorf("schema site = %+v, want version 11, pending 0", s)
+	if s := got.Schema["site"]; s.Version != 12 || s.Pending != 0 {
+		t.Errorf("schema site = %+v, want version 12, pending 0", s)
 	}
 	if s := got.Schema["images"]; s.Version != 1 || s.Pending != 0 {
 		t.Errorf("schema images = %+v, want version 1, pending 0", s)

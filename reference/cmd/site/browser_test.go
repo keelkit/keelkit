@@ -486,3 +486,65 @@ func TestBrowserSettingsAndCookieBanner(t *testing.T) {
 		t.Errorf("banners after reload = %d", banners)
 	}
 }
+
+// Меню: «Добавить пункт» через htmx без перезагрузки; поле адреса видно только у «Свой адрес», флажок подпунктов
+// из записей — только у раздела, где они есть (CSS :has по выбору); подпункт в шапке раскрывается при фокусе.
+func TestBrowserMenu(t *testing.T) {
+	srv := e2eServer(t, true)
+	ctx := browser(t)
+	browserLogin(t, ctx, srv.URL)
+
+	const item = `#items-field .block-item:nth-child(4)`
+	visible := func(sel string) string {
+		return `getComputedStyle(document.querySelector('` + sel + `')).display !== 'none'`
+	}
+	var marker, urlBefore, urlAfter, children bool
+	run(t, ctx, "add item",
+		chromedp.Navigate(srv.URL+"/admin/menus/main"),
+		chromedp.WaitVisible(`#menu-form`, chromedp.ByQuery),
+		chromedp.Evaluate(`window.keelkitMarker = true`, nil),
+		chromedp.Click(`#items-field button[value="list-add:items"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(item, chromedp.ByQuery),
+		htmxSettled(),
+		chromedp.Evaluate(visible(item+` .menu-url`), &urlBefore),
+		chromedp.SetValue(item+` select`, "url", chromedp.ByQuery),
+		chromedp.Evaluate(visible(item+` .menu-url`), &urlAfter),
+		chromedp.Evaluate(visible(item+` .menu-children`), &children),
+		chromedp.SendKeys(item+` input[name$="-title"]`, "Прайс", chromedp.ByQuery),
+		chromedp.SendKeys(item+` input[name$="-url"]`, "/price", chromedp.ByQuery),
+		chromedp.Evaluate(`window.keelkitMarker === true`, &marker),
+	)
+	if urlBefore || !urlAfter || children || !marker {
+		t.Errorf("url field before %v, after %v; children checkbox %v; no reload %v", urlBefore, urlAfter, children, marker)
+	}
+	var blogChildren bool
+	run(t, ctx, "children checkbox", chromedp.Evaluate(visible(`#items-field .block-item:nth-child(3) .menu-children`), &blogChildren))
+	if !blogChildren {
+		t.Error("children checkbox hidden for the blog section")
+	}
+
+	var flash string
+	run(t, ctx, "save",
+		chromedp.Click(`#menu-form .form-actions button[type="submit"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`.flash[role="status"]:not(.flash-warning)`, chromedp.ByQuery),
+		chromedp.Text(`.flash[role="status"]`, &flash, chromedp.ByQuery),
+	)
+	if flash != "Сохранено. Меню уже на сайте." {
+		t.Fatalf("save flash = %q", flash)
+	}
+
+	// Подпункты блога (категории) скрыты, пока фокус не попал внутрь пункта.
+	var subBefore, subAfter bool
+	var last string
+	run(t, ctx, "site menu",
+		chromedp.Navigate(srv.URL+"/"),
+		chromedp.WaitVisible(`.site-nav`, chromedp.ByQuery),
+		chromedp.Text(`.site-nav > ul > li:last-child > a`, &last, chromedp.ByQuery),
+		chromedp.Evaluate(visible(`.site-nav .sub`), &subBefore),
+		chromedp.Focus(`.site-nav .has-children > a`, chromedp.ByQuery),
+		chromedp.Evaluate(visible(`.site-nav .sub`), &subAfter),
+	)
+	if last != "Прайс" || subBefore || !subAfter {
+		t.Errorf("last item %q; submenu before focus %v, after %v", last, subBefore, subAfter)
+	}
+}

@@ -198,6 +198,21 @@ templ BlockedPage(f pageForm, reason string) {
 	}
 }
 
+// UsedPage — на страницу ведут пункты меню (409): удалить её можно, только убрав их.
+templ UsedPage(f pageForm, used []Usage) {
+	@admin.Layout("Удаление страницы") {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Страницы</a></p>
+		<h1>Страница «{ f.Title }» стоит в меню</h1>
+		<p>Страницу нельзя удалить, пока на неё ведёт пункт меню. Сначала уберите его:</p>
+		<ul class="usage-list">
+			for _, u := range used {
+				<li><a href={ templ.SafeURL(u.URL) }>{ u.Title }</a></li>
+			}
+		</ul>
+		<p><a href={ templ.SafeURL(EditPath(f.ID)) }>Вернуться к редактированию</a></p>
+	}
+}
+
 // deleteHint — почему опубликованную страницу нельзя удалить сразу.
 func deleteHint(publishedSlug string) string {
 	if publishedSlug == HomeSlug {

@@ -333,8 +333,9 @@ func TestE2EAdminPageCreate(t *testing.T) {
 	if got, _ := pub.Find(`meta[name="description"]`).Attr("content"); got != "Текст: жирный Второй абзац." {
 		t.Errorf("description = %q", got)
 	}
-	if got := text(pub.Find(`.site-nav a[href="/testovaya"]`)); got != "Тестовая" {
-		t.Errorf("nav item = %q", got)
+	// В меню новая страница сама не попадает: пункты задаёт раздел «Меню».
+	if pub.Find(`.site-nav a[href="/testovaya"]`).Length() != 0 {
+		t.Error("a new page must not be added to the menu by itself")
 	}
 	if got := a.listStatus("Тестовая"); got != "Опубликована" {
 		t.Errorf("list status = %q", got)
@@ -760,6 +761,31 @@ func TestE2EAdminPageUnpublishDelete(t *testing.T) {
 		t.Error("draft content lost after unpublish")
 	}
 
+	// Страница стоит в меню (seed): и подтверждение, и POST — 409 со ссылками на эти меню.
+	pageID := strings.TrimPrefix(edit, "/admin/pages/")
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		var resp response
+		if method == http.MethodGet {
+			resp, html = a.get(edit + "/delete")
+		} else {
+			resp, html = post(t, a.client, a.srv.URL+edit+"/delete", url.Values{"csrf_token": {a.token}}, nil)
+		}
+		if resp.StatusCode != http.StatusConflict {
+			t.Fatalf("%s delete of a page in a menu: status %d, want 409", method, resp.StatusCode)
+		}
+		var used []string
+		parse(t, html).Find(".usage-list a").Each(func(_ int, l *goquery.Selection) {
+			href, _ := l.Attr("href")
+			used = append(used, text(l)+" "+href)
+		})
+		if got, want := strings.Join(used, ", "), "Меню в подвале /admin/menus/footer, Основное меню /admin/menus/main"; got != want {
+			t.Errorf("%s delete: menus = %q, want %q", method, got, want)
+		}
+	}
+	if _, err := a.site.db.Exec(`DELETE FROM menu_items WHERE page_id = ?`, pageID); err != nil {
+		t.Fatal(err)
+	}
+
 	// Удаление неопубликованной: подтверждение, затем POST.
 	resp, html = a.get(edit + "/delete")
 	if resp.StatusCode != http.StatusOK {
@@ -784,7 +810,7 @@ func TestE2EAdminPageUnpublishDelete(t *testing.T) {
 		t.Errorf("flash = %q", got)
 	}
 	var n int
-	if err := a.site.db.QueryRow(`SELECT count(*) FROM page_contents WHERE page_id = ?`, strings.TrimPrefix(edit, "/admin/pages/")).Scan(&n); err != nil || n != 0 {
+	if err := a.site.db.QueryRow(`SELECT count(*) FROM page_contents WHERE page_id = ?`, pageID).Scan(&n); err != nil || n != 0 {
 		t.Errorf("page_contents rows after delete = %d, %v", n, err)
 	}
 

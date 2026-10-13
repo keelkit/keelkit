@@ -48,6 +48,16 @@ type Media interface {
 	List(ctx context.Context, limit, offset int) ([]*images.Image, error)
 }
 
+// Usage — что ссылается на страницу (пункт меню): название и ссылка на него в админке.
+type Usage struct {
+	Title string
+	URL   string
+}
+
+// UsageFunc — что ссылается на страницу и не даёт её удалить. Пакет не знает о меню: функцию собирает cmd/site
+// (pageUsage).
+type UsageFunc func(ctx context.Context, pageID int64) ([]Usage, error)
+
 // Admin — раздел «Страницы» в админке: список, создание, редактирование черновика, публикация и снятие
 // с публикации, удаление неопубликованных, предпросмотр черновика так, как его покажет сайт.
 // Маршруты оборачиваются в admin.RequireUser: сессия и CSRF-токен уже проверены.
@@ -57,13 +67,16 @@ type Admin struct {
 	media    Media
 	mediaURL string
 	reserved map[string]bool
+	usage    UsageFunc
 }
 
 // NewAdmin создаёт раздел. reserved — slug, занятые маршрутами сайта (admin, static, healthz…):
 // такая страница была бы не видна, поэтому админка их не принимает. mediaURL — раздел медиатеки
-// (ссылка «загрузите в медиатеку» у блоков с изображением).
-func NewAdmin(db *sql.DB, media Media, mediaURL string, reserved []string) *Admin {
-	a := &Admin{db: db, q: New(db), media: media, mediaURL: mediaURL, reserved: make(map[string]bool, len(reserved))}
+// (ссылка «загрузите в медиатеку» у блоков с изображением). usage — что ссылается на страницу (меню): такую
+// страницу не удалить.
+func NewAdmin(db *sql.DB, media Media, mediaURL string, reserved []string, usage UsageFunc) *Admin {
+	a := &Admin{db: db, q: New(db), media: media, mediaURL: mediaURL, reserved: make(map[string]bool, len(reserved)),
+		usage: usage}
 	for _, s := range reserved {
 		a.reserved[s] = true
 	}
@@ -311,7 +324,8 @@ func (a *Admin) Unpublish(w http.ResponseWriter, r *http.Request) {
 }
 
 // ConfirmDelete — GET /admin/pages/{id}/delete: подтверждение удаления (без JavaScript).
-// Удалить можно только неопубликованную страницу: опубликованную сначала снимают с публикации (409 с объяснением).
+// Удалить можно только неопубликованную страницу: опубликованную сначала снимают с публикации (409 с объяснением);
+// страницу, на которую ведёт пункт меню, — после того как пункт убран (409 со списком меню).
 func (a *Admin) ConfirmDelete(w http.ResponseWriter, r *http.Request) {
 	f, ok := a.load(w, r)
 	if !ok {
@@ -321,11 +335,21 @@ func (a *Admin) ConfirmDelete(w http.ResponseWriter, r *http.Request) {
 		web.Render(w, r, http.StatusConflict, BlockedPage(f, deleteHint(f.PublishedSlug)))
 		return
 	}
+	used, err := a.usage(r.Context(), f.ID)
+	if err != nil {
+		admin.ServerError(w, r, err)
+		return
+	}
+	if len(used) > 0 {
+		web.Render(w, r, http.StatusConflict, UsedPage(f, used))
+		return
+	}
 	web.Render(w, r, http.StatusOK, DeletePage(f))
 }
 
 // Delete — POST /admin/pages/{id}/delete. Запрос удаляет страницу только без опубликованной копии,
-// поэтому страницу, опубликованную между проверкой и удалением, он не тронет.
+// поэтому страницу, опубликованную между проверкой и удалением, он не тронет; страницу из меню не даст удалить
+// внешний ключ menu_items.page_id.
 func (a *Admin) Delete(w http.ResponseWriter, r *http.Request) {
 	f, ok := a.load(w, r)
 	if !ok {
@@ -333,6 +357,16 @@ func (a *Admin) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	if !f.Published {
 		n, err := a.q.DeleteUnpublishedPage(r.Context(), f.ID)
+		if database.IsForeignKeyViolation(err) {
+			// На страницу ведёт пункт меню (ссылка без ON DELETE): показать, в каком меню.
+			used, err := a.usage(r.Context(), f.ID)
+			if err != nil {
+				admin.ServerError(w, r, err)
+				return
+			}
+			web.Render(w, r, http.StatusConflict, UsedPage(f, used))
+			return
+		}
 		if err != nil {
 			admin.ServerError(w, r, err)
 			return

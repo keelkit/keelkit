@@ -869,3 +869,15 @@ body.admin {
   font-size: 2.5rem;
   font-weight: 700;
 }
+
+/* Пункты меню (internal/menu): подпункт сдвинут под свой пункт. Адрес нужен только своему адресу, флажок
+   подпунктов из записей — только разделу, где они есть: поля прячутся по выбору в «Куда ведёт» (без :has — видны). */
+
+.admin .menu-item-child {
+  margin-left: 2rem;
+}
+
+.admin .menu-item:not(:has(select option[value="url"]:checked)) .menu-url,
+.admin .menu-item:not(:has(select option[data-children]:checked)) .menu-children {
+  display: none;
+}

@@ -155,41 +155,6 @@ func (q *Queries) InsertContentImage(ctx context.Context, arg InsertContentImage
 	return err
 }
 
-const listPageLinks = `-- name: ListPageLinks :many
-SELECT title, slug FROM page_contents
-WHERE kind = 'published' AND slug <> ?1
-ORDER BY page_id
-`
-
-type ListPageLinksRow struct {
-	Title string
-	Slug  string
-}
-
-// Published pages for the header menu, in creation order; the home page is excluded by slug.
-func (q *Queries) ListPageLinks(ctx context.Context, excludeSlug string) ([]ListPageLinksRow, error) {
-	rows, err := q.db.QueryContext(ctx, listPageLinks, excludeSlug)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListPageLinksRow
-	for rows.Next() {
-		var i ListPageLinksRow
-		if err := rows.Scan(&i.Title, &i.Slug); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listPages = `-- name: ListPages :many
 SELECT p.id, d.title, d.slug, p.updated_at,
        CAST(coalesce(pub.slug, '') AS TEXT) AS published_slug,
@@ -211,7 +176,7 @@ type ListPagesRow struct {
 	Changed       int64
 }
 
-// Admin list, in creation order (the same order as the header menu). The draft always exists;
+// Admin list, in creation order. The draft always exists;
 // published_slug is empty for a page that is not on the site; changed: the draft differs from the published copy.
 func (q *Queries) ListPages(ctx context.Context) ([]ListPagesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listPages)

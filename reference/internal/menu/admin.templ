@@ -1,0 +1,220 @@
+package menu
+
+import (
+	"strconv"
+
+	"github.com/voffkin/keelkit/reference/internal/admin"
+	"github.com/voffkin/keelkit/reference/internal/listfield"
+)
+
+// ListPage — меню сайта: название, где выводится, число пунктов.
+templ ListPage(list []menuSummary) {
+	@admin.Layout("Меню") {
+		<div class="admin-title">
+			<h1>Меню</h1>
+		</div>
+		<div class="table-wrap">
+			<table class="admin-table">
+				<thead>
+					<tr>
+						<th>Меню</th>
+						<th>Где</th>
+						<th>Пунктов</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, m := range list {
+						<tr>
+							<td><a href={ templ.SafeURL(EditPath(m.Name)) }>{ m.Title }</a></td>
+							<td>{ m.Hint }</td>
+							<td>{ strconv.FormatInt(m.Items, 10) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
+
+// FormPage — страница меню.
+templ FormPage(f menuForm) {
+	@admin.Layout(f.Menu.Title) {
+		<p class="breadcrumbs"><a href={ templ.SafeURL(AdminPath) }>Меню</a></p>
+		<div class="admin-title">
+			<h1>{ f.Menu.Title }</h1>
+		</div>
+		if f.Flash != "" {
+			<p class="flash" role="status">{ f.Flash }</p>
+		}
+		@Form(f)
+	}
+}
+
+// Form — форма меню: обычный POST и htmx (с ошибками сервер возвращает только этот фрагмент, 422). Пункты — плоский
+// список по порядку, подпункт отмечен скрытым полем child и стоит после своего пункта. Кнопки пунктов — submit
+// с полем action (listfield.ActionValue): форма возвращается изменённой, без сохранения.
+templ Form(f menuForm) {
+	<form
+		id="menu-form"
+		class="form"
+		method="post"
+		action={ templ.SafeURL(EditPath(f.Menu.Name)) }
+		hx-post={ EditPath(f.Menu.Name) }
+		hx-target="this"
+		hx-swap="outerHTML"
+	>
+		@admin.CSRFInput()
+		// Enter в поле нажимает первую кнопку формы: пусть это будет «Сохранить», а не «↑» первого пункта.
+		<button type="submit" name="action" value="save" class="visually-hidden" tabindex="-1" aria-hidden="true">Сохранить</button>
+		if len(f.Errors) > 0 {
+			<p class="form-error" role="alert">Исправьте ошибки в форме.</p>
+		}
+		if f.Unsaved {
+			<p class="flash flash-warning" role="status">Изменения ещё не сохранены: нажмите «Сохранить».</p>
+		}
+		<fieldset class="settings-group" id={ ItemsField + "-field" }>
+			<legend>Пункты</legend>
+			<p class="field-hint">
+				{ f.Menu.Hint } Пункты в этом порядке; «Вложить» делает пункт подпунктом пункта выше.
+				Пункт на неопубликованную страницу на сайте не виден. Пустой пункт при сохранении отбрасывается.
+			</p>
+			@fieldError(f, ItemsField)
+			if len(f.Items) > 0 {
+				<ol class="block-items menu-items">
+					for i, it := range f.Items {
+						@item(f, i, it)
+					}
+				</ol>
+			}
+			@listfield.Add(ItemsField, "Добавить пункт", len(f.Items))
+		</fieldset>
+		<div class="form-actions">
+			<button type="submit">Сохранить</button>
+			<a href={ templ.SafeURL(EditPath(f.Menu.Name)) }>Отмена</a>
+		</div>
+	</form>
+}
+
+// item — пункт меню: куда ведёт (страница, раздел или свой адрес), название, адрес (только у своего адреса — CSS
+// прячет поле, пока выбрано другое) и флажок подпунктов из записей (у разделов, где они есть).
+templ item(f menuForm, i int, it Item) {
+	{{ anchor := listfield.Anchor(ItemsField, it.ID) }}
+	{{ name := func(field string) string { return listfield.Name(ItemsField, it.ID, field) } }}
+	<li class={ "block-item", "menu-item", templ.KV("menu-item-child", it.Child) } id={ anchor } aria-labelledby={ anchor + "-title" }>
+		<input type="hidden" name={ listfield.Order(ItemsField) } value={ it.ID }/>
+		if it.Child {
+			<input type="hidden" name={ name("child") } value="1"/>
+		}
+		<div class="block-head">
+			<h4 id={ anchor + "-title" }>
+				if it.Child {
+					Подпункт
+				} else {
+					Пункт
+				}
+				{ " " + strconv.Itoa(i+1) }
+			</h4>
+			if f.unpublished(it) {
+				<span class="status status-draft">Страница не опубликована</span>
+			}
+			@controls(f, i, it)
+		</div>
+		<label>
+			Куда ведёт
+			<select name={ name("target") } { describedBy(f, name("target"), false)... }>
+				<option value="">— выберите —</option>
+				if len(f.Pages) > 0 {
+					<optgroup label="Страницы">
+						for _, p := range f.Pages {
+							<option value={ PageTarget(p.ID) } selected?={ it.Target == PageTarget(p.ID) }>{ pageOption(p) }</option>
+						}
+					</optgroup>
+				}
+				if len(f.Sections) > 0 {
+					<optgroup label="Разделы">
+						for _, s := range f.Sections {
+							<option
+								value={ SectionTarget(s.Key) }
+								selected?={ it.Target == SectionTarget(s.Key) }
+								if s.ChildrenTitle != "" {
+									data-children
+								}
+							>{ s.Title }</option>
+						}
+					</optgroup>
+				}
+				<option value={ URLTarget } selected?={ it.Target == URLTarget }>Свой адрес</option>
+			</select>
+			@fieldError(f, name("target"))
+		</label>
+		<label>
+			Название
+			<input
+				type="text"
+				name={ name("title") }
+				value={ it.Title }
+				maxlength={ strconv.Itoa(maxTitleLen) }
+				placeholder={ f.defaultTitle(it) }
+				{ describedBy(f, name("title"), true)... }
+			/>
+			<span class="field-hint" id={ name("title") + "-hint" }>Пусто — название страницы или раздела.</span>
+			@fieldError(f, name("title"))
+		</label>
+		<label class="menu-url">
+			Адрес
+			<input
+				type="text"
+				name={ name("url") }
+				value={ it.URL }
+				maxlength={ strconv.Itoa(maxURLLen) }
+				placeholder="/privacy или https://…"
+				{ describedBy(f, name("url"), false)... }
+			/>
+			@fieldError(f, name("url"))
+		</label>
+		if secs := f.autoSections(); !it.Child && len(secs) > 0 {
+			<label class="checkbox menu-children">
+				<input type="checkbox" name={ name("children") } value="1" checked?={ it.Children }/>
+				Подпункты из записей раздела:
+				for j, s := range secs {
+					if j > 0 {
+						{ "; " }
+					}
+					{ s.Title } — { s.ChildrenTitle }
+				}
+			</label>
+		}
+	</li>
+}
+
+// controls — кнопки пункта: ↑ ↓, «Вложить» (пункт верхнего уровня без подпунктов, не первый) или «Вынести»
+// (подпункт), «Убрать». formnovalidate: перестановка не должна упираться в незаполненные поля.
+templ controls(f menuForm, i int, it Item) {
+	<div class="block-controls">
+		<button type="submit" name="action" value={ listfield.ActionValue("up", ItemsField, it.ID) } class="link-button" formnovalidate title="Выше" aria-label="Переместить пункт выше">↑</button>
+		<button type="submit" name="action" value={ listfield.ActionValue("down", ItemsField, it.ID) } class="link-button" formnovalidate title="Ниже" aria-label="Переместить пункт ниже">↓</button>
+		if it.Child {
+			<button type="submit" name="action" value={ listfield.ActionValue("outdent", ItemsField, it.ID) } class="link-button" formnovalidate title="Сделать пунктом верхнего уровня">← Вынести</button>
+		} else if i > 0 && !hasChildren(f.Items, i) {
+			<button type="submit" name="action" value={ listfield.ActionValue("indent", ItemsField, it.ID) } class="link-button" formnovalidate title="Сделать подпунктом пункта выше">→ Вложить</button>
+		}
+		<button
+			type="submit"
+			name="action"
+			value={ listfield.ActionValue("remove", ItemsField, it.ID) }
+			class="link-button danger-link"
+			formnovalidate
+			if hasChildren(f.Items, i) {
+				aria-label="Убрать пункт вместе с подпунктами"
+			} else {
+				aria-label="Убрать пункт"
+			}
+		>Убрать</button>
+	</div>
+}
+
+templ fieldError(f menuForm, name string) {
+	if msg := f.Errors[name]; msg != "" {
+		<span class="field-error" id={ name + "-error" }>{ msg }</span>
+	}
+}

@@ -67,7 +67,7 @@
   Прежний slug страницы (`page_redirects`) — 301 на её текущий адрес; у постов так же (`post_redirects`), если пост виден.
 - Блог: `GET /blog` (лента, `?page=N`, по 10 постов), `GET /blog/{slug}` (пост), `GET /blog/category/{slug}` (лента
   категории, `?page=N`). Только опубликованные копии с наступившей датой публикации; несуществующая или пустая
-  страница ленты (кроме первой), неверный `?page` — 404. В меню сайта блог — последним пунктом после страниц.
+  страница ленты (кроме первой), неверный `?page` — 404. В меню блог попадает пунктом-разделом (см. «Меню»).
 - `POST /cookie-notice` — согласие с баннером cookies (`web.AcceptCookies`, см. «Настройки сайта»); `GET /cookie-notice` —
   обычный `GET /{slug}`, поэтому в `reservedSlugs` его нет.
 - `GET /sitemap.xml`, `GET /rss.xml`, `GET /robots.txt` — пакет `internal/seo` (см. «SEO»); без данных шапки.
@@ -87,13 +87,14 @@
   `GET|POST /admin/categories/{id}` (форма), `GET|POST /admin/categories/{id}/delete` (подтверждение, удалить).
 - Настройки: `GET|POST /admin/settings` (форма; «Сохранить» или кнопка списка соцсетей — поле `action`),
   `POST /admin/settings/image` (htmx: поле картинки для соцсетей с превью).
+- Меню: `GET /admin/menus` (список меню), `GET|POST /admin/menus/{name}` (форма; «Сохранить» или кнопка пункта — поле `action`).
 - Медиатека: `GET /admin/media` (загрузка и сетка, `?page=N`), `POST /admin/media` (загрузка), `GET /admin/media/{id}`
   (карточка), `GET|POST /admin/media/{id}/delete` (подтверждение, удалить).
 - Зарезервированные slug — `reservedSlugs` в `cmd/site/server.go` (`admin`, `static`, `media`, `healthz`, `blog`): их маршруты перекрывают
   страницу, админка такие slug не принимает. Маршрут-поддерево (`/static/`) занимает и путь без слеша (`GET /static` → 404),
   иначе его забрал бы `GET /{slug}`; e2e `TestE2EReservedSlugsShadowPages` проверяет каждый slug из списка.
 - Всё остальное — оформленная 404 (`web.NotFound`).
-- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"site":{"version":11,"pending":0}}}`.
+- `GET /healthz` — JSON о состоянии: `{"status":"ok","version":"<версия сборки>","schema":{"images":{"version":1,"pending":0},"site":{"version":12,"pending":0}}}`.
 
 ## Бинарник
 
@@ -158,7 +159,7 @@
 - `internal/web`: `LayoutMeta(web.Meta)` — оболочка публичной страницы с данными для поисковиков (см. «SEO»), `Layout(title)` —
   то же без адреса (ошибки, заглушки); `NotFoundPage`, `ErrorPage`; `Render` (рендер в буфер, затем ответ),
   `NotFound`, `ServerError` (логирует, клиенту — страница 500 без подробностей).
-- Данные шапки (`web.Site`: настройки сайта — см. «Настройки сайта», меню, `BaseURL`, путь ленты) собирает `siteLoader` в `cmd/site/server.go`; middleware `web.WithSite`
+- Данные шапки (`web.Site`: настройки сайта — см. «Настройки сайта», меню — см. «Меню», `BaseURL`, путь ленты) собирает `siteLoader` в `cmd/site/server.go`; middleware `web.WithSite`
   кладёт их в контекст (и путь запроса, и согласие с cookies), layout читает через `web.SiteFrom(ctx)`. HTML-маршруты оборачиваются в него, `/healthz` и `/static/` — нет.
   `internal/web` не импортирует типы контента: связывает их только `cmd/site`.
 - `richtext` (Markdown): `richtext.Render` → goldmark (GFM, сырой HTML не пропускается) → bluemonday (UGC; `class="language-*"`
@@ -196,9 +197,9 @@
 - `next` после входа — только путь внутри `/admin` (`safeNext`), иначе дашборд.
 - Пакет не знает о типах контента: счётчики дашборда передаёт `adminCounters` в `cmd/site/server.go` через `admin.Options.Counters`
   (`Counter.URL` — ссылка на раздел), пункты меню — `admin.Options.Sections` (группа «Контент»). Новый тип контента добавляет туда
-  счётчик и раздел. Разделы всего сайта (настройки, позже меню) — `admin.Options.SiteSections`, группа «Сайт» ниже.
+  счётчик и раздел. Разделы всего сайта (настройки, меню) — `admin.Options.SiteSections`, группа «Сайт» ниже.
 - Для разделов типов контента пакет экспортирует: `admin.Layout(title)` (оболочка: верхняя панель и боковое меню `.site-nav`,
-  текущий пункт — по префиксу пути; иконка пункта — `Section.Icon`: `pages`, `posts`, `tags`, `image`, `settings`, иначе папка),
+  текущий пункт — по префиксу пути; иконка пункта — `Section.Icon`: `pages`, `posts`, `tags`, `image`, `settings`, `menu`, иначе папка),
   `admin.CSRFInput()` (скрытое поле токена), `admin.NotFound`, `admin.ServerError`, `admin.Redirect` (303 или
   `HX-Redirect` после успешного POST), `admin.IsHTMX`.
 - htmx в админке: `<meta name="htmx-config">` разрешает подмену разметки ответом 422 (по умолчанию htmx не подменяет 4xx).
@@ -371,6 +372,44 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
   `COOKIE_SECURE`; маршрут — под `http.CrossOriginProtection`. Это уведомление, а не выбор категорий cookie: сторонних
   счётчиков в эталоне нет.
 
+## Меню (`internal/menu/`)
+
+Меню — `menus: [main, footer]` в `site.yaml` (с `spec v0.3.0`; только имена, устройство пунктов — код сайта) и
+`siteMenus` в `cmd/site/server.go` (имя, название и подсказка для админки; `TestSpecMenusMatchCode` сверяет имена).
+Пункты всех меню — таблица `menu_items` (миграция `00012`), черновика нет: «Сохранить» — и сразу на сайте.
+- Пункт ведёт ровно на одно (`CHECK`): страницу `page_id` (адрес — из текущего опубликованного slug, поэтому смена slug
+  меню не ломает), свой адрес `url` (путь на сайте или `http(s)://` с хостом, название обязательно) или раздел `section`
+  (ключ из `menuSections`: `blog` — лента блога). Пустое название — заголовок страницы или раздела. У раздела с
+  `Section.Children` флажок `children` — подпункты из его записей (у блога — категории, где сейчас есть видимые посты,
+  `posts.CategoryLinks`); они идут после подпунктов, заданных вручную.
+- Вложенность — один уровень: `parent_id` — пункт верхнего уровня того же меню (`ON DELETE CASCADE`), `position` — порядок
+  среди соседей. Сохранение заменяет все пункты меню одной транзакцией (id строк меняются, ссылок на них нет).
+- Ссылка на страницу — без `ON DELETE`: страницу из меню не удалить. Раздел страниц получает `pageUsage`
+  (`pages.UsageFunc`) и отдаёт подтверждение удаления и `POST` с 409 и ссылками на меню (`UsedPage`); снятие с
+  публикации разрешено — пункт на неопубликованную страницу на сайте не выводится (вместе с подпунктами), в админке
+  помечен «Страница не опубликована», в выборе — «(не опубликована)». Раздел, которого больше нет в коде, так же скрыт.
+- На сайте (`menu.Site` в `siteLoader` → `web.Site.Menus[имя]`, дерево `web.Link` с `Children`): `web.WithSite` отмечает
+  `Current` (точный путь, `aria-current="page"`) и `Active` (путь под адресом пункта или текущий подпункт, класс `active`).
+  Layout эталона: `main` — `nav.site-nav` в шапке (подпункты — `ul.sub`, выпадающий по `:hover` и `:focus-within`),
+  `footer` — `nav.footer-nav` в подвале (подпункты колонкой). Пустое меню не выводится. Как выводить меню — дизайн сайта.
+- Раздел админки — группа «Сайт»: список меню с числом пунктов и форма меню. Пункты — плоский список полей `listfield`
+  (`items-item`, `items-i-<пункт>-target|title|url|children|child`): `target` — `page:<id>`, `section:<ключ>` или `url`
+  (`menu.PageTarget`, `SectionTarget`, `URLTarget`), `child=1` — подпункт ближайшего пункта выше. Кнопки — submit с
+  `action`: `list-up|down|indent|outdent|remove:items:<пункт>`, `list-add:items` (`menu.apply`): пункт верхнего уровня
+  переносится и убирается вместе с подпунктами, подпункт — только среди своих; «Вложить» — у пункта без подпунктов.
+  Форма возвращается изменённой без сохранения, как у поля-списка. Поле адреса и флажок подпунктов CSS показывает
+  только при подходящем выборе в «Куда ведёт» (`:has`; без него поля видны). Пустой пункт отбрасывается; ошибки — у поля
+  пункта, 422.
+- Набор меню у каждого сайта свой: меню — это место в вёрстке (шапка, подвал, боковая колонка), его задаёт разработчик,
+  редактор только наполняет. Сайту без меню в подвале — `menus: [main]`, с тремя — `menus: [main, footer, sidebar]`.
+  Добавить меню: имя в `menus` в `site.yaml`, запись в `siteMenus` и вывод `site.Menus["<имя>"]` в шаблоне (константа
+  рядом с `mainMenu` в `layout.templ`); миграция не нужна — `menu_items.menu` без ограничения на имена. Убрать: то же
+  в обратную сторону; оставшиеся строки меню в БД просто не выводятся (удалить их можно миграцией).
+  Меню, которые редактор создаёт сам (и назначает на места или вставляет блоком на страницу), отложены до
+  потребности реального сайта (принцип 6).
+- Seed (`seedMenus`, только пустые меню): в шапке «О проекте», «Контакты», блог с категориями; в подвале «О проекте»
+  с подпунктом «Контакты» и свой адрес «RSS». Другой раздел (лента нового типа) — запись в `menuSections`.
+
 ## SEO (`internal/seo/`, `web.Meta`)
 
 Пишется в коде эталона; вынос в модуль — после второго сайта. Пакет `seo` не знает о типах контента.
@@ -412,7 +451,7 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
 
 ## Тесты
 
-- Unit-тесты — рядом с пакетом (`internal/richtext`, `internal/database`, `internal/admin`, `internal/slug`, `internal/blocks`,
+- Unit-тесты — рядом с пакетом (`internal/richtext`, `internal/database`, `internal/admin`, `internal/slug`, `internal/blocks`, `internal/menu`,
   `internal/listfield`).
 - e2e — `cmd/site/e2e_test.go`, функции `TestE2E*`: `httptest.NewServer(newMux(db, config{}))` над БД после `migrate` и `seed`,
   HTML разбирается goquery. Хелперы `fetch` (тело уже прочитано и закрыто) и `page` (статус, `Content-Type`, документ).
@@ -433,10 +472,14 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
   `cmd/site/e2e_posts_admin_test.go` (посты и категории в админке; хелперы `createPost`, `postForm`, `newPostForm`).
 - `TestSpecBlocksMatchCode` (`cmd/site/spec_test.go`) — блоки из `allow` в `site.yaml` есть в коде и совпадают со списком типа;
   `TestSpecFeaturesMatchCode` — типы с feature `sitemap`, `rss` и `seo` совпадают с `sitemapSources`, `feedTypes` и `seoTypes`;
-  `TestSpecSettingsMatchCode` — поля `settings` совпадают с колонками `site_settings`.
+  `TestSpecSettingsMatchCode` — поля `settings` совпадают с колонками `site_settings`; `TestSpecMenusMatchCode` — `menus`
+  совпадают с `siteMenus`.
 - e2e настроек — `cmd/site/e2e_settings_test.go`: сохранение и вывод на сайте (подвал, мета-теги, баннер), каждая ошибка
   поля (форма и htmx), соцсети (кнопки списка формой и htmx, порядок после сохранения, ошибки у элемента, 400), картинка по умолчанию в `og:image` и в превью сниппета, 409 медиатеки, согласие с cookies
   (форма, htmx, `back` только на этот сайт, запрос с чужого сайта — 403).
+- e2e меню — `cmd/site/e2e_menus_test.go`: список меню, кнопки пунктов (формой и htmx), сохранение и вывод в шапке и
+  подвале (`menuLinks`), смена slug страницы, подпункты вручную и из записей, неопубликованная страница, каждая ошибка
+  поля, 400; 409 удаления страницы из меню — в `TestE2EAdminPageUnpublishDelete`.
 - e2e SEO записи — `cmd/site/e2e_seo_admin_test.go`: превью сниппета (форма и htmx), `<title>`, описание и `og:image`
   поста и страницы (и главной), очистка — снова подстановка, ошибки полей, `seo_image` держит изображение.
 - e2e SEO — `cmd/site/e2e_seo_test.go`: sitemap и RSS разбираются `encoding/xml` (без черновиков, будущих постов и
@@ -446,6 +489,7 @@ CHECK (json_valid(…) AND json_type(…) = 'array')` (`listfield.Encode`, `list
   только критичные htmx-взаимодействия — превью при наборе, сохранение через `HX-Redirect`, подмена формы с ошибкой
   без перезагрузки, «Добавить блок», «↑», «Скрыть» и выбор изображения у блока, выбор обложки поста, превью сниппета SEO, загрузка файла (`hx-encoding="multipart/form-data"`),
   выбор картинки и «Добавить ссылку» в настройках, «Понятно» в баннере cookies (`TestBrowserSettingsAndCookieBanner`),
+  «Добавить пункт» меню, поле адреса по выбору и подпункты в шапке по фокусу (`TestBrowserMenu`),
   панель оформления Markdown (`TestBrowserMarkdownToolbar`: кнопка, повторное нажатие, Ctrl+B, отмена, ссылка, список).
   После каждого htmx-действия — `htmxSettled()`: обработчики на новый фрагмент htmx навешивает после фазы settle,
   и клик chromedp раньше этого ушёл бы обычной отправкой формы. Запуск — `make e2e-browser`; `make test` их не собирает, линтер — собирает (`build-tags` в `.golangci.yml`).
@@ -472,8 +516,9 @@ cmd/site/e2e_posts_admin_test.go  # e2e разделов «Посты» и «К�
 cmd/site/e2e_seo_test.go          # e2e sitemap, RSS, robots.txt, <head>, редиректов
 cmd/site/e2e_seo_admin_test.go    # e2e SEO записи (internal/seofields) в админке и на сайте
 cmd/site/e2e_settings_test.go     # e2e настроек сайта: раздел админки, подвал, мета-теги, баннер cookies
+cmd/site/e2e_menus_test.go        # e2e меню: раздел админки, шапка и подвал
 cmd/site/migrations_test.go # миграции, меняющие данные, на копии реалистичных данных
-cmd/site/spec_test.go       # site.yaml ↔ код (блоки, features, поля настроек)
+cmd/site/spec_test.go       # site.yaml ↔ код (блоки, features, поля настроек, меню)
 cmd/site/images_test.go     # контрактные тесты модуля images (testkit)
 cmd/site/browser_test.go    # браузерные тесты (тег browser, make e2e-browser)
 db/migrations/              # миграции сайта (goose) + embed.go
@@ -485,6 +530,7 @@ internal/content/posts/     # посты: то же + dates.go (дата пуб�
 internal/content/categories/ # категории: queries.sql, sqlc, admin.go, admin.templ (без публичных шаблонов)
 internal/database/          # открытие SQLite, статус схем, снимок, применение миграций
 internal/media/             # медиатека в админке (модуль images)
+internal/menu/              # меню (menu_items): запросы, сборка для сайта (Site), раздел админки
 internal/richtext/          # Markdown → очищенный HTML
 internal/seo/               # sitemap.xml, rss.xml, robots.txt
 internal/seofields/         # SEO записи вручную: поля, проверка, раздел формы с превью сниппета, наложение на web.Meta

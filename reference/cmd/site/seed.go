@@ -17,6 +17,8 @@ import (
 	"github.com/voffkin/keelkit/reference/internal/content/pages"
 	"github.com/voffkin/keelkit/reference/internal/content/posts"
 	"github.com/voffkin/keelkit/reference/internal/listfield"
+	"github.com/voffkin/keelkit/reference/internal/menu"
+	"github.com/voffkin/keelkit/reference/internal/seo"
 	"github.com/voffkin/keelkit/reference/internal/settings"
 )
 
@@ -78,6 +80,9 @@ func seedContent(ctx context.Context, db *sql.DB, imgs map[string]string) error 
 	}
 
 	if err := seedBlog(ctx, db, imgs, time.Now()); err != nil {
+		return err
+	}
+	if err := seedMenus(ctx, db); err != nil {
 		return err
 	}
 
@@ -340,4 +345,44 @@ func seedPostBody(title string) string {
 		"текст, изображение, изображение с текстом, цитата.\n\n" +
 		"## Подробнее\n\nАнонс в ленте блога — начало текста блоков, без разметки. Дата публикации и категория — " +
 		"под заголовком, обложка — над текстом."
+}
+
+// seedMenus — меню, пока они пустые: в шапке — страницы «О проекте» и «Контакты» и блог с категориями
+// подпунктами, в подвале — «О проекте», «Контакты» подпунктом и свой адрес (RSS-лента). Так в dev-данных есть
+// пункт каждого вида.
+func seedMenus(ctx context.Context, db *sql.DB) error {
+	pq := pages.New(db)
+	page := func(slug string) (string, error) {
+		id, err := pq.DraftPageIDBySlug(ctx, slug)
+		if err != nil {
+			return "", fmt.Errorf("seed menu: page %s: %w", slug, err)
+		}
+		return menu.PageTarget(id), nil
+	}
+	about, err := page("about")
+	if err != nil {
+		return err
+	}
+	contacts, err := page("contacts")
+	if err != nil {
+		return err
+	}
+	menus := map[string][]menu.Item{
+		"main": {
+			{Target: about},
+			{Target: contacts},
+			{Target: menu.SectionTarget("blog"), Children: true},
+		},
+		"footer": {
+			{Target: about},
+			{Target: contacts, Child: true},
+			{Target: menu.URLTarget, Title: "RSS", URL: seo.FeedPath},
+		},
+	}
+	for _, m := range siteMenus {
+		if err := menu.SeedIfEmpty(ctx, db, m.Name, menus[m.Name]); err != nil {
+			return fmt.Errorf("seed menu %s: %w", m.Name, err)
+		}
+	}
+	return nil
 }

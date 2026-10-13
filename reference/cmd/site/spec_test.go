@@ -25,6 +25,7 @@ var (
 	contentTypeRe = regexp.MustCompile(`^  (\w+):\s*$`)
 	allowRe       = regexp.MustCompile(`^\s+(\w+):\s*\{\s*type:\s*blocks,\s*allow:\s*\[([^\]]*)\]`)
 	featuresRe    = regexp.MustCompile(`^\s+features:\s*\[([^\]]*)\]`)
+	menusRe       = regexp.MustCompile(`^menus:\s*\[([^\]]*)\]`)
 )
 
 // specLines — строки site.yaml с типом контента, в котором они стоят (пусто — вне content).
@@ -162,5 +163,23 @@ func TestSpecSettingsMatchCode(t *testing.T) {
 	}
 	if !slices.Equal(spec, columns) {
 		t.Errorf("site.yaml settings fields = %v, site_settings columns = %v", spec, columns)
+	}
+}
+
+// Меню в site.yaml (menus) — ровно siteMenus, в том же порядке.
+func TestSpecMenusMatchCode(t *testing.T) {
+	_, lines := specLines(t)
+	var spec []string
+	for _, line := range lines {
+		if m := menusRe.FindStringSubmatch(line); m != nil {
+			spec = splitList(m[1])
+		}
+	}
+	var code []string
+	for _, m := range siteMenus {
+		code = append(code, m.Name)
+	}
+	if !slices.Equal(spec, code) {
+		t.Errorf("site.yaml menus = %v, siteMenus = %v", spec, code)
 	}
 }

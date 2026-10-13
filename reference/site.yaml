@@ -26,6 +26,10 @@ settings:
       fields:
         name: { type: string, required: true }
         url:  { type: string, required: true }
+# Меню, которые редактируют в админке (internal/menu, раздел «Меню» в группе «Сайт»): main — в шапке, footer —
+# в подвале. Пункт ведёт на страницу, раздел сайта или свой адрес; устройство пунктов — код сайта.
+# TestSpecMenusMatchCode сверяет имена с siteMenus в cmd/site/server.go.
+menus: [main, footer]
 content:
   pages:
     fields:

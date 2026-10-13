@@ -152,3 +152,10 @@ WHERE slug = (SELECT c.slug FROM post_contents AS c WHERE c.post_id = ? AND c.ki
 SELECT c.slug FROM post_redirects r
 JOIN post_contents c ON c.post_id = r.post_id AND c.kind = 'published'
 WHERE r.slug = sqlc.arg(old_slug) AND c.publish_date <= sqlc.arg(now);
+
+-- name: ListCategoriesWithPosts :many
+-- Menu: categories with at least one post visible on the site now, in name order.
+SELECT cat.name, cat.slug FROM categories cat
+WHERE EXISTS (SELECT 1 FROM post_contents c
+              WHERE c.category_id = cat.id AND c.kind = 'published' AND c.publish_date <= sqlc.arg(now))
+ORDER BY cat.name, cat.id;

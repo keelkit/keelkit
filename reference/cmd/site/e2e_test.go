@@ -73,6 +73,26 @@ func page(t *testing.T, srv *httptest.Server, path string, wantStatus int) *goqu
 
 func text(s *goquery.Selection) string { return strings.TrimSpace(s.Text()) }
 
+// menuLinks — пункты меню внутри nav: «Название /адрес», подпункты — в квадратных скобках после пункта.
+func menuLinks(nav *goquery.Selection) string {
+	var items []string
+	nav.ChildrenFiltered("ul").ChildrenFiltered("li").Each(func(_ int, li *goquery.Selection) {
+		a := li.ChildrenFiltered("a")
+		href, _ := a.Attr("href")
+		item := text(a) + " " + href
+		var sub []string
+		li.ChildrenFiltered("ul.sub").ChildrenFiltered("li").ChildrenFiltered("a").Each(func(_ int, c *goquery.Selection) {
+			href, _ := c.Attr("href")
+			sub = append(sub, text(c)+" "+href)
+		})
+		if len(sub) > 0 {
+			item += " [" + strings.Join(sub, ", ") + "]"
+		}
+		items = append(items, item)
+	})
+	return strings.Join(items, ", ")
+}
+
 func TestE2EHome(t *testing.T) {
 	srv := e2eServer(t, true)
 	doc := page(t, srv, "/", http.StatusOK)
@@ -86,14 +106,14 @@ func TestE2EHome(t *testing.T) {
 	if got := text(doc.Find("main h1")); got != "Добро пожаловать" {
 		t.Errorf("h1 = %q", got)
 	}
-	// Меню — все страницы, кроме главной, в порядке создания, затем блог.
-	var nav []string
-	doc.Find(".site-nav a").Each(func(_ int, a *goquery.Selection) {
-		href, _ := a.Attr("href")
-		nav = append(nav, text(a)+" "+href)
-	})
-	if got, want := strings.Join(nav, ", "), "О проекте /about, Контакты /contacts, Блог /blog"; got != want {
-		t.Errorf("nav = %q, want %q", got, want)
+	// Меню из seed (internal/menu): в шапке — страницы и блог с категориями подпунктами, в подвале — страница
+	// с подпунктом и свой адрес.
+	if got, want := menuLinks(doc.Find(".site-nav")), "О проекте /about, Контакты /contacts, Блог /blog "+
+		"[Go /blog/category/go, Веб /blog/category/web, Заметки /blog/category/notes]"; got != want {
+		t.Errorf("main menu = %q, want %q", got, want)
+	}
+	if got, want := menuLinks(doc.Find(".footer-nav")), "О проекте /about [Контакты /contacts], RSS /rss.xml"; got != want {
+		t.Errorf("footer menu = %q, want %q", got, want)
 	}
 
 	// Стили, скрипт и иконка из layout отдаются из embed.
@@ -118,9 +138,9 @@ func TestE2EHomeWithoutContent(t *testing.T) {
 	if got := text(doc.Find("main h1")); got != settings.DefaultName {
 		t.Errorf("h1 = %q, want %q", got, settings.DefaultName)
 	}
-	// Без страниц в меню только блог.
-	if got := text(doc.Find(".site-nav")); got != "Блог" {
-		t.Errorf("nav = %q, want only «Блог»", got)
+	// Пустые меню не выводятся.
+	if n := doc.Find(".site-nav, .footer-nav").Length(); n != 0 {
+		t.Errorf("menus without items: %d nav elements, want none", n)
 	}
 }
 

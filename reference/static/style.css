@@ -112,6 +112,38 @@ a:hover {
   text-decoration: underline;
 }
 
+.site-nav a.active {
+  color: var(--text);
+}
+
+/* Подпункты основного меню (internal/menu): выпадающий список по наведению и по фокусу с клавиатуры. */
+.site-nav li {
+  position: relative;
+}
+
+.site-nav .sub {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: -0.75rem;
+  z-index: 20;
+  min-width: 12rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.08);
+}
+
+.site-nav .sub li {
+  padding-block: 0.15rem;
+}
+
+.site-nav li:hover > .sub,
+.site-nav li:focus-within > .sub {
+  display: grid;
+}
+
 /* Основная часть */
 
 main {
@@ -239,6 +271,32 @@ th {
 
 .contacts-address {
   white-space: pre-line;
+}
+
+/* Меню в подвале (internal/menu): пункты колонками, подпункты — списком под пунктом. */
+.footer-nav > ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 2rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.footer-nav .sub {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.footer-nav a {
+  color: inherit;
+}
+
+.footer-nav a[aria-current="page"] {
+  color: var(--text);
 }
 
 /* Ссылки на соцсети в подвале (настройки сайта): в строку, переносятся на узком экране. */

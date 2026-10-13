@@ -97,33 +97,69 @@ templ openGraph(site Site, m Meta) {
 	}
 }
 
+// Имена меню из site.yaml (menus), которые выводит layout: основное — в шапке, второе — в подвале.
+const (
+	mainMenu   = "main"
+	footerMenu = "footer"
+)
+
 templ header(site Site) {
 	<header class="site-header">
 		<div class="container">
 			<a class="site-name" href="/">{ site.Name }</a>
-			if len(site.Nav) > 0 {
+			if links := site.Menus[mainMenu]; len(links) > 0 {
 				<nav class="site-nav" aria-label="Основное меню">
-					<ul>
-						for _, l := range site.Nav {
-							<li>
-								if l.Current {
-									<a href={ templ.SafeURL(l.URL) } aria-current="page">{ l.Title }</a>
-								} else {
-									<a href={ templ.SafeURL(l.URL) }>{ l.Title }</a>
-								}
-							</li>
-						}
-					</ul>
+					@menuList(links, false)
 				</nav>
 			}
 		</div>
 	</header>
 }
 
+// menuList — пункты меню списком; подпункты — вложенным списком с классом sub (в шапке — выпадающий по наведению
+// и фокусу, в подвале — колонкой под пунктом).
+templ menuList(links []Link, sub bool) {
+	<ul
+		if sub {
+			class="sub"
+		}
+	>
+		for _, l := range links {
+			<li
+				if len(l.Children) > 0 {
+					class="has-children"
+				}
+			>
+				@menuLink(l)
+				if len(l.Children) > 0 {
+					@menuList(l.Children, true)
+				}
+			</li>
+		}
+	</ul>
+}
+
+// menuLink — ссылка пункта: текущая страница — aria-current, раздел с текущей страницей внутри — класс active.
+templ menuLink(l Link) {
+	<a
+		href={ templ.URL(l.URL) }
+		if l.Current {
+			aria-current="page"
+		} else if l.Active {
+			class="active"
+		}
+	>{ l.Title }</a>
+}
+
 templ footer(site Site) {
 	{{ c := site.Contacts }}
 	<footer class="site-footer">
 		<div class="container">
+			if links := site.Menus[footerMenu]; len(links) > 0 {
+				<nav class="footer-nav" aria-label="Меню в подвале">
+					@menuList(links, false)
+				</nav>
+			}
 			if c != (Contacts{}) {
 				<address class="contacts">
 					if c.Address != "" {

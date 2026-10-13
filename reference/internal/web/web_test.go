@@ -1,6 +1,9 @@
 package web
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestTelURL(t *testing.T) {
 	for in, want := range map[string]string{
@@ -31,5 +34,46 @@ func TestLocalPath(t *testing.T) {
 		if got := localPath(in); got != want {
 			t.Errorf("localPath(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestMarkCurrent(t *testing.T) {
+	links := []Link{
+		{Title: "Главная", URL: "/"},
+		{Title: "Блог", URL: "/blog", Children: []Link{{Title: "Новости", URL: "/blog/category/news"}}},
+		{Title: "О нас", URL: "/about"},
+		{Title: "Внешний", URL: "https://example.com/blog"},
+	}
+	for path, want := range map[string]string{
+		"/":                       "Главная current",
+		"/blog":                   "Блог current",
+		"/blog/post-1":            "Блог active",
+		"/blog/category/news":     "Блог active, Новости current",
+		"/about":                  "О нас current",
+		"/aboutus":                "",
+		"/contacts":               "",
+		"/blog/category/newsroom": "Блог active",
+	} {
+		var got []string
+		var walk func([]Link)
+		walk = func(ls []Link) {
+			for _, l := range ls {
+				switch {
+				case l.Current:
+					got = append(got, l.Title+" current")
+				case l.Active:
+					got = append(got, l.Title+" active")
+				}
+				walk(l.Children)
+			}
+		}
+		marked := markCurrent(links, path)
+		walk(marked)
+		if s := strings.Join(got, ", "); s != want {
+			t.Errorf("%s: %q, want %q", path, s, want)
+		}
+	}
+	if links[1].Current || links[1].Children[0].Current {
+		t.Error("markCurrent changed its input")
 	}
 }

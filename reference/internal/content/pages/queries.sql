@@ -3,17 +3,11 @@
 SELECT page_id, title, slug, blocks, seo_title, seo_description, seo_image
 FROM page_contents WHERE kind = 'published' AND slug = ?;
 
--- name: ListPageLinks :many
--- Published pages for the header menu, in creation order; the home page is excluded by slug.
-SELECT title, slug FROM page_contents
-WHERE kind = 'published' AND slug <> sqlc.arg(exclude_slug)
-ORDER BY page_id;
-
 -- name: CountPages :one
 SELECT count(*) FROM pages;
 
 -- name: ListPages :many
--- Admin list, in creation order (the same order as the header menu). The draft always exists;
+-- Admin list, in creation order. The draft always exists;
 -- published_slug is empty for a page that is not on the site; changed: the draft differs from the published copy.
 SELECT p.id, d.title, d.slug, p.updated_at,
        CAST(coalesce(pub.slug, '') AS TEXT) AS published_slug,

@@ -9,6 +9,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -20,9 +21,11 @@ import (
 type Site struct {
 	Name        string
 	Description string
-	Nav         []Link // пункты меню в шапке
-	BaseURL     string // схема и хост сайта без слеша в конце (BASE_URL): из него строятся абсолютные адреса
-	Feed        string // путь RSS-ленты для <link rel="alternate">; пусто — без ленты
+	// Menus — меню сайта по именам из site.yaml (menus: main — шапка, footer — подвал): пункты по порядку,
+	// у пункта — подпункты. Как их выводить, решает layout сайта.
+	Menus   map[string][]Link
+	BaseURL string // схема и хост сайта без слеша в конце (BASE_URL): из него строятся абсолютные адреса
+	Feed    string // путь RSS-ленты для <link rel="alternate">; пусто — без ленты
 	// ShareImage — картинка для соцсетей по умолчанию: og:image страниц, у которых нет своей; nil — без неё.
 	ShareImage   *images.Image
 	Contacts     Contacts
@@ -75,9 +78,29 @@ type Meta struct {
 
 // Link — пункт меню.
 type Link struct {
-	Title   string
-	URL     string
-	Current bool // ссылка ведёт на текущую страницу (aria-current)
+	Title    string
+	URL      string // путь на сайте или адрес http(s)
+	Children []Link // подпункты
+	Current  bool   // ссылка ведёт на текущую страницу (aria-current)
+	// Active — текущая страница внутри пункта: это она сама, страница под его адресом (/blog/post-1 для /blog)
+	// или один из подпунктов. Для подсветки раздела.
+	Active bool
+}
+
+// markCurrent — копия пунктов с отметками Current и Active для пути path.
+func markCurrent(links []Link, path string) []Link {
+	if len(links) == 0 {
+		return nil
+	}
+	out := make([]Link, len(links))
+	for i, l := range links {
+		l.Children = markCurrent(l.Children, path)
+		l.Current = l.URL == path
+		l.Active = l.Current || (l.URL != "/" && strings.HasPrefix(l.URL, "/") && strings.HasPrefix(path, l.URL+"/")) ||
+			slices.ContainsFunc(l.Children, func(c Link) bool { return c.Active })
+		out[i] = l
+	}
+	return out
 }
 
 type siteKey struct{}
@@ -98,12 +121,11 @@ func WithSite(load func(context.Context) (Site, error)) func(http.Handler) http.
 				ServerError(w, r, err)
 				return
 			}
-			nav := make([]Link, len(site.Nav))
-			for i, l := range site.Nav {
-				l.Current = l.URL == r.URL.Path
-				nav[i] = l
+			menus := make(map[string][]Link, len(site.Menus))
+			for name, links := range site.Menus {
+				menus[name] = markCurrent(links, r.URL.Path)
 			}
-			site.Nav = nav
+			site.Menus = menus
 			site.Path = r.URL.RequestURI()
 			site.Cookie.Accepted = cookieAccepted(r)
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), siteKey{}, site)))

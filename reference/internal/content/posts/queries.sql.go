@@ -230,6 +230,42 @@ func (q *Queries) InsertContentImage(ctx context.Context, arg InsertContentImage
 	return err
 }
 
+const listCategoriesWithPosts = `-- name: ListCategoriesWithPosts :many
+SELECT cat.name, cat.slug FROM categories cat
+WHERE EXISTS (SELECT 1 FROM post_contents c
+              WHERE c.category_id = cat.id AND c.kind = 'published' AND c.publish_date <= ?1)
+ORDER BY cat.name, cat.id
+`
+
+type ListCategoriesWithPostsRow struct {
+	Name string
+	Slug string
+}
+
+// Menu: categories with at least one post visible on the site now, in name order.
+func (q *Queries) ListCategoriesWithPosts(ctx context.Context, now string) ([]ListCategoriesWithPostsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCategoriesWithPosts, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListCategoriesWithPostsRow
+	for rows.Next() {
+		var i ListCategoriesWithPostsRow
+		if err := rows.Scan(&i.Name, &i.Slug); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCategoryOptions = `-- name: ListCategoryOptions :many
 SELECT id, name, slug FROM categories ORDER BY name, id
 `

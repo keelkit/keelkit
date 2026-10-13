@@ -179,6 +179,20 @@ func (h *Handler) redirectOld(w http.ResponseWriter, r *http.Request, slug strin
 	http.Redirect(w, r, PublicPath(target), http.StatusMovedPermanently)
 }
 
+// CategoryLinks — категории, в которых сейчас есть видимые посты, ссылками на их ленты (по названию): подпункты
+// раздела блога в меню сайта (internal/menu). Пустая категория в меню не попадает — её лента была бы пустой.
+func (h *Handler) CategoryLinks(ctx context.Context) ([]web.Link, error) {
+	rows, err := h.q.ListCategoriesWithPosts(ctx, nowDB())
+	if err != nil {
+		return nil, err
+	}
+	links := make([]web.Link, 0, len(rows))
+	for _, c := range rows {
+		links = append(links, web.Link{Title: c.Name, URL: CategoryPath(c.Slug)})
+	}
+	return links, nil
+}
+
 // SitemapURLs — лента блога и посты, видимые на сайте, для sitemap (site.yaml: feature sitemap).
 // lastmod поста — дата публикации, ленты — дата самого нового поста.
 func (h *Handler) SitemapURLs(ctx context.Context) ([]seo.URL, error) {

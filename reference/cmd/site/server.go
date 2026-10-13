@@ -17,6 +17,7 @@ import (
 	"github.com/voffkin/keelkit/reference/internal/content/posts"
 	"github.com/voffkin/keelkit/reference/internal/database"
 	"github.com/voffkin/keelkit/reference/internal/media"
+	"github.com/voffkin/keelkit/reference/internal/menu"
 	"github.com/voffkin/keelkit/reference/internal/seo"
 	"github.com/voffkin/keelkit/reference/internal/settings"
 	"github.com/voffkin/keelkit/reference/internal/web"
@@ -33,13 +34,15 @@ var reservedSlugs = []string{"admin", "static", "media", "healthz", "blog"}
 // а всё, кроме входа, — в adminH.RequireUser (сессия и CSRF-токен).
 // Изображения (images.Service) отдаются под web.MediaPrefix обработчиком модуля.
 func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
-	html := web.WithSite(siteLoader(db, imgs, cfg.BaseURL))
 	pagesH := pages.NewHandler(db, imgs)
-	pagesAdmin := pages.NewAdmin(db, imgs, media.AdminPath, reservedSlugs)
 	postsH := posts.NewHandler(db, imgs)
+	sections := menuSections(postsH)
+	html := web.WithSite(siteLoader(db, imgs, cfg.BaseURL, sections))
+	pagesAdmin := pages.NewAdmin(db, imgs, media.AdminPath, reservedSlugs, pageUsage(db))
 	postsAdmin := posts.NewAdmin(db, imgs, media.AdminPath)
 	categoriesAdmin := categories.NewAdmin(db, posts.CategoryPath, posts.EditPath)
 	settingsAdmin := settings.NewAdmin(db, imgs, media.AdminPath)
+	menuAdmin := menu.NewAdmin(db, siteMenus, sections)
 	mediaAdmin := media.NewAdmin(imgs, imageUsage(db))
 	adminH := admin.NewHandler(db, admin.Options{
 		SecureCookies: cfg.CookieSecure,
@@ -52,6 +55,7 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 		},
 		SiteSections: []admin.Section{
 			{Title: "Настройки", URL: settings.AdminPath, Icon: "settings"},
+			{Title: "Меню", URL: menu.AdminPath, Icon: "menu"},
 		},
 	})
 	crossOrigin := http.NewCrossOriginProtection()
@@ -122,6 +126,9 @@ func newMux(db *sql.DB, imgs *images.Service, cfg config) *http.ServeMux {
 	mux.Handle("GET "+settings.AdminPath, signedIn(settingsAdmin.Edit))
 	mux.Handle("POST "+settings.AdminPath, signedIn(settingsAdmin.Update))
 	mux.Handle("POST "+settings.AdminPath+"/image", signedIn(settingsAdmin.Image))
+	mux.Handle("GET "+menu.AdminPath, signedIn(menuAdmin.List))
+	mux.Handle("GET "+menu.AdminPath+"/{name}", signedIn(menuAdmin.Edit))
+	mux.Handle("POST "+menu.AdminPath+"/{name}", signedIn(menuAdmin.Update))
 	mux.Handle("GET /admin/media", signedIn(mediaAdmin.List))
 	// Лимит тела — снаружи signedIn: форма без JavaScript передаёт CSRF-токен в multipart, RequireUser читает его первым.
 	mux.Handle("POST /admin/media", maxBody(media.MaxUploadRequest, signedIn(mediaAdmin.Upload)))
@@ -154,10 +161,10 @@ func socialLinks(list []settings.Social) []web.Link {
 }
 
 // siteLoader собирает данные для layout: настройки сайта (название, описание, картинка для соцсетей, контакты,
-// баннер cookies, коды подтверждения), меню из страниц (кроме главной) и блог, адрес сайта и ленты.
-func siteLoader(db *sql.DB, imgs *images.Service, baseURL string) func(context.Context) (web.Site, error) {
+// баннер cookies, коды подтверждения), меню (internal/menu), адрес сайта и ленты.
+func siteLoader(db *sql.DB, imgs *images.Service, baseURL string, sections []menu.Section) func(context.Context) (web.Site, error) {
 	sq := settings.New(db)
-	pq := pages.New(db)
+	mq := menu.New(db)
 	return func(ctx context.Context) (web.Site, error) {
 		s, err := settings.Get(ctx, sq)
 		if err != nil {
@@ -180,16 +187,47 @@ func siteLoader(db *sql.DB, imgs *images.Service, baseURL string) func(context.C
 				site.ShareImage = img
 			}
 		}
-
-		links, err := pq.ListPageLinks(ctx, pages.HomeSlug)
-		if err != nil {
-			return web.Site{}, fmt.Errorf("page links: %w", err)
+		if site.Menus, err = menu.Site(ctx, mq, sections); err != nil {
+			return web.Site{}, err
 		}
-		for _, l := range links {
-			site.Nav = append(site.Nav, web.Link{Title: l.Title, URL: pages.PublicPath(l.Slug)})
-		}
-		site.Nav = append(site.Nav, web.Link{Title: "Блог", URL: posts.BlogPath})
 		return site, nil
+	}
+}
+
+// siteMenus — меню из site.yaml (menus) по порядку: имя, название и место в админке. Вывод — internal/web/layout.templ
+// (main — шапка, footer — подвал). TestSpecMenusMatchCode сверяет имена со спецификацией.
+var siteMenus = []menu.Menu{
+	{Name: "main", Title: "Основное меню", Hint: "В шапке каждой страницы."},
+	{Name: "footer", Title: "Меню в подвале", Hint: "В подвале каждой страницы."},
+}
+
+// menuSections — разделы сайта, на которые может вести пункт меню: лента блога, подпункты — категории с постами.
+// Новый тип со своей лентой добавляет сюда раздел.
+func menuSections(postsH *posts.Handler) []menu.Section {
+	return []menu.Section{
+		{Key: "blog", Title: "Блог", Path: posts.BlogPath, ChildrenTitle: "категории", Children: postsH.CategoryLinks},
+	}
+}
+
+// pageUsage — что ссылается на страницу (раздел страниц не даёт удалить её и показывает список): пункты меню.
+func pageUsage(db *sql.DB) pages.UsageFunc {
+	mq := menu.New(db)
+	return func(ctx context.Context, pageID int64) ([]pages.Usage, error) {
+		names, err := menu.MenusUsingPage(ctx, mq, pageID)
+		if err != nil {
+			return nil, fmt.Errorf("menus using page: %w", err)
+		}
+		used := make([]pages.Usage, 0, len(names))
+		for _, name := range names {
+			title := name
+			for _, m := range siteMenus {
+				if m.Name == name {
+					title = m.Title
+				}
+			}
+			used = append(used, pages.Usage{Title: title, URL: menu.EditPath(name)})
+		}
+		return used, nil
 	}
 }
 
