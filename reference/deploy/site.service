@@ -1,0 +1,47 @@
+# Сайт под systemd. Установка и обновление — «Развёртывание» в AGENTS.md.
+# Несколько сайтов на одном сервере — по файлу на сайт: замените «site» в имени файла, User, путях и StateDirectory.
+[Unit]
+Description=Keelkit site
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=site
+Group=site
+# Каталог данных /var/lib/site создаёт systemd (владелец — User); DATA_DIR и BACKUP_DIR — внутри него.
+StateDirectory=site
+StateDirectoryMode=0750
+WorkingDirectory=/var/lib/site
+EnvironmentFile=/etc/site/site.env
+ExecStart=/opt/site/site serve
+Restart=on-failure
+RestartSec=5
+# serve при SIGTERM завершает запросы за 10 с.
+TimeoutStopSec=20
+
+# Ограничения: процессу нужны только сеть, свой каталог данных и чтение бинарника.
+UMask=0027
+NoNewPrivileges=true
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+
+[Install]
+WantedBy=multi-user.target

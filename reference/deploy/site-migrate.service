@@ -1,0 +1,31 @@
+# Миграции: site migrate (снимок БД в BACKUP_DIR, затем миграции). Только вручную, при обновлении:
+#   systemctl stop site && systemctl start site-migrate && systemctl start site
+# Не ExecStartPre в site.service: миграции применяются только явной командой, никогда при старте.
+[Unit]
+Description=Keelkit site migrations
+
+[Service]
+Type=oneshot
+User=site
+Group=site
+StateDirectory=site
+StateDirectoryMode=0750
+WorkingDirectory=/var/lib/site
+EnvironmentFile=/etc/site/site.env
+ExecStart=/opt/site/site migrate
+
+UMask=0027
+NoNewPrivileges=true
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+PrivateNetwork=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service

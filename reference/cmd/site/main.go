@@ -206,7 +206,7 @@ func serve(ctx context.Context, cfg config) error {
 		return err
 	}
 	if n := database.Pending(schemas); n > 0 {
-		return fmt.Errorf("%w (%d), выполните make migrate", errPendingMigrations, n)
+		return fmt.Errorf("%w (%d), выполните site migrate (make migrate)", errPendingMigrations, n)
 	}
 
 	media, closeMedia, err := openMedia(db, cfg)
@@ -296,7 +296,7 @@ func reprocessImages(ctx context.Context, cfg config, args []string) error {
 		return err
 	}
 	if n := database.Pending(schemas); n > 0 {
-		return fmt.Errorf("%w (%d), выполните make migrate", errPendingMigrations, n)
+		return fmt.Errorf("%w (%d), выполните site migrate (make migrate)", errPendingMigrations, n)
 	}
 	media, closeMedia, err := openMedia(db, cfg)
 	if err != nil {

@@ -1,0 +1,33 @@
+# Резервная копия: site backup (снимок БД и архив загрузок в BACKUP_DIR), затем удаление копий старше 14 дней
+# (и снимков перед миграциями). Запускает site-backup.timer; вручную — systemctl start site-backup.
+[Unit]
+Description=Keelkit site backup
+
+[Service]
+Type=oneshot
+User=site
+Group=site
+StateDirectory=site
+StateDirectoryMode=0750
+WorkingDirectory=/var/lib/site
+EnvironmentFile=/etc/site/site.env
+ExecStart=/opt/site/site backup
+ExecStartPost=/usr/bin/find ${BACKUP_DIR} -maxdepth 1 -name *Z.* -mtime +14 -delete
+Nice=10
+IOSchedulingClass=idle
+
+UMask=0077
+NoNewPrivileges=true
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+PrivateNetwork=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service

@@ -330,6 +330,7 @@ internal/menu/             # меню (main, footer): пункты на стра
 internal/settings/         # настройки сайта (одна запись: контакты, картинка для соцсетей, баннер cookies, коды вебмастеров) и их раздел в админке
 internal/slug/             # slug из заголовка (транслитерация кириллицы) и проверка формата
 db/migrations/             # миграции сайта (goose, своя таблица версий) + embed.go
+deploy/                    # юниты systemd (serve, migrate, backup + таймер), пример site.env; Dockerfile — в корне сайта
 static/                    # CSS, htmx-<версия>.min.js, свой JS админки (editor.js, live-preview.js) — через embed
 site.yaml, sqlc.yaml, Makefile, AGENTS.md, CLAUDE.md
 ```
@@ -342,8 +343,9 @@ site.yaml, sqlc.yaml, Makefile, AGENTS.md, CLAUDE.md
   и `make check` их запускает.
 
 **Эксплуатация**
-- Основной вариант — бинарник под systemd на VPS; Dockerfile — опция.
-- `make backup` (по cron): снимок БД и архив загрузок с локального диска (`DATA_DIR/uploads` и `DATA_DIR/files`). При хранилище S3 загрузки защищает версионирование бакета.
+- Основной вариант — бинарник под systemd на VPS: `make build` (статический, версия вшита), юниты в `deploy/`
+  (`site.service`; `site-migrate.service` — миграции только вручную; `site-backup.service` с таймером); Dockerfile — опция (`make docker`).
+- `site backup` / `make backup` (ночью — таймер systemd): снимок БД и архив загрузок с локального диска (`DATA_DIR/uploads` и `DATA_DIR/files`). При хранилище S3 загрузки защищает версионирование бакета.
 - litestream — опция, описывается в `AGENTS.md` сайта, но не обязательна.
 
 ## Makefile — единая точка входа

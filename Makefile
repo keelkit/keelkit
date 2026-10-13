@@ -53,7 +53,7 @@ DIRS := modules/$(MODULE)
 endif
 endif
 
-.PHONY: help check test test-isolated lint deps-check release spec-validate images-demo build run dev migrate backup seed user-create reprocess-images reset generate generate-check e2e e2e-browser
+.PHONY: help check test test-isolated lint deps-check release spec-validate images-demo build docker run dev migrate backup seed user-create reprocess-images reset generate generate-check e2e e2e-browser
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -96,6 +96,9 @@ images-demo: ## Обработать изображения модулем image
 
 build: ## Статический бинарник эталонного сайта reference/bin/site. Пример: make build GOOS=linux GOARCH=amd64
 	@$(MAKE) -C reference build
+
+docker: ## Образ Docker эталонного сайта (опция). Пример: make docker DOCKER_ARCH=amd64
+	@$(MAKE) -C reference docker
 
 run: ## Запустить эталонный сайт на http://localhost:9090 (нужен make migrate). Пример: make run ADDR=:9091
 	@$(MAKE) -C reference run

@@ -803,7 +803,7 @@ make check
 
 ---
 
-## Этап 11. Эксплуатация
+## Этап 11. Эксплуатация — ✅ готово
 
 Цель: сайт можно развернуть, резервировать и безопасно обновлять. Полный CI и тест миграции на реалистичных
 данных перенесены в этап 14 (решение человека, 2026-10-14): этапам 12–13 они не нужны, а устройство развёртывания —
@@ -811,7 +811,7 @@ make check
 
 - [x] `make build` — один статический бинарник (`CGO_ENABLED=0`), версия вшита через `-ldflags`
 - [x] `make backup` — снимок БД + архив загрузок (`uploads/` и `files/`); пример cron-строки в `reference/AGENTS.md`
-- [ ] `deploy/site.service` (systemd), опциональный `Dockerfile`; описание litestream как опции
+- [x] `deploy/site.service` (systemd), опциональный `Dockerfile`; описание litestream как опции
 
 ### Проверка
 ```sh
@@ -819,7 +819,9 @@ make build && file reference/bin/site        # статический бинар
 DATA_DIR=/tmp/kk ./reference/bin/site migrate && DATA_DIR=/tmp/kk BASE_URL=http://localhost:8080 ./reference/bin/site serve
 curl -s localhost:8080/healthz               # version = git-хеш/тег, не "dev"
 make backup && ls reference/backups/         # .db и .tar.gz
-docker build -t keelkit-reference reference/ && docker run -p 8080:8080 keelkit-reference   # опционально
+# deploy/: на сервере (или в контейнере Debian с systemd) — site-migrate, site, site-backup.timer; /healthz отвечает
+make docker && docker run --rm -v kk:/data keelkit-reference migrate \
+  && docker run -p 8080:8080 -v kk:/data -e BASE_URL=http://localhost:8080 keelkit-reference   # опционально
 ```
 
 ---

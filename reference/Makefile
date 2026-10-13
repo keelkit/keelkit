@@ -34,6 +34,10 @@ GOARCH ?= $(shell go env GOARCH)
 # -dirty — есть незакоммиченные правки. Теги модулей монорепо (modules/…, spec/…) сюда не попадают.
 VERSION ?= $(shell git describe --tags --match 'v[0-9]*' --always --dirty 2>/dev/null || echo dev)
 
+# Образ Docker (опция, make docker): имя и архитектура (для VPS — DOCKER_ARCH=amd64).
+DOCKER_IMAGE ?= keelkit-reference
+DOCKER_ARCH ?= $(GOARCH)
+
 # Email пользователя админки для user-create.
 EMAIL ?=
 # Версия профиля для reprocess-images: обработать изображения с версией ниже BELOW.
@@ -58,7 +62,7 @@ SPEC_VALIDATE = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/voffkin/keelkit/sp
 
 SITE = ADDR=$(ADDR) BASE_URL=$(BASE_URL) DATA_DIR=$(DATA_DIR) BACKUP_DIR=$(BACKUP_DIR) COOKIE_SECURE=$(COOKIE_SECURE) go run ./cmd/site
 
-.PHONY: help build run dev migrate backup seed user-create reprocess-images reset generate generate-check test test-isolated e2e e2e-browser lint deps-check spec-validate
+.PHONY: help build docker run dev migrate backup seed user-create reprocess-images reset generate generate-check test test-isolated e2e e2e-browser lint deps-check spec-validate
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -66,6 +70,10 @@ help: ## Показать список целей
 # CGO_ENABLED=0 — статический бинарник без libc хоста; -trimpath — без локальных путей в бинарнике.
 build: ## Статический бинарник BIN_DIR/site с вшитой версией. Пример: make build GOOS=linux GOARCH=amd64
 	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o $(BIN_DIR)/site ./cmd/site
+
+docker: ## Образ Docker (опция) из бинарника make build: DOCKER_IMAGE:VERSION и :latest. Пример: make docker DOCKER_ARCH=amd64
+	$(MAKE) build GOOS=linux GOARCH=$(DOCKER_ARCH) BIN_DIR=bin/linux-$(DOCKER_ARCH)
+	docker build --platform linux/$(DOCKER_ARCH) -t $(DOCKER_IMAGE):$(VERSION) -t $(DOCKER_IMAGE):latest .
 
 run: ## Запустить сайт (откажется при непримененных миграциях). Пример: make run ADDR=:9091 DATA_DIR=/tmp/site BASE_URL=https://example.com
 	$(SITE) serve

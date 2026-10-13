@@ -42,6 +42,7 @@
 | `make run` | запустить сайт (`ADDR`, `DATA_DIR`, `BASE_URL`); при непримененных миграциях отказывается стартовать |
 | `make dev` | для разработки: `migrate`, `seed`, запуск |
 | `make migrate` | снимок БД в `BACKUP_DIR` (`VACUUM INTO`), затем миграции: модули в порядке `site.yaml`, потом сайт |
+| `make docker` | образ Docker (опция) из бинарника `make build` под Linux, см. «Развёртывание»; `DOCKER_ARCH=amd64` — для VPS на amd64 |
 | `make backup` | снимок БД и архив загрузок в `BACKUP_DIR` (`site backup`, см. «Резервные копии»); сервер может работать |
 | `make seed` | dev-данные; идемпотентно, в проде не запускается; печатает dev-пользователя админки |
 | `make reprocess-images BELOW=N` | повторная обработка изображений с версией профиля ниже `N` текущим профилем; идемпотентна и безопасна для прерывания (повторный запуск доделывает), сервер может работать. Печатает `processed`/`failed` |
@@ -156,20 +157,80 @@
   всё, на что ссылается снимок, уже на диске. Пропасть может только файл, удалённый во время архивации (редактор удалил
   изображение, идёт `reprocess-images`), — он перечисляется в логе (`file deleted during backup`).
   Если `DATA_DIR/site.db` нет — ошибка, а не снимок пустой БД.
-- Без `make` на сервере — бинарником по cron; копии старше N дней удаляет `find` (вместе со снимками перед миграциями):
-  ```cron
-  # /etc/cron.d/site: каждую ночь в 03:30, хранить 14 дней
-  30 3 * * * site cd /srv/site && DATA_DIR=data BACKUP_DIR=backups ./site backup && find backups -name '*Z.*' -mtime +14 -delete
-  ```
+- На сервере — таймер systemd `deploy/site-backup.timer` (каждую ночь в 03:30) запускает `deploy/site-backup.service`:
+  `site backup`, затем `find` удаляет копии старше 14 дней (и снимки перед миграциями). Вручную —
+  `systemctl start site-backup`, журнал — `journalctl -u site-backup`. Без systemd — то же строкой cron от пользователя сайта:
+  `30 3 * * * site set -a; . /etc/site/site.env; /opt/site/site backup && find "$BACKUP_DIR" -name '*Z.*' -mtime +14 -delete`.
   Копии на том же диске не спасают от потери диска или сервера: их копирование в другое место (rsync, rclone,
   снимки диска у хостера) настраивается для каждого сайта. При хранилище S3 загрузки защищает версионирование бакета.
 - Восстановление — в пустой `DATA_DIR` (не поверх: старые `site.db-wal` и `-shm` испортят снимок):
   ```sh
-  systemctl stop site && mv data data.old && mkdir data
-  tar -xzf backups/<время>.tar.gz -C data && cp backups/<время>.db data/site.db
-  ./site migrate && systemctl start site     # migrate — если бинарник новее копии
+  cd /var/lib/site && systemctl stop site && mv data data.old && install -d -o site -g site -m 0750 data
+  tar -xzf backups/<время>.tar.gz -C data && cp backups/<время>.db data/site.db && chown -R site:site data
+  systemctl start site-migrate && systemctl start site     # site-migrate — если бинарник новее копии
   ```
   Тест `TestBackupRestore` (`cmd/site/backup_test.go`) проверяет этот путь: сайт из копии отдаёт изображения и файлы.
+
+## Развёртывание
+
+Основной вариант — бинарник под systemd на VPS (`deploy/`); образ Docker — опция.
+
+| Файл | Куда | Что |
+|---|---|---|
+| `bin/site` (`make build GOOS=linux GOARCH=amd64`) | `/opt/site/site` | бинарник |
+| `deploy/site.env.example` | `/etc/site/site.env` (`root:site`, `0640`) | настройки: `ADDR=127.0.0.1:8080`, `BASE_URL`, `DATA_DIR`, `BACKUP_DIR`, `TZ` |
+| `deploy/site.service` | `/etc/systemd/system/` | `site serve`; `Restart=on-failure`, ограничения systemd (`systemd-analyze security` — 1.7) |
+| `deploy/site-migrate.service` | `/etc/systemd/system/` | `site migrate`, только вручную — не `ExecStartPre`: миграции не применяются при старте |
+| `deploy/site-backup.service`, `.timer` | `/etc/systemd/system/` | ночной `site backup` (см. «Резервные копии») |
+
+- Данные — `/var/lib/site` (`StateDirectory`: создаёт systemd, владелец — пользователь `site`, `0750`); `DATA_DIR` и
+  `BACKUP_DIR` — внутри. Всё остальное для процесса только чтение (`ProtectSystem=strict`).
+- Первая установка:
+  ```sh
+  useradd -r -s /usr/sbin/nologin site && install -d /opt/site /etc/site
+  install -m 0755 site /opt/site/site
+  install -o root -g site -m 0640 site.env /etc/site/site.env      # из deploy/site.env.example
+  cp site.service site-migrate.service site-backup.service site-backup.timer /etc/systemd/system/
+  systemctl daemon-reload && systemctl start site-migrate
+  systemctl enable --now site site-backup.timer
+  sudo -u site sh -c 'set -a; . /etc/site/site.env; /opt/site/site user create me@example.com'
+  ```
+- Обновление: новый бинарник рядом, затем остановка, миграции (снимок БД — внутри `site migrate`), замена, старт:
+  ```sh
+  install -m 0755 site /opt/site/site.new
+  systemctl stop site && mv /opt/site/site.new /opt/site/site && systemctl start site-migrate && systemctl start site
+  curl -s 127.0.0.1:8080/healthz      # version — новая, pending — 0
+  ```
+  С непримененными миграциями `serve` не стартует — systemd перезапускает его и пишет причину в `journalctl -u site`.
+- Сайт слушает только localhost; TLS и порты 80/443 — у reverse proxy. Caddy сам получает сертификат:
+  `example.com { reverse_proxy 127.0.0.1:8080 }`. Без https вход в админку не работает: cookie с флагом `Secure`
+  (`COOKIE_SECURE` по умолчанию `true`). Ограничение попыток входа (модуль `auth`) считается по email, поэтому прокси
+  ему не мешает; в логе входа `remote_addr` — адрес прокси.
+- Несколько сайтов на одном сервере — свои пользователь, юниты, `StateDirectory`, `/etc/<имя>/` и порт `ADDR`.
+
+**Docker (опция).** `make docker` собирает бинарник под Linux (`bin/linux-<arch>/site`) и образ `DOCKER_IMAGE:VERSION`
+(`Dockerfile`: distroless `static-debian13:nonroot` с закреплённым digest, пользователь 65532, без shell). Бинарник
+строится на машине с доступом к модулям Keelkit — SSH-ключ в сборку образа не попадает; `.dockerignore` пропускает
+в контекст только бинарники. Для VPS на amd64 — `make docker DOCKER_ARCH=amd64`. Данные и копии — в томе `/data`:
+```sh
+docker run --rm -v site-data:/data keelkit-reference migrate
+docker run -d --name site -p 127.0.0.1:8080:8080 -v site-data:/data -e BASE_URL=https://example.com keelkit-reference
+docker exec site /site backup                            # копии — в /data/backups того же тома
+```
+
+**litestream (опция).** Непрерывная репликация БД в S3-совместимое хранилище: WAL уходит каждую секунду, после
+потери сервера теряются секунды, а не сутки. Сайт уже в режиме WAL, код не меняется: litestream — отдельный процесс
+(свой systemd-юнит из его пакета) рядом с `site.service`. Загрузки (`uploads/`, `files/`) он не копирует — их
+по-прежнему защищает `site backup` и копирование архивов на другой сервер. Конфиг `/etc/litestream.yml`:
+```yaml
+dbs:
+  - path: /var/lib/site/data/site.db
+    replicas:
+      - url: s3://<бакет>/site.db     # ключи — LITESTREAM_ACCESS_KEY_ID / LITESTREAM_SECRET_ACCESS_KEY
+```
+Восстановление: `litestream restore -o /var/lib/site/data/site.db s3://<бакет>/site.db` в пустой `DATA_DIR`, затем
+архив загрузок. Версия — последний стабильный релиз (`v0.5.17` на 2026-10-14), проверки — по разделу «Зависимости»
+корневого `AGENTS.md`; решается для каждого сайта.
 
 ## Изображения (модуль `images`)
 
@@ -750,6 +811,8 @@ internal/slug/              # slug: Make (транслитерация), Valid
 internal/settings/          # настройки сайта (site_settings): запросы, Get, раздел админки (admin.go, admin.templ)
 internal/web/               # layout (Layout, LayoutMeta, Meta, Site), баннер cookies, страницы ошибок, рендер, Picture, PictureMobile
 static/                     # CSS (style.css, admin.css), htmx, editor.js (панель Markdown), live-preview.js (живой предпросмотр), иконка + static.go (embed, Path, Handler)
+deploy/                     # юниты systemd (serve, migrate, backup + таймер), пример /etc/site/site.env
+Dockerfile, .dockerignore   # образ (опция) из бинарника make build
 site.yaml, sqlc.yaml        # спецификация сайта, конфиг sqlc
 ```
 

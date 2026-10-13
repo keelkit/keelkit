@@ -1,0 +1,11 @@
+# Каждую ночь в 03:30 (± 10 минут); пропущенный запуск (сервер был выключен) выполняется после загрузки.
+[Unit]
+Description=Nightly Keelkit site backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
