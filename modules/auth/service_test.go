@@ -209,7 +209,7 @@ func TestLoginAndLogout(t *testing.T) {
 	if loc := resp.Header.Get("Location"); resp.StatusCode != http.StatusSeeOther || loc != "/admin?x=1" {
 		t.Fatalf("login: %d %q; want 303 to /admin?x=1", resp.StatusCode, loc)
 	}
-	sc := cookieNamed(resp, sessionCookie)
+	sc := cookieNamed(resp, SessionCookie)
 	if sc == nil || !sc.HttpOnly || !sc.Secure || sc.SameSite != http.SameSiteLaxMode || sc.MaxAge != int(DefaultSessionTTL/time.Second) {
 		t.Errorf("session cookie = %+v; want HttpOnly, Secure, SameSite=Lax, MaxAge 14 days", sc)
 	}
@@ -344,8 +344,8 @@ func TestSessionExpires(t *testing.T) {
 func TestLoginReplacesSession(t *testing.T) {
 	e := newEnv(t)
 	c := e.client(t)
-	first := cookieNamed(e.login(t, c, testEmail, testPassword), sessionCookie)
-	second := cookieNamed(e.login(t, c, testEmail, testPassword), sessionCookie)
+	first := cookieNamed(e.login(t, c, testEmail, testPassword), SessionCookie)
+	second := cookieNamed(e.login(t, c, testEmail, testPassword), SessionCookie)
 	if first == nil || second == nil || first.Value == second.Value {
 		t.Fatalf("session tokens %v, %v; want two different", first, second)
 	}

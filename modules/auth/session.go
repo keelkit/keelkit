@@ -18,8 +18,10 @@ import (
 	"time"
 )
 
+// SessionCookie — имя cookie сессии.
+const SessionCookie = "session"
+
 const (
-	sessionCookie = "session"
 
 	// loginCSRFCookie — токен формы входа, пока сессии ещё нет (double submit cookie).
 	loginCSRFCookie = "admin_csrf"
@@ -107,13 +109,13 @@ func (s *Service) Login(w http.ResponseWriter, r *http.Request, email, password 
 // Logout удаляет сессию запроса из БД и cookie из браузера. Вызывается из POST внутри RequireUser
 // (CSRF-токен уже проверен).
 func (s *Service) Logout(w http.ResponseWriter, r *http.Request) error {
-	if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
+	if c, err := r.Cookie(SessionCookie); err == nil && c.Value != "" {
 		if _, err := s.db.ExecContext(r.Context(),
 			`DELETE FROM sessions WHERE token_hash = ?`, hashToken(c.Value)); err != nil {
 			return fmt.Errorf("auth: delete session: %w", err)
 		}
 	}
-	http.SetCookie(w, s.cookie(sessionCookie, "", "/", -1))
+	http.SetCookie(w, s.cookie(SessionCookie, "", "/", -1))
 	return nil
 }
 
@@ -221,7 +223,7 @@ func (s *Service) setPassword(ctx context.Context, userID int64, password string
 
 // currentSession находит действующую сессию по cookie.
 func (s *Service) currentSession(r *http.Request) (session, bool, error) {
-	c, err := r.Cookie(sessionCookie)
+	c, err := r.Cookie(SessionCookie)
 	if err != nil || c.Value == "" {
 		return session{}, false, nil
 	}
@@ -255,7 +257,7 @@ func (s *Service) startSession(ctx context.Context, w http.ResponseWriter, userI
 	if err != nil {
 		return fmt.Errorf("auth: create session: %w", err)
 	}
-	http.SetCookie(w, s.cookie(sessionCookie, token, "/", int(s.cfg.SessionTTL/time.Second)))
+	http.SetCookie(w, s.cookie(SessionCookie, token, "/", int(s.cfg.SessionTTL/time.Second)))
 	return nil
 }
 

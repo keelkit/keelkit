@@ -549,7 +549,7 @@ make e2e
       страницы 403/500 сайта; cookie `Secure` по умолчанию (`Config.InsecureCookies` — только для разработки);
       `Config.Now` — для testkit (истечение сессии, окно блокировки); `SafeNext(next, base)` — в модуле;
       `HashPassword`/`VerifyPassword` не экспортируются — пользователей создаёт только `CreateUser` с политикой пароля
-- [ ] `modules/auth/testkit`: сайт передаёт свой `http.Handler` и путь входа; проверки — без сессии редирект на вход,
+- [x] `modules/auth/testkit`: сайт передаёт свой `http.Handler` и путь входа; проверки — без сессии редирект на вход,
       вход и выход, POST без CSRF-токена отклонён, ограничение попыток, просроченная сессия, cookie `HttpOnly`/`SameSite`
 - [ ] Миграция сайта `00003` — `IF NOT EXISTS`; тест: новая база и база, созданная до этапа, мигрируют без ошибок
 - [ ] Релиз `make release MODULE=auth VERSION=v0.1.0`; `reference/` на модуле: `internal/admin` — страница входа и
