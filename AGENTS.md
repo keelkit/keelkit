@@ -60,15 +60,16 @@ SEO, sitemap и RSS на первом этапе пишутся в коде эт
 ├── .github/workflows/      # CI
 ├── scripts/release.sh      # проверки и тег релиза; вызывается только через make release
 ├── modules/
-│   └── images/             # первый модуль (свой go.mod)
-│       ├── go.mod
-│       ├── process.go, storage.go, service.go, reprocess.go, handler.go  # публичный API
-│       ├── internal/       # exif, orient; cmd/images-demo — демо-отчёт (make images-demo)
-│       ├── testdata/       # тестовые изображения; генератор — testdata_gen_test.go, см. testdata/README.md
-│       ├── migrations/     # embed.FS (FS) и имя таблицы версий (Table), миграции только этого модуля
-│       ├── testkit/        # контрактные тесты для сайтов: testkit.Run(t, setup)
-│       ├── CHANGELOG.md
-│       └── UPGRADE.md      # инструкции по обновлению для агентов
+│   ├── images/             # первый модуль (свой go.mod)
+│   │   ├── go.mod
+│   │   ├── process.go, storage.go, service.go, reprocess.go, handler.go  # публичный API
+│   │   ├── internal/       # exif, orient; cmd/images-demo — демо-отчёт (make images-demo)
+│   │   ├── testdata/       # тестовые изображения; генератор — testdata_gen_test.go, см. testdata/README.md
+│   │   ├── migrations/     # embed.FS (FS) и имя таблицы версий (Table), миграции только этого модуля
+│   │   ├── testkit/        # контрактные тесты для сайтов: testkit.Run(t, setup)
+│   │   ├── CHANGELOG.md
+│   │   └── UPGRADE.md      # инструкции по обновлению для агентов
+│   └── richtext/           # Markdown → очищенный HTML (goldmark + bluemonday, типографика); testkit — XSS-проверки
 ├── spec/                   # модуль спецификации (свой go.mod, теги spec/vX.Y.Z)
 │   ├── schema.json         # JSON Schema спецификации сайта (встраивается через embed)
 │   ├── spec.go             # spec.Validate: схема + смысловые правила

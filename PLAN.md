@@ -534,7 +534,7 @@ make e2e
 - [ ] `AGENTS.md` по мере появления модулей: «Структура репозитория» — `modules/richtext`, `modules/auth`;
       «Структура сайта» — без `internal/richtext`, `internal/admin` — только оболочка админки и страница входа
       (закрывается вместе с последним пунктом этапа)
-- [ ] `modules/richtext`: свой `go.mod` (goldmark, bluemonday, `x/net` — те же версии, что в `reference/`),
+- [x] `modules/richtext`: свой `go.mod` (goldmark, bluemonday, `x/net` — те же версии, что в `reference/`),
       код и тесты из `reference/internal/richtext`, `go.work`; `testkit.Run(t, render)` — сайт передаёт функцию,
       которой выводит richtext, testkit проверяет, что XSS-примеры обезврежены (сайт не обходит санитайзер)
 - [ ] Релиз `make release MODULE=richtext VERSION=v0.1.0`; `reference/` на опубликованной версии, `internal/richtext`

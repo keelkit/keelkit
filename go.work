@@ -4,6 +4,7 @@ toolchain go1.27.2
 
 use (
 	./modules/images
+	./modules/richtext
 	./reference
 	./spec
 )
