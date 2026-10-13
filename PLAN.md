@@ -533,8 +533,8 @@ make e2e
 
 - [x] `AGENTS.md`: исключение в принципе 6 (безопасность — в модуль сразу), «Что куда», строки «Авторизация» и
       `richtext` в «Принятых решениях»
-- [ ] `AGENTS.md` по мере появления модулей: «Структура репозитория» — `modules/richtext`, `modules/auth`;
-      «Структура сайта» — без `internal/richtext`, `internal/admin` — только оболочка админки и страница входа
+- [ ] `AGENTS.md` по мере появления модулей: «Структура репозитория» — `modules/richtext` (есть), `modules/auth`;
+      «Структура сайта» — без `internal/richtext` (сделано), `internal/admin` — только оболочка админки и страница входа
       (закрывается вместе с последним пунктом этапа)
 - [x] `modules/richtext`: свой `go.mod` (goldmark, bluemonday, `x/net` — те же версии, что в `reference/`),
       код и тесты из `reference/internal/richtext`, `go.work`; `testkit.Run(t, render)` — сайт передаёт функцию,
@@ -549,7 +549,7 @@ make e2e
 - [ ] Миграция сайта `00003` — `IF NOT EXISTS`; тест: новая база и база, созданная до этапа, мигрируют без ошибок
 - [ ] Релиз `make release MODULE=auth VERSION=v0.1.0`; `reference/` на модуле: `internal/admin` — страница входа и
       оболочка, `site user create` через модуль, `auth: v0` в `site.yaml`; контрактный тест подключён; `make check`, `make e2e-browser`
-- [ ] `reference/AGENTS.md`: версии модулей `richtext` и `auth`, что где лежит
+- [ ] `reference/AGENTS.md`: версии модулей `richtext` (сделано) и `auth`, что где лежит
 
 ### Проверка
 ```sh
@@ -646,7 +646,7 @@ curl -s localhost:9090/healthz               # в schema есть auth, pending 
 - [ ] Адрес раздела постов задаёт сайт, а не код движка (`/news` вместо `/blog`); 301 со старых адресов, которые
       не проходят правила slug (перенос сайта с другой CMS: `/news/old_slug` → `/news/old-slug`)
 - [x] Типографика `richtext`: неразрывный пробел после коротких предлогов и союзов и перед тире
-      (`internal/richtext/typography.go`)
+      (`internal/richtext/typography.go`, с этапа 10.4 — `modules/richtext`)
 - [x] Панель оформления Markdown в админке: жирный, курсив, зачёркнутый, ссылка, подзаголовок, списки, цитата, код —
       оборачивают выделение разметкой (`static/editor.js`, без JavaScript панели нет); подчёркивания нет — его нет в Markdown
 - [x] Оформление админки: верхняя панель, боковое меню с иконками (`admin.Section.Icon`), формы и таблицы — карточками,
