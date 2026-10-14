@@ -847,9 +847,10 @@ make docker && docker run --rm -v kk:/data keelkit-reference migrate \
       **Идёт (2026-10-14).** Сайт — `~/goScripts/keelkit-trial/my-blog` (путь модуля `my-blog`, эталон — коммит `6c5ffa0`;
       настройки и меню эталона добавлены умолчаниями). Сделано: миграции 00001–00005, `pages` (одна таблица, Markdown,
       редиректы при смене slug), `posts` (summary + Markdown body, без SEO; живой предпросмотр оставлен), убраны `people`,
-      `files`, блоки `file`/`people`, seed — блог о путешествиях; `go build` проходит. Осталось: тесты
-      (`e2e_live_test`, `e2e_posts_admin_test`, `e2e_seo_test`, `e2e_settings_test`, `spec_test` — import `maps`,
-      `browser_test`), `make schema`, `AGENTS.md` сайта, шаг 6 скилла (lint, test, e2e-browser, check-site, live-проверка).
+      `files`, блоки `file`/`people`, seed — блог о путешествиях. Шаг 6 пройден: `make lint test e2e-browser
+      spec-validate generate-check`, `check-site.sh`, живая проверка (`/healthz` без `pending`, страницы, sitemap, RSS,
+      вход). Осталось: `AGENTS.md` сайта (шаг 5 — пока копия эталона, 819 строк), затем правки скилла по находкам
+      и раздел «Пример» в `README.md`.
       Находки для скилла (поправить после прогона):
       - номера миграций: меню ссылается на `pages`, поэтому `00002_menus` до таблицы страниц — неверно; порядок — по ссылкам;
       - поле `richtext` у типа: образца в эталоне нет (Markdown-поле было приватным в блоках) — на сайте вынесен
@@ -861,7 +862,12 @@ make docker && docker run --rm -v kk:/data keelkit-reference migrate \
         и `blockLists` убраны) — скилл не говорит;
       - тесты эталона завязаны на тексты seed («Keelkit — эталонный сайт», категории Go/Веб) — правдоподобный seed
         требует правки почти всех e2e; стоит вынести ожидания в константы seed;
-      - сделано по ходу в монорепо: путь модуля без точки (`my-blog`) и `goimports.local-prefixes` в эталоне.
+      - браузерные тесты эталона завязаны на блоки страниц (`.block-form textarea`, `page_contents`, `/admin/people`):
+        у сайта без блоков переписаны почти все; в `SKILL.md` (шаг 4) — какие сценарии на что переносить
+        (Markdown-поле — `#<имя>`, картинка с `mobile` — поле типа вместо блока);
+      - пакет `internal/seofields` остаётся без единого типа с `seo` (на него ссылается только `spec_test.go`) — скилл не говорит;
+      - сделано по ходу в монорепо: путь модуля без точки (`my-blog`) и `goimports.local-prefixes` в эталоне;
+        в `check-site.sh` проверка `export GOPRIVATE` (осталась после переезда) заменена проверкой тега `nodynamic`.
 - [ ] `skills/evals/`: по `spec/examples/*.yaml` — сайт собирается, тесты проходят, структура совпадает с конвенциями
       (проверка структуры — уже есть: `skills/create-site/scripts/check-site.sh`)
 - [ ] CI: джоба эвалов через `workflow_dispatch`

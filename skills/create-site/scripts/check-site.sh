@@ -35,7 +35,7 @@ for t in help build docker run dev migrate backup seed user-create reprocess-ima
   schema test test-isolated e2e e2e-browser lint deps-check spec-validate; do
   grep -Eq "^$t:.*## " Makefile && ok "make $t" || bad "в Makefile нет цели $t с описанием ##"
 done
-grep -q '^export GOPRIVATE' Makefile && ok "Makefile: GOPRIVATE" || bad "Makefile: нет export GOPRIVATE"
+grep -Eq '^BUILD_TAGS[[:space:]]*=.*nodynamic' Makefile && ok "Makefile: тег nodynamic" || bad "Makefile: нет BUILD_TAGS = nodynamic"
 
 # go.mod: без replace, путь модуля — не эталона, модули Keelkit — опубликованные версии.
 grep -Eq '^[[:space:]]*replace([[:space:]]|\()' go.mod && bad "в go.mod есть replace" || ok "в go.mod нет replace"
