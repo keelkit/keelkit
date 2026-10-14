@@ -53,7 +53,7 @@ DIRS := modules/$(MODULE)
 endif
 endif
 
-.PHONY: help check test test-isolated lint deps-check release spec-validate images-demo build docker run dev migrate backup seed user-create reprocess-images reset generate generate-check e2e e2e-browser
+.PHONY: help check test test-isolated lint deps-check release spec-validate plugin-validate images-demo build docker run dev migrate backup seed user-create reprocess-images reset generate generate-check e2e e2e-browser
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -84,12 +84,19 @@ endif
 ifneq ($(filter spec,$(DIRS)),)
 	@$(MAKE) --no-print-directory spec-validate FILE=reference/site.yaml
 endif
+ifeq ($(MODULE),)
+	@$(MAKE) --no-print-directory plugin-validate
+endif
 
 release: ## Проверки и тег <каталог>/VERSION с push в origin. Пример: make release MODULE=images VERSION=v0.1.0 DRY_RUN=1
 	@./scripts/release.sh "$(MODULE)" "$(VERSION)" "$(DRY_RUN)"
 
 spec-validate: ## Проверить спецификацию сайта. Пример: make spec-validate FILE=spec/examples/blog.yaml
 	@go run ./spec/cmd/spec-validate $(FILE)
+
+# Маркетплейс .claude-plugin/ и плагин skills/ (манифест, скиллы). Нужен CLI Claude Code.
+plugin-validate: ## Проверить маркетплейс и плагин со скиллами
+	@claude plugin validate --strict .
 
 images-demo: ## Обработать изображения модулем images и построить отчёт modules/images/demo-out/index.html. Пример: make images-demo IN=~/Pictures/photo.jpg
 	@cd modules/images && go run ./internal/cmd/images-demo -in "$(abspath $(IN))" -out demo-out

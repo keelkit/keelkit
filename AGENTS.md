@@ -56,7 +56,7 @@ SEO, sitemap и RSS на первом этапе пишутся в коде эт
 ├── LICENSE                 # MIT
 ├── Makefile                # единая точка входа для всех команд
 ├── go.work                 # коммитится; в корне нет go.mod
-├── .claude-plugin/         # монорепо — маркетплейс плагинов Claude Code со скиллами
+├── .claude-plugin/         # marketplace.json: монорепо — маркетплейс плагинов Claude Code (плагин keelkit — skills/)
 ├── .github/workflows/      # CI
 ├── scripts/release.sh      # проверки и тег релиза; вызывается только через make release
 ├── modules/
@@ -79,7 +79,8 @@ SEO, sitemap и RSS на первом этапе пишутся в коде эт
 │   ├── examples/           # примеры спецификаций; invalid/ — ошибочные, со строкой «# expect: …»
 │   ├── CHANGELOG.md
 │   └── UPGRADE.md          # что менять в site.yaml при обновлении валидатора
-├── skills/                 # скиллы (create-site, add-section, upgrade-site, ...)
+├── skills/                 # плагин keelkit: скиллы (create-site, add-section, upgrade-site, ...)
+│   ├── .claude-plugin/     # plugin.json — манифест и версия плагина
 │   └── evals/              # эвалы скиллов
 └── reference/              # эталонный сайт: страницы + блог (свой go.mod)
 ```
@@ -252,8 +253,13 @@ content:
 
 Скиллы — тоже софт: версионируются, имеют эвалы в `skills/evals/`, обновляются вместе с модулями.
 
-Распространяются как плагин Claude Code: монорепо — маркетплейс плагинов. Сайт указывает в своём `AGENTS.md`
-минимальную версию плагина. Скиллы не копируются в репозитории сайтов: скилл обновления должен быть свежее сайта.
+Распространяются как плагин Claude Code: монорепо — маркетплейс плагинов (`.claude-plugin/marketplace.json`),
+плагин `keelkit` — каталог `skills/` (`skills/.claude-plugin/plugin.json`, скилл — `skills/<имя>/SKILL.md`).
+Корень плагина — `skills/`, а не корень монорепо: при установке копируются только скиллы и эвалы.
+Версия плагина (semver) — только в `plugin.json`, в записи маркетплейса её нет: один источник правды.
+Установка: `/plugin marketplace add voffkin/keelkit` (или локальный путь к монорепо), затем `/plugin install keelkit@keelkit`.
+Манифесты проверяет `make plugin-validate` (`claude plugin validate --strict`; входит в `make check` без `MODULE`).
+Сайт указывает в своём `AGENTS.md` минимальную версию плагина. Скиллы не копируются в репозитории сайтов: скилл обновления должен быть свежее сайта.
 
 Эвалы требуют вызовов LLM, поэтому в CI запускаются вручную (`workflow_dispatch`) и обязательно перед релизом скилла.
 
@@ -361,7 +367,7 @@ site.yaml, sqlc.yaml, Makefile, AGENTS.md, CLAUDE.md
   `MODULE=<name>` — `modules/<name>`, `MODULE=spec` и `MODULE=reference` — одноимённые каталоги. `build`, `run`, `dev`, `migrate`, `backup`, `seed`, `user-create`, `reprocess-images`, `reset`, `generate`, `generate-check`, `e2e`, `e2e-browser` делегируются в `reference/Makefile`;
   `images-demo` — своя цель корня (демо-отчёт модуля `images`);
   `deps-check` — по тем же каталогам, что `test`; `check` — все проверки CI по тем же каталогам
-  (`lint`, `test`, `test-isolated`, `deps-check`; для `reference/` ещё `generate-check`, `e2e` и `e2e-browser`, для `spec/` — `spec-validate` `reference/site.yaml`); `release` — `scripts/release.sh` (`DRY_RUN=1` — только проверки).
+  (`lint`, `test`, `test-isolated`, `deps-check`; для `reference/` ещё `generate-check`, `e2e` и `e2e-browser`, для `spec/` — `spec-validate` `reference/site.yaml`; без `MODULE` — ещё `plugin-validate`); `release` — `scripts/release.sh` (`DRY_RUN=1` — только проверки).
 - Совместимость с GNU Make 3.81 (стоит по умолчанию на macOS): без `.ONESHELL`, `$(file ...)` и других возможностей 4.x.
 
 Пример оформления:

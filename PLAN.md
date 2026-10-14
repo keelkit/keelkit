@@ -830,7 +830,7 @@ make docker && docker run --rm -v kk:/data keelkit-reference migrate \
 
 Цель: агент создаёт новый сайт по спецификации и обновляет существующий.
 
-- [ ] `.claude-plugin/marketplace.json` и манифест плагина; версия плагина
+- [x] `.claude-plugin/marketplace.json` и манифест плагина `skills/.claude-plugin/plugin.json` (корень плагина — `skills/`); версия плагина `0.1.0` — только в `plugin.json`; `make plugin-validate`
 - [ ] `skills/create-site/`: вопросы → `site.yaml` → проверка `spec-validate` → копирование устройства `reference/` → генерация типов контента → `make generate test e2e`
 - [ ] `skills/upgrade-site/`: поднять версию модуля → применить шаги из `UPGRADE.md` → `make migrate` на копии → тесты → PR
 - [ ] Для эвала `upgrade-site` — выпустить `images v0.2.0` с изменением, требующим действий (например, новая версия профиля и запись в `UPGRADE.md`)
@@ -841,7 +841,7 @@ make docker && docker run --rm -v kk:/data keelkit-reference migrate \
 ```sh
 # в Claude Code:
 /plugin marketplace add ./
-/plugin install keelkit
+/plugin install keelkit@keelkit
 # запустить create-site со spec/examples/landing.yaml в пустой папке /tmp/kk-landing
 cd /tmp/kk-landing && make dev    # сайт открывается на :9090, seed заполнен
 make evals SKILL=create-site      # отчёт: собралось / тесты / конвенции — по каждому примеру

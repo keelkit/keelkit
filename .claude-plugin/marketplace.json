@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "keelkit",
+  "description": "Скиллы Keelkit: создание и обновление сайтов на модулях Keelkit",
+  "owner": {
+    "name": "Vladimir Kuznetsov"
+  },
+  "plugins": [
+    {
+      "name": "keelkit",
+      "source": "./skills",
+      "description": "Создание сайта по спецификации site.yaml (create-site) и обновление модулей Keelkit на сайте (upgrade-site)"
+    }
+  ]
+}
