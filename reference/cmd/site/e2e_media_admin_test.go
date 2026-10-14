@@ -20,9 +20,9 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 
-	"github.com/voffkin/keelkit/modules/images"
+	"github.com/keelkit/keelkit/modules/images"
 
-	"github.com/voffkin/keelkit/reference/internal/media"
+	"github.com/keelkit/keelkit/reference/internal/media"
 )
 
 // mediaAdmin — сайт с seed (и изображениями из seed, если withImages) и вошедший «браузер».

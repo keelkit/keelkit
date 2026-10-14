@@ -15,10 +15,10 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 
-	"github.com/voffkin/keelkit/modules/files"
-	"github.com/voffkin/keelkit/modules/files/testkit"
+	"github.com/keelkit/keelkit/modules/files"
+	"github.com/keelkit/keelkit/modules/files/testkit"
 
-	"github.com/voffkin/keelkit/reference/internal/filelib"
+	"github.com/keelkit/keelkit/reference/internal/filelib"
 )
 
 // newFilesAdmin — сайт с seed без изображений, но с файлами из seedFiles (страница «Документы» — с блоками file),

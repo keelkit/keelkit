@@ -7,7 +7,7 @@ import (
 
 	"github.com/a-h/templ"
 
-	"github.com/voffkin/keelkit/modules/images"
+	"github.com/keelkit/keelkit/modules/images"
 )
 
 // Handler — люди на сайте: своих адресов у них нет, вывод встраивает блок people (Cards).

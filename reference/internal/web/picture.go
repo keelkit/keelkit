@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/voffkin/keelkit/modules/images"
+	"github.com/keelkit/keelkit/modules/images"
 )
 
 // MediaPrefix — путь, под которым смонтирован images.Service.Handler (newMux в cmd/site).

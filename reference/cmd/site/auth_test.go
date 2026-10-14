@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/voffkin/keelkit/modules/auth"
-	"github.com/voffkin/keelkit/modules/auth/testkit"
+	"github.com/keelkit/keelkit/modules/auth"
+	"github.com/keelkit/keelkit/modules/auth/testkit"
 )
 
 // TestAuthContract — контрактные тесты модуля auth на интеграции сайта: настоящие страницы входа и админки

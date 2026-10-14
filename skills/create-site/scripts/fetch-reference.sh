@@ -5,7 +5,7 @@
 #   fetch-reference.sh ./my-site github.com/acme/my-site
 #
 # Откуда берётся эталон:
-#   - по умолчанию — клон github.com/voffkin/keelkit по SSH на теге плагина skills/v<версия>
+#   - по умолчанию — клон https://github.com/keelkit/keelkit на теге плагина skills/v<версия>
 #     (версия — из .claude-plugin/plugin.json плагина): скилл и эталон всегда одной версии;
 #   - KEELKIT_REPO=<путь к клону монорепо> — локальный клон (разработка скиллов, эвалы); коммит — KEELKIT_REF
 #     (по умолчанию HEAD: незакоммиченные правки не попадают).
@@ -39,8 +39,8 @@ else
   [ -n "$VERSION" ] || die "нет версии в $PLUGIN_ROOT/.claude-plugin/plugin.json"
   REF="skills/v$VERSION"
   REPO="$TMP/keelkit"
-  git clone -q --depth 1 --branch "$REF" git@github.com:voffkin/keelkit.git "$REPO" \
-    || die "не удалось клонировать git@github.com:voffkin/keelkit.git на теге $REF (нужен SSH-ключ с доступом: ssh -T git@github.com; тег ставит make release MODULE=skills)"
+  git clone -q --depth 1 --branch "$REF" https://github.com/keelkit/keelkit.git "$REPO" \
+    || die "не удалось клонировать https://github.com/keelkit/keelkit.git на теге $REF (тег ставит make release MODULE=skills)"
 fi
 COMMIT="$(git -C "$REPO" rev-parse --verify "$REF^{commit}")" || die "нет ref $REF в $REPO"
 
@@ -52,7 +52,7 @@ git -C "$REPO" archive "$COMMIT" reference | tar -x -C "$TMP/out"
 (cd "$TMP/out/reference" && tar -cf - .) | (cd "$TARGET" && tar -xf -)
 
 # Путь модуля: импорты в Go и templ (и сгенерированном коде), go.mod, конфиги.
-OLD="github.com/voffkin/keelkit/reference"
+OLD="github.com/keelkit/keelkit/reference"
 grep -rlF "$OLD" --exclude-dir=.git "$TARGET" | while read -r f; do
   sed "s#$OLD#$MODPATH#g" "$f" > "$TMP/sed" && cat "$TMP/sed" > "$f"
 done

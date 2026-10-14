@@ -9,9 +9,9 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/voffkin/keelkit/reference/internal/admin"
-	"github.com/voffkin/keelkit/reference/internal/blocks"
-	"github.com/voffkin/keelkit/reference/internal/seofields"
+	"github.com/keelkit/keelkit/reference/internal/admin"
+	"github.com/keelkit/keelkit/reference/internal/blocks"
+	"github.com/keelkit/keelkit/reference/internal/seofields"
 )
 
 // ListPage — список страниц в админке.

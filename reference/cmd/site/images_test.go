@@ -3,9 +3,9 @@ package main
 import (
 	"testing"
 
-	"github.com/voffkin/keelkit/modules/images/testkit"
+	"github.com/keelkit/keelkit/modules/images/testkit"
 
-	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
 // TestImagesContract — контрактные тесты модуля images на интеграции сайта: миграции модуля и сайта,

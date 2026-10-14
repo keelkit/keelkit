@@ -1,4 +1,4 @@
-module github.com/voffkin/keelkit/reference
+module github.com/keelkit/keelkit/reference
 
 go 1.26.0
 
@@ -8,11 +8,11 @@ require (
 	github.com/PuerkitoBio/goquery v1.13.0
 	github.com/a-h/templ v0.3.1020
 	github.com/chromedp/chromedp v0.16.0
+	github.com/keelkit/keelkit/modules/auth v0.2.0
+	github.com/keelkit/keelkit/modules/files v0.2.0
+	github.com/keelkit/keelkit/modules/images v0.2.0
+	github.com/keelkit/keelkit/modules/richtext v0.2.0
 	github.com/pressly/goose/v3 v3.28.0
-	github.com/voffkin/keelkit/modules/auth v0.1.0
-	github.com/voffkin/keelkit/modules/files v0.1.0
-	github.com/voffkin/keelkit/modules/images v0.1.0
-	github.com/voffkin/keelkit/modules/richtext v0.1.1
 	golang.org/x/term v0.46.0
 	modernc.org/sqlite v1.60.1
 )

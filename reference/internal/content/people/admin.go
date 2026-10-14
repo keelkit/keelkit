@@ -16,10 +16,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/voffkin/keelkit/modules/images"
+	"github.com/keelkit/keelkit/modules/images"
 
-	"github.com/voffkin/keelkit/reference/internal/admin"
-	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/internal/admin"
+	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
 // AdminPath — раздел людей в админке.

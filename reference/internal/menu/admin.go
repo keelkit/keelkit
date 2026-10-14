@@ -12,10 +12,10 @@ import (
 
 	"github.com/a-h/templ"
 
-	"github.com/voffkin/keelkit/reference/internal/admin"
-	"github.com/voffkin/keelkit/reference/internal/database"
-	"github.com/voffkin/keelkit/reference/internal/listfield"
-	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/internal/admin"
+	"github.com/keelkit/keelkit/reference/internal/database"
+	"github.com/keelkit/keelkit/reference/internal/listfield"
+	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
 // AdminPath — раздел меню в админке: список меню, форма меню — EditPath.

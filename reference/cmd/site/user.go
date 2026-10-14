@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/voffkin/keelkit/modules/auth"
+	"github.com/keelkit/keelkit/modules/auth"
 )
 
 // userCreate — site user create EMAIL: создаёт пользователя админки. Пароль спрашивается дважды

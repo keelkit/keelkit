@@ -16,9 +16,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/voffkin/keelkit/modules/images"
+	"github.com/keelkit/keelkit/modules/images"
 
-	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
 // Имена полей формы; ошибки — под теми же ключами.

@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/voffkin/keelkit/modules/files"
+	"github.com/keelkit/keelkit/modules/files"
 )
 
 // FilesPrefix — путь, под которым смонтирован files.Service.Handler (newMux в cmd/site).

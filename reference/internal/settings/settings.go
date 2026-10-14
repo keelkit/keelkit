@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/voffkin/keelkit/reference/internal/listfield"
+	"github.com/keelkit/keelkit/reference/internal/listfield"
 )
 
 // DefaultName — название сайта, пока в site_settings нет строки (до seed или сохранения настроек в админке).

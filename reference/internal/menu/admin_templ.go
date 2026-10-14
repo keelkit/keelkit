@@ -11,8 +11,8 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"strconv"
 
-	"github.com/voffkin/keelkit/reference/internal/admin"
-	"github.com/voffkin/keelkit/reference/internal/listfield"
+	"github.com/keelkit/keelkit/reference/internal/admin"
+	"github.com/keelkit/keelkit/reference/internal/listfield"
 )
 
 // ListPage — меню сайта: название, где выводится, число пунктов.

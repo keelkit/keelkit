@@ -2,14 +2,6 @@
 
 # Совместимо с GNU Make 3.81 (по умолчанию на macOS): без .ONESHELL, $(file ...) и других возможностей 4.x.
 
-# Приватные модули Keelkit (github.com/voffkin/keelkit): Go берёт их прямо из git, минуя публичный прокси
-# и базу контрольных сумм, а git ходит в GitHub по SSH. Действует только на процессы make — глобальные
-# настройки git и Go не меняются. Нужен SSH-ключ с доступом к репозиторию (см. «Доступ к модулям» в AGENTS.md).
-export GOPRIVATE = github.com/voffkin/*
-export GIT_CONFIG_COUNT = 1
-export GIT_CONFIG_KEY_0 = url.git@github.com:voffkin/.insteadOf
-export GIT_CONFIG_VALUE_0 = https://github.com/voffkin/
-
 # Тег nodynamic: кодек WebP (gen2brain/webp) не подгружает системную libwebp, а всегда работает на коде,
 # транслированном в Go. Результат обработки изображений одинаков на любой машине, бинарник не зависит от
 # библиотек хоста. Действует на все go-команды make (run, test, build); e2e-browser добавляет его к тегу browser.
@@ -57,8 +49,8 @@ TEMPL = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/a-h/templ/cmd/templ@$(TEMP
 GOVULNCHECK_VERSION ?= v1.8.0
 GOVULNCHECK = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 # Валидатор спецификации — опубликованная версия модуля spec (тег spec/vX.Y.Z), в код сайта не копируется.
-SPEC_VERSION ?= v0.7.0
-SPEC_VALIDATE = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/voffkin/keelkit/spec/cmd/spec-validate@$(SPEC_VERSION)
+SPEC_VERSION ?= v0.8.0
+SPEC_VALIDATE = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/keelkit/keelkit/spec/cmd/spec-validate@$(SPEC_VERSION)
 
 SITE = ADDR=$(ADDR) BASE_URL=$(BASE_URL) DATA_DIR=$(DATA_DIR) BACKUP_DIR=$(BACKUP_DIR) COOKIE_SECURE=$(COOKIE_SECURE) go run ./cmd/site
 

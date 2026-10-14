@@ -26,14 +26,14 @@ import (
 	"syscall"
 	"time"
 
-	authmigrations "github.com/voffkin/keelkit/modules/auth/migrations"
-	"github.com/voffkin/keelkit/modules/files"
-	filesmigrations "github.com/voffkin/keelkit/modules/files/migrations"
-	"github.com/voffkin/keelkit/modules/images"
-	imagesmigrations "github.com/voffkin/keelkit/modules/images/migrations"
+	authmigrations "github.com/keelkit/keelkit/modules/auth/migrations"
+	"github.com/keelkit/keelkit/modules/files"
+	filesmigrations "github.com/keelkit/keelkit/modules/files/migrations"
+	"github.com/keelkit/keelkit/modules/images"
+	imagesmigrations "github.com/keelkit/keelkit/modules/images/migrations"
 
-	"github.com/voffkin/keelkit/reference/db/migrations"
-	"github.com/voffkin/keelkit/reference/internal/database"
+	"github.com/keelkit/keelkit/reference/db/migrations"
+	"github.com/keelkit/keelkit/reference/internal/database"
 )
 
 // version вшивается при сборке: -ldflags "-X main.version=<тег или хеш>".

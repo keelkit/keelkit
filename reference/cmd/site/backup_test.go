@@ -13,9 +13,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voffkin/keelkit/modules/files"
-	"github.com/voffkin/keelkit/modules/files/testkit"
-	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/modules/files"
+	"github.com/keelkit/keelkit/modules/files/testkit"
+	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
 // TestBackupRestore: из снимка и архива site backup поднимается рабочий сайт — изображения и файлы отдаются.

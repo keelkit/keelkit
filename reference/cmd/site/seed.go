@@ -10,19 +10,19 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/voffkin/keelkit/modules/auth"
-	"github.com/voffkin/keelkit/modules/files"
-	"github.com/voffkin/keelkit/modules/images"
+	"github.com/keelkit/keelkit/modules/auth"
+	"github.com/keelkit/keelkit/modules/files"
+	"github.com/keelkit/keelkit/modules/images"
 
-	"github.com/voffkin/keelkit/reference/internal/blocks"
-	"github.com/voffkin/keelkit/reference/internal/content/categories"
-	"github.com/voffkin/keelkit/reference/internal/content/pages"
-	"github.com/voffkin/keelkit/reference/internal/content/people"
-	"github.com/voffkin/keelkit/reference/internal/content/posts"
-	"github.com/voffkin/keelkit/reference/internal/listfield"
-	"github.com/voffkin/keelkit/reference/internal/menu"
-	"github.com/voffkin/keelkit/reference/internal/seo"
-	"github.com/voffkin/keelkit/reference/internal/settings"
+	"github.com/keelkit/keelkit/reference/internal/blocks"
+	"github.com/keelkit/keelkit/reference/internal/content/categories"
+	"github.com/keelkit/keelkit/reference/internal/content/pages"
+	"github.com/keelkit/keelkit/reference/internal/content/people"
+	"github.com/keelkit/keelkit/reference/internal/content/posts"
+	"github.com/keelkit/keelkit/reference/internal/listfield"
+	"github.com/keelkit/keelkit/reference/internal/menu"
+	"github.com/keelkit/keelkit/reference/internal/seo"
+	"github.com/keelkit/keelkit/reference/internal/settings"
 )
 
 // seed заполняет БД и загрузки данными для разработки. Идемпотентен: существующие записи не трогает.

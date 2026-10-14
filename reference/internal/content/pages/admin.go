@@ -12,14 +12,14 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/voffkin/keelkit/modules/images"
+	"github.com/keelkit/keelkit/modules/images"
 
-	"github.com/voffkin/keelkit/reference/internal/admin"
-	"github.com/voffkin/keelkit/reference/internal/blocks"
-	"github.com/voffkin/keelkit/reference/internal/database"
-	"github.com/voffkin/keelkit/reference/internal/seofields"
-	"github.com/voffkin/keelkit/reference/internal/slug"
-	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/internal/admin"
+	"github.com/keelkit/keelkit/reference/internal/blocks"
+	"github.com/keelkit/keelkit/reference/internal/database"
+	"github.com/keelkit/keelkit/reference/internal/seofields"
+	"github.com/keelkit/keelkit/reference/internal/slug"
+	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
 // AdminPath — раздел страниц в админке.

@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/voffkin/keelkit/reference/internal/database"
+	"github.com/keelkit/keelkit/reference/internal/database"
 )
 
 // backup — site backup: снимок БД (VACUUM INTO) и архив загрузок в BACKUP_DIR с одной меткой времени:

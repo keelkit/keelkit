@@ -15,7 +15,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 
-	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
 // htmx — заголовки запроса, который отправляет htmx.

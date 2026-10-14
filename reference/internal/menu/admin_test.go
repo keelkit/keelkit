@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voffkin/keelkit/reference/internal/listfield"
+	"github.com/keelkit/keelkit/reference/internal/listfield"
 )
 
 // items — пункты из строки «a b- c d-»: имя — id, «-» — подпункт.

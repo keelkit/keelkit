@@ -11,7 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"strconv"
 
-	"github.com/voffkin/keelkit/reference/internal/admin"
+	"github.com/keelkit/keelkit/reference/internal/admin"
 )
 
 // ListPage — список категорий в админке.

@@ -39,9 +39,9 @@ grep -q '^export GOPRIVATE' Makefile && ok "Makefile: GOPRIVATE" || bad "Makefil
 
 # go.mod: без replace, путь модуля — не эталона, модули Keelkit — опубликованные версии.
 grep -Eq '^[[:space:]]*replace([[:space:]]|\()' go.mod && bad "в go.mod есть replace" || ok "в go.mod нет replace"
-if [ "$(awk '$1 == "module" {print $2; exit}' go.mod)" != github.com/voffkin/keelkit/reference ] &&
-  grep -rqF "github.com/voffkin/keelkit/reference" --include='*.go' --include='*.templ' --include=go.mod . ; then
-  bad "остались импорты github.com/voffkin/keelkit/reference"
+if [ "$(awk '$1 == "module" {print $2; exit}' go.mod)" != github.com/keelkit/keelkit/reference ] &&
+  grep -rqF "github.com/keelkit/keelkit/reference" --include='*.go' --include='*.templ' --include=go.mod . ; then
+  bad "остались импорты github.com/keelkit/keelkit/reference"
 else
   ok "нет импортов эталона"
 fi

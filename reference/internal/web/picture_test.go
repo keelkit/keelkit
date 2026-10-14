@@ -7,7 +7,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 
-	"github.com/voffkin/keelkit/modules/images"
+	"github.com/keelkit/keelkit/modules/images"
 )
 
 func variant(f images.Format, w, h int) images.StoredVariant {

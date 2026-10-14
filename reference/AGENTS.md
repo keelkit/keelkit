@@ -6,10 +6,11 @@
 ## Версии
 
 - Go: `go 1.26.0` в `go.mod` (актуальный релиз минус один минор), тулчейн `go1.27.2`.
-- Модули Keelkit: `github.com/voffkin/keelkit/modules/images` v0.1.0, `github.com/voffkin/keelkit/modules/files` v0.1.0
-  (таблицы `files_*`), `github.com/voffkin/keelkit/modules/richtext` v0.1.1 (без таблиц и миграций),
-  `github.com/voffkin/keelkit/modules/auth` v0.1.0 (таблицы `users`, `sessions`);
-  в `site.yaml` — `modules: { images: v0, files: v0, richtext: v0, auth: v0 }` (`spec` v0.7.0: `SPEC_VERSION` в `Makefile`).
+- Модули Keelkit (публичный репозиторий `github.com/keelkit/keelkit`, скачиваются как любые зависимости Go):
+  `github.com/keelkit/keelkit/modules/images` v0.2.0, `github.com/keelkit/keelkit/modules/files` v0.2.0
+  (таблицы `files_*`), `github.com/keelkit/keelkit/modules/richtext` v0.2.0 (без таблиц и миграций),
+  `github.com/keelkit/keelkit/modules/auth` v0.2.0 (таблицы `users`, `sessions`);
+  в `site.yaml` — `modules: { images: v0, files: v0, richtext: v0, auth: v0 }` (`spec` v0.8.0: `SPEC_VERSION` в `Makefile`).
   Их зависимости приходят транзитивно: `golang.org/x/image`, `github.com/gen2brain/webp` (+ `ebitengine/purego`);
   goldmark, bluemonday, `golang.org/x/net`; `golang.org/x/crypto` (argon2id).
 - Тег сборки `nodynamic` (`BUILD_TAGS` в `Makefile`, экспортируется через `GOFLAGS`): кодек WebP не подгружает
@@ -24,13 +25,6 @@
 - Вендоренный JS: htmx 2.0.11 — `static/htmx-2.0.11.min.js` (сверен с sha512 из npm). Свой JS — `static/editor.js`
   (панель оформления Markdown в админке) и `static/live-preview.js` (живой предпросмотр в редакторе записи),
   без зависимостей и сборки.
-
-## Доступ к модулям Keelkit
-
-Модули Keelkit лежат в приватном репозитории `github.com/voffkin/keelkit`. `Makefile` экспортирует `GOPRIVATE`
-и правило git `insteadOf` (через `GIT_CONFIG_*`), поэтому `make` скачивает модули по SSH, не трогая глобальные
-настройки git и Go. Нужен только SSH-ключ с доступом к репозиторию: `ssh -T git@github.com` должен поздороваться.
-Для gopls в IDE (запускается вне `make`) — один раз `go env -w 'GOPRIVATE=github.com/voffkin/*'`. В CI — deploy key только для чтения (CI до этапа 14 запускается вручную, проверки — локально `make check` из корня монорепо).
 
 ## Команды
 
@@ -214,7 +208,7 @@
 
 **Docker (опция).** `make docker` собирает бинарник под Linux (`bin/linux-<arch>/site`) и образ `DOCKER_IMAGE:VERSION`
 (`Dockerfile`: distroless `static-debian13:nonroot` с закреплённым digest, пользователь 65532, без shell). Бинарник
-строится на машине с доступом к модулям Keelkit — SSH-ключ в сборку образа не попадает; `.dockerignore` пропускает
+строится на машине разработки, а не в образе; `.dockerignore` пропускает
 в контекст только бинарники. Для VPS на amd64 — `make docker DOCKER_ARCH=amd64`. Данные и копии — в томе `/data`:
 ```sh
 docker run --rm -v site-data:/data keelkit-reference migrate

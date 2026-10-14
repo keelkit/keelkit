@@ -15,10 +15,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/voffkin/keelkit/reference/internal/admin"
-	"github.com/voffkin/keelkit/reference/internal/database"
-	"github.com/voffkin/keelkit/reference/internal/slug"
-	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/internal/admin"
+	"github.com/keelkit/keelkit/reference/internal/database"
+	"github.com/keelkit/keelkit/reference/internal/slug"
+	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
 // AdminPath — раздел категорий в админке.

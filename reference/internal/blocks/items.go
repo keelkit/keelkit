@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/voffkin/keelkit/reference/internal/listfield"
+	"github.com/keelkit/keelkit/reference/internal/listfield"
 )
 
 // Списки элементов внутри блока (галерея; так же — таймлайн, характеристики и другие повторяющиеся данные).

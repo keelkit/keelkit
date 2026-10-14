@@ -14,7 +14,7 @@ import (
 
 	"github.com/a-h/templ"
 
-	"github.com/voffkin/keelkit/modules/images"
+	"github.com/keelkit/keelkit/modules/images"
 )
 
 // Site — данные сайта для layout.

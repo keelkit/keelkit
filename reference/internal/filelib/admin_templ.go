@@ -11,10 +11,10 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"strconv"
 
-	"github.com/voffkin/keelkit/modules/files"
+	"github.com/keelkit/keelkit/modules/files"
 
-	"github.com/voffkin/keelkit/reference/internal/admin"
-	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/internal/admin"
+	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
 // ListPage — раздел «Файлы»: форма загрузки и таблица файлов.

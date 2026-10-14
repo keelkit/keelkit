@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voffkin/keelkit/reference/internal/blocks"
-	"github.com/voffkin/keelkit/reference/internal/content/pages"
-	"github.com/voffkin/keelkit/reference/internal/content/posts"
+	"github.com/keelkit/keelkit/reference/internal/blocks"
+	"github.com/keelkit/keelkit/reference/internal/content/pages"
+	"github.com/keelkit/keelkit/reference/internal/content/posts"
 )
 
 // seoTypes — типы, подключившие SEO записи (internal/seofields): seofields.Section в форме, Fields.Apply в viewMeta,
@@ -31,7 +31,7 @@ var (
 	featuresRe    = regexp.MustCompile(`^\s+features:\s*\[([^\]]*)\]`)
 	menusRe       = regexp.MustCompile(`^menus:\s*\[([^\]]*)\]`)
 	moduleRe      = regexp.MustCompile(`^  (\w+):\s*(v\d+)\s*(#.*)?$`)
-	goModRe       = regexp.MustCompile(`^\s*github\.com/voffkin/keelkit/modules/(\w+)(/v(\d+))?\s+v(\d+)\.`)
+	goModRe       = regexp.MustCompile(`^\s*github\.com/keelkit/keelkit/modules/(\w+)(/v(\d+))?\s+v(\d+)\.`)
 )
 
 // specLines — строки site.yaml с типом контента, в котором они стоят (пусто — вне content).

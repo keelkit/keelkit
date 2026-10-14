@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
 var postEditURL = regexp.MustCompile(`^/admin/posts/(\d+)\?(saved|published)=1$`)

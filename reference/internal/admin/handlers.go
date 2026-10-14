@@ -1,6 +1,6 @@
 // Package admin — оболочка админки сайта: страница входа, меню, дашборд, страницы ошибок.
 //
-// Пользователи, пароли, сессии и CSRF-токены — модуль auth (github.com/voffkin/keelkit/modules/auth):
+// Пользователи, пароли, сессии и CSRF-токены — модуль auth (github.com/keelkit/keelkit/modules/auth):
 // пакет рисует форму входа и вызывает его Service. «Простой режим»: любой пользователь — администратор.
 //
 // Пакет не знает о типах контента: счётчики дашборда передаёт cmd/site через Options.Counters.
@@ -18,9 +18,9 @@ import (
 
 	"github.com/a-h/templ"
 
-	"github.com/voffkin/keelkit/modules/auth"
+	"github.com/keelkit/keelkit/modules/auth"
 
-	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
 // Пути админки.

@@ -20,10 +20,10 @@ import (
 	"strings"
 
 	"github.com/a-h/templ"
-	"github.com/voffkin/keelkit/modules/files"
-	"github.com/voffkin/keelkit/modules/images"
+	"github.com/keelkit/keelkit/modules/files"
+	"github.com/keelkit/keelkit/modules/images"
 
-	"github.com/voffkin/keelkit/reference/internal/listfield"
+	"github.com/keelkit/keelkit/reference/internal/listfield"
 )
 
 // MaxBlocks — предел числа блоков в одном поле.

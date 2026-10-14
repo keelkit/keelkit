@@ -11,10 +11,10 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/voffkin/keelkit/reference/internal/blocks"
-	"github.com/voffkin/keelkit/reference/internal/seo"
-	"github.com/voffkin/keelkit/reference/internal/seofields"
-	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/internal/blocks"
+	"github.com/keelkit/keelkit/reference/internal/seo"
+	"github.com/keelkit/keelkit/reference/internal/seofields"
+	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
 // HomeSlug — slug страницы, которая показывается на главной (/).

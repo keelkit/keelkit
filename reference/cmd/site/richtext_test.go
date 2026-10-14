@@ -6,10 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/voffkin/keelkit/modules/richtext/testkit"
+	"github.com/keelkit/keelkit/modules/richtext/testkit"
 
-	"github.com/voffkin/keelkit/reference/internal/blocks"
-	"github.com/voffkin/keelkit/reference/internal/content/pages"
+	"github.com/keelkit/keelkit/reference/internal/blocks"
+	"github.com/keelkit/keelkit/reference/internal/content/pages"
 )
 
 // TestRichtextContract — контрактные тесты модуля richtext на выводе сайта: Markdown попадает в текстовый блок

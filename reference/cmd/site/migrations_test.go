@@ -13,10 +13,10 @@ import (
 
 	"github.com/pressly/goose/v3"
 
-	"github.com/voffkin/keelkit/modules/auth"
+	"github.com/keelkit/keelkit/modules/auth"
 
-	"github.com/voffkin/keelkit/reference/internal/blocks"
-	"github.com/voffkin/keelkit/reference/internal/database"
+	"github.com/keelkit/keelkit/reference/internal/blocks"
+	"github.com/keelkit/keelkit/reference/internal/database"
 )
 
 // migrateTo применяет миграции модулей полностью, а сайта — до версии site.

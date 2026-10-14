@@ -14,9 +14,9 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 
-	"github.com/voffkin/keelkit/reference/internal/listfield"
-	"github.com/voffkin/keelkit/reference/internal/settings"
-	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/internal/listfield"
+	"github.com/keelkit/keelkit/reference/internal/settings"
+	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
 // settingsForm — поля формы настроек так, как их отправит браузер.

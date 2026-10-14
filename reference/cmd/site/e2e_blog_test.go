@@ -10,7 +10,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 
-	"github.com/voffkin/keelkit/reference/internal/content/posts"
+	"github.com/keelkit/keelkit/reference/internal/content/posts"
 )
 
 // blogPath — раздел постов: тесты не вписывают его адрес, чтобы смена posts.BlogPath не требовала их правки.

@@ -12,7 +12,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 
-	"github.com/voffkin/keelkit/reference/internal/settings"
+	"github.com/keelkit/keelkit/reference/internal/settings"
 )
 
 // e2eServer — сайт на случайном порту; withSeed — с dev-данными.

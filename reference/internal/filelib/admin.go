@@ -12,11 +12,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/voffkin/keelkit/modules/files"
+	"github.com/keelkit/keelkit/modules/files"
 
-	"github.com/voffkin/keelkit/reference/internal/admin"
-	"github.com/voffkin/keelkit/reference/internal/database"
-	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/internal/admin"
+	"github.com/keelkit/keelkit/reference/internal/database"
+	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
 // AdminPath — раздел «Файлы» в админке.

@@ -1,6 +1,6 @@
 # Образ сайта — опция; основной вариант — бинарник под systemd (deploy/). Собирается целью make docker:
-# бинарник строит make build (GOOS=linux) на машине с доступом к модулям Keelkit, образ его только копирует —
-# SSH-ключ в сборку образа не попадает. TARGETARCH задаёт docker build --platform.
+# бинарник строит make build (GOOS=linux) на машине разработки, образ его только копирует.
+# TARGETARCH задаёт docker build --platform.
 #
 # Запуск: миграции — отдельной командой, как без Docker (serve откажется стартовать без них):
 #   docker run --rm -v site-data:/data IMAGE migrate

@@ -15,8 +15,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/voffkin/keelkit/reference/internal/content/pages"
-	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/internal/content/pages"
+	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
 // Menu — меню из site.yaml (menus): имя в menu_items.menu и web.Site.Menus, как назвать его в админке и где оно

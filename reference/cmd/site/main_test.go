@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voffkin/keelkit/modules/auth"
-	"github.com/voffkin/keelkit/modules/files"
-	"github.com/voffkin/keelkit/modules/images"
+	"github.com/keelkit/keelkit/modules/auth"
+	"github.com/keelkit/keelkit/modules/files"
+	"github.com/keelkit/keelkit/modules/images"
 )
 
 // testConfig — каталоги данных и снимков во временной папке теста.

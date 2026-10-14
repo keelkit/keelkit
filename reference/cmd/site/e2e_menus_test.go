@@ -13,8 +13,8 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 
-	"github.com/voffkin/keelkit/reference/internal/listfield"
-	"github.com/voffkin/keelkit/reference/internal/menu"
+	"github.com/keelkit/keelkit/reference/internal/listfield"
+	"github.com/keelkit/keelkit/reference/internal/menu"
 )
 
 // menuForm — поля формы меню name так, как их отправит браузер.

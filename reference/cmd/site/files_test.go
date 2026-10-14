@@ -3,9 +3,9 @@ package main
 import (
 	"testing"
 
-	"github.com/voffkin/keelkit/modules/files/testkit"
+	"github.com/keelkit/keelkit/modules/files/testkit"
 
-	"github.com/voffkin/keelkit/reference/internal/web"
+	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
 // TestFilesContract — контрактные тесты модуля files на интеграции сайта: миграции модуля и сайта,
