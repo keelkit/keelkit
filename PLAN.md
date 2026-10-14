@@ -839,7 +839,14 @@ make docker && docker run --rm -v kk:/data keelkit-reference migrate \
 - [x] Репозиторий переехал в организацию: `github.com/keelkit/keelkit`, публичный (решение человека, 2026-10-14) —
       чтобы создать сайт, не нужны ни доступ к чужому репозиторию, ни SSH-ключ. Путь модулей сменён до первого сайта;
       под новым путём — `modules/*` v0.2.0 и `spec` v0.8.0; `GOPRIVATE`, `GIT_CONFIG_*` и deploy key убраны
-- [ ] `skills/upgrade-site/`: поднять версию модуля → применить шаги из `UPGRADE.md` → `make migrate` на копии → тесты → PR
+- [x] `skills/upgrade-site/`: поднять версию модуля → применить шаги из `UPGRADE.md` → `make migrate` на копии → тесты → PR.
+      `scripts/upgrade-plan.sh` — текущие и последние версии модулей и `spec`, разделы `UPGRADE.md` к выполнению (файлы
+      опубликованной версии из кэша модулей Go); `scripts/reference-diff.sh` — изменения `reference/` с коммита, из
+      которого создан сайт (строка в `AGENTS.md` сайта), до тега плагина; `scripts/migrate-check.sh` — база до
+      обновления (seed старого кода через `git worktree` или копия данных) → `make migrate` → `reprocess-images` →
+      `/healthz` с `pending: 0`. Ветка `keelkit-upgrade-<дата>`, коммит на модуль; push/PR или слияние — по ответу
+      человека; на сервер — инструкция в итоге. Проверено на `my-blog` (всё актуально; `migrate-check.sh` зелёный);
+      настоящий прогон — с `images v0.3.0` (следующий пункт)
 - [ ] Для эвала `upgrade-site` — выпустить `images v0.3.0` с изменением, требующим действий (например, новая версия профиля и запись в `UPGRADE.md`)
 - [x] Пробный прогон `create-site` на `spec/examples/blog.yaml` в пустой папке вне монорепо, эталон — `KEELKIT_REPO=<клон монорепо>`
       (2026-10-14). Сайт — `~/goScripts/keelkit-trial/my-blog` (эталон — коммит `6c5ffa0`): миграции 00001–00005,
