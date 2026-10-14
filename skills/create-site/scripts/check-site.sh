@@ -36,6 +36,10 @@ for t in help build docker run dev migrate backup seed user-create reprocess-ima
   grep -Eq "^$t:.*## " Makefile && ok "make $t" || bad "в Makefile нет цели $t с описанием ##"
 done
 grep -Eq '^BUILD_TAGS[[:space:]]*=.*nodynamic' Makefile && ok "Makefile: тег nodynamic" || bad "Makefile: нет BUILD_TAGS = nodynamic"
+if [ "$(awk '$1 == "module" {print $2; exit}' go.mod)" != github.com/keelkit/keelkit/reference ]; then
+  grep -Eq '^DOCKER_IMAGE[[:space:]]*\?=[[:space:]]*keelkit-reference' Makefile &&
+    bad "Makefile: DOCKER_IMAGE эталона (keelkit-reference) — имя образа по site.name" || ok "Makefile: DOCKER_IMAGE своё"
+fi
 
 # go.mod: без replace, путь модуля — не эталона, модули Keelkit — опубликованные версии.
 grep -Eq '^[[:space:]]*replace([[:space:]]|\()' go.mod && bad "в go.mod есть replace" || ok "в go.mod нет replace"
