@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -122,10 +123,14 @@ func TestUploadGetList(t *testing.T) {
 	if len(photo.ID) != 26 || strings.ToLower(photo.ID) != photo.ID || photo.ID == small.ID {
 		t.Errorf("ids %q, %q: want distinct 26 lowercase chars", photo.ID, small.ID)
 	}
+	cur := fmt.Sprintf("/v%d/", ProfileVersion)
 	for _, v := range photo.Variants {
-		if !strings.HasPrefix(v.Path, photo.ID+"/v1/") {
-			t.Errorf("variant path %q, want prefix %s/v1/", v.Path, photo.ID)
+		if !strings.HasPrefix(v.Path, photo.ID+cur) {
+			t.Errorf("variant path %q, want prefix %s%s", v.Path, photo.ID, cur)
 		}
+	}
+	if !strings.HasPrefix(photo.Placeholder, "data:image/webp;base64,") {
+		t.Errorf("Placeholder = %.40q, want a WebP data URI", photo.Placeholder)
 	}
 
 	got, err := s.Get(ctx, photo.ID)
@@ -133,7 +138,7 @@ func TestUploadGetList(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.Name != "photo.jpg" || got.Bytes != photo.Bytes || !got.CreatedAt.Equal(photo.CreatedAt) ||
-		!slices.Equal(got.Variants, photo.Variants) {
+		got.Placeholder != photo.Placeholder || !slices.Equal(got.Variants, photo.Variants) {
 		t.Errorf("Get = %+v\nwant %+v", got, photo)
 	}
 	if _, err := s.Get(ctx, "nope"); !errors.Is(err, ErrNotFound) {
@@ -236,6 +241,10 @@ func TestReprocess(t *testing.T) {
 	for _, name := range []string{"photo.jpg", "small.jpg", "transparent.png", "orientation-6.webp"} {
 		ids = append(ids, uploadFile(t, old, name).ID)
 	}
+	// Как после миграции 00002 у изображений профиля v1: заглушки нет.
+	if _, err := e.db.ExecContext(t.Context(), `UPDATE images_files SET placeholder = ''`); err != nil {
+		t.Fatal(err)
+	}
 	s := e.service(ProfileVersion, nil)
 
 	if st, err := s.Reprocess(t.Context(), 0); err != nil || st.Processed != 0 {
@@ -264,10 +273,15 @@ func checkAllCurrent(t *testing.T, e testEnv, s *Service, ids []string) {
 		if img.ProfileVersion != ProfileVersion || len(img.Variants) == 0 {
 			t.Errorf("%s: profile %d with %d variants, want %d", id, img.ProfileVersion, len(img.Variants), ProfileVersion)
 		}
+		cur := fmt.Sprintf("/v%d/", ProfileVersion)
 		for _, v := range img.Variants {
-			if !strings.HasPrefix(v.Path, id+"/v1/") {
-				t.Errorf("%s: variant %s, want under v1/", id, v.Path)
+			if !strings.HasPrefix(v.Path, id+cur) {
+				t.Errorf("%s: variant %s, want under %s", id, v.Path, cur)
 			}
+		}
+		// Заглушка есть у всех, кроме прозрачного PNG.
+		if want := img.Format != PNG; (img.Placeholder != "") != want {
+			t.Errorf("%s (%s): placeholder %.30q, want present = %v", id, img.Format, img.Placeholder, want)
 		}
 	}
 	if files, want := e.files(t), e.expectedFiles(t); !slices.Equal(files, want) {
@@ -378,7 +392,7 @@ func TestReprocessDeletedMeanwhile(t *testing.T) {
 	if err := s.Delete(t.Context(), img.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.commitReprocess(t.Context(), img.ID, 0, vs); err != nil {
+	if err := s.commitReprocess(t.Context(), img.ID, 0, vs, res.Placeholder); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.emptyTrash(t.Context()); err != nil {
@@ -429,4 +443,36 @@ func TestReprocessCrashAfterCommit(t *testing.T) {
 		t.Fatalf("second Reprocess = %+v, %v", st, err)
 	}
 	checkAllCurrent(t, e, e.service(ProfileVersion, nil), ids)
+}
+
+// Миграция 00002 на базе с изображениями профиля v1: строки на месте, заглушка пустая, Get работает.
+func TestMigrationPlaceholder(t *testing.T) {
+	db := newDB(t, false)
+	p, err := goose.NewProvider(goose.DialectSQLite3, db, migrations.FS,
+		goose.WithTableName(migrations.Table), goose.WithDisableGlobalRegistry(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(t.Context(), 1); err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.ExecContext(t.Context(), `INSERT INTO images_files
+		(id, name, format, width, height, bytes, original_key, profile_version)
+		VALUES ('old', 'a.jpg', 'jpeg', 800, 600, 1000, 'old/original.jpg', 1);
+		INSERT INTO images_variants (image_id, format, width, height, bytes, key)
+		VALUES ('old', 'webp', 480, 360, 100, 'old/v1/480.webp')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Up(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	st, _ := newDisk(t)
+	img, err := NewService(db, st, Config{}).Get(t.Context(), "old")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if img.ProfileVersion != 1 || img.Placeholder != "" || len(img.Variants) != 1 || img.Name != "a.jpg" {
+		t.Errorf("after migration: %+v", img)
+	}
 }

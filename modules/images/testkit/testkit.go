@@ -2,8 +2,8 @@
 //
 // Сайт запускает их в своих тестах на своей интеграции: своя БД с миграциями (модуля и сайта),
 // своё хранилище и свой HTTP-обработчик, под которым смонтирован Service.Handler. Тесты проверяют:
-// загрузка → варианты доступны через обработчик сайта, оригинал не отдаётся, повторная обработка
-// ничего не ломает, удаление убирает файлы, ошибки проверки распознаются через errors.Is.
+// загрузка → варианты доступны через обработчик сайта, заглушка сохраняется, оригинал не отдаётся,
+// повторная обработка ничего не ломает, удаление убирает файлы, ошибки проверки распознаются через errors.Is.
 //
 //	func TestImagesContract(t *testing.T) {
 //		testkit.Run(t, func(t *testing.T) testkit.Env {
@@ -64,7 +64,7 @@ func testUpload(t *testing.T, env Env) {
 	if img.ProfileVersion != images.ProfileVersion {
 		t.Errorf("ProfileVersion = %d, want %d", img.ProfileVersion, images.ProfileVersion)
 	}
-	// Профиль v1: 480, 960 и собственная ширина 1000 (меньше 2400), каждая в WebP и JPEG.
+	// Профиль: 480, 960 и собственная ширина 1000 (меньше 2400), каждая в WebP и JPEG.
 	var widths []int
 	for _, v := range img.Variants {
 		if v.Format == images.WebP {
@@ -80,7 +80,11 @@ func testUpload(t *testing.T, env Env) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got.ID != img.ID || len(got.Variants) != len(img.Variants) || got.Variants[0] != img.Variants[0] {
+	if !strings.HasPrefix(img.Placeholder, "data:image/webp;base64,") {
+		t.Errorf("Placeholder = %.40q, want a WebP data URI", img.Placeholder)
+	}
+	if got.ID != img.ID || len(got.Variants) != len(img.Variants) || got.Variants[0] != img.Variants[0] ||
+		got.Placeholder != img.Placeholder {
 		t.Errorf("Get = %+v, want %+v", got, img)
 	}
 	list, err := env.Service.List(ctx, 10, 0)
@@ -121,6 +125,9 @@ func testTransparency(t *testing.T, env Env) {
 	img := upload(t, env, buf.Bytes(), "alpha.png")
 	if img.Format != images.PNG {
 		t.Errorf("Format = %s, want png", img.Format)
+	}
+	if img.Placeholder != "" {
+		t.Errorf("Placeholder = %.40q, want none for an image with alpha", img.Placeholder)
 	}
 	checkServed(t, env, img)
 }

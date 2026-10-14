@@ -3,6 +3,7 @@ package images
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -18,13 +19,18 @@ import (
 	"github.com/keelkit/keelkit/modules/images/internal/orient"
 )
 
-// Параметры профиля v1. Меняются только вместе с ProfileVersion.
+// Параметры профиля. Меняются только вместе с ProfileVersion.
 var profileWidths = []int{480, 960, 1600, 2400}
 
 const (
-	webpQuality = 80
-	jpegQuality = 82
+	webpQuality        = 80
+	jpegQuality        = 82
+	placeholderQuality = 50
 )
+
+// PlaceholderSize — длинная сторона заглушки (Result.Placeholder) в пикселях. Сайт её растягивает и размывает:
+// несколько сотен байт прямо в HTML, без отдельного запроса.
+const PlaceholderSize = 32
 
 // Process читает файл из r (не больше MaxBytes), проверяет его и строит варианты по текущему профилю.
 // Ошибки проверки оборачивают ErrTooLarge, ErrTooManyPixels, ErrUnsupportedFormat или ErrInvalidImage.
@@ -78,6 +84,7 @@ func Process(ctx context.Context, r io.Reader) (*Result, error) {
 	widths := variantWidths(dw)
 	res.Variants = make([]Variant, 2*len(widths))
 	prev := img
+	var smallest *image.RGBA // последний масштабированный, в сохранённой ориентации
 	// От большего к меньшему: каждый вариант масштабируется из предыдущего, а не из полноразмерного.
 	for i := len(widths) - 1; i >= 0; i-- {
 		if err := ctx.Err(); err != nil {
@@ -90,7 +97,7 @@ func Process(ctx context.Context, r io.Reader) (*Result, error) {
 			stw, sth = th, tw
 		}
 		s := scale(prev, stw, sth)
-		prev = s
+		prev, smallest = s, s
 		v := orient.Apply(s, o)
 
 		var wbuf, jbuf bytes.Buffer
@@ -103,7 +110,33 @@ func Process(ctx context.Context, r io.Reader) (*Result, error) {
 		res.Variants[2*i] = Variant{Format: WebP, Width: tw, Height: th, Data: wbuf.Bytes()}
 		res.Variants[2*i+1] = Variant{Format: JPEG, Width: tw, Height: th, Data: jbuf.Bytes()}
 	}
+	// Заглушка — из самого узкого варианта: прозрачность в нём видна точнее, чем в 32 px.
+	if smallest.Opaque() {
+		var err error
+		if res.Placeholder, err = placeholder(smallest, o, dw, dh); err != nil {
+			return nil, err
+		}
+	}
 	return res, nil
+}
+
+// placeholder уменьшает src (в сохранённой ориентации o) до PlaceholderSize по длинной стороне
+// (без увеличения), поворачивает и кодирует в data URI WebP. dw×dh — размеры оригинала, как их видит человек.
+func placeholder(src *image.RGBA, o, dw, dh int) (string, error) {
+	tw, th := dw, dh
+	if s := max(dw, dh); s > PlaceholderSize {
+		tw = max(1, int(math.Round(float64(dw)*PlaceholderSize/float64(s))))
+		th = max(1, int(math.Round(float64(dh)*PlaceholderSize/float64(s))))
+	}
+	stw, sth := tw, th
+	if orient.Swaps(o) {
+		stw, sth = th, tw
+	}
+	var buf bytes.Buffer
+	if err := webp.Encode(&buf, orient.Apply(scale(src, stw, sth), o), webp.Options{Quality: placeholderQuality}); err != nil {
+		return "", fmt.Errorf("images: encode placeholder: %w", err)
+	}
+	return "data:image/webp;base64," + base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
 // variantWidths — ширины вариантов для оригинала шириной w: профильные не шире оригинала,

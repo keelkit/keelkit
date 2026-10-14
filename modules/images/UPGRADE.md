@@ -3,6 +3,46 @@
 Инструкции для агентов: что менять в коде сайта при переходе на версию. Версии без действий здесь не перечисляются.
 Каждый раздел: что изменилось → изменения в коде сайта → проверка → нужна ли повторная обработка.
 
+## v0.3.0 — профиль v2: заглушка на время загрузки
+
+**Что изменилось.** `ProfileVersion` = 2: кроме вариантов, у изображения есть `Image.Placeholder` — WebP ~32 px
+в data URI (`"data:image/webp;base64,…"`), который сайт выводит размытым фоном под `<img>`, пока картинка грузится.
+У изображений с прозрачностью заглушки нет (пустая строка): она осталась бы видна под прозрачными местами.
+Миграция модуля `00002` добавляет колонку `images_files.placeholder`; существующие данные не меняются, у старых
+изображений заглушка пустая, пока их не обработают заново. Варианты новых загрузок — в `<id>/v2/…`.
+API не ломается: `Upload`, `Get`, `List`, `Reprocess`, `Handler` — как раньше.
+
+**Изменения в коде сайта** (образец — `reference/internal/web/picture.go`, `picture.templ`, `picture_test.go`,
+`static/style.css`; раздел «Изображения» в `reference/AGENTS.md`):
+1. `go get github.com/keelkit/keelkit/modules/images@v0.3.0`, `go mod tidy`.
+2. Вывод картинки (в эталоне — `web.PictureMobile`, через неё и `web.Picture`): у `<img>` с заглушкой — класс `ph`
+   и `style` с CSS-переменной `--ph: url(data:image/svg+xml,…)`. SVG растягивает заглушку на всю картинку и
+   размывает: `viewBox` — `Image.Width`×`Image.Height`, `<filter>` с `feGaussianBlur` (`stdDeviation` ≈ длинная
+   сторона / 20) и `feFuncA type='discrete' tableValues='1 1'` (без полупрозрачного ободка), `<image href=заглушка>`.
+   Перенести из эталона `placeholderStyle`, `placeholderURL`, `notBase64`; значение строится в Go как `templ.SafeCSS`,
+   SVG кодируется `url.PathEscape` и пишется в `url()` без кавычек (templ экранирует `style` дважды — кавычки
+   сломаются). В заглушке допускается только base64 после префикса — иначе заглушки нет.
+   С мобильной картинкой (`mobile`, если она выводится) — ещё `--ph-m`: её заглушка или `none`.
+   Без заглушки (прозрачность, профиль v1) — ни класса, ни `style`.
+3. CSS сайта: правило `img.ph { background: var(--ph) center / cover no-repeat; }` и в `@media` границы телефона
+   (`web.MobileMedia`) `img.ph { background-image: var(--ph-m, var(--ph)); }` — раньше правил отдельных картинок.
+   Проверить свои правила `img` с `background`: шорткат перекрывает заглушку (так задумано для шахматки медиатеки
+   с `object-fit: contain`); где заглушка нужна, а у картинки была подложка цветом (в эталоне `.person img`), —
+   `background-color` вместо `background`.
+4. Тесты сайта: что ждали версию схемы `images` 1 (`/healthz`, в эталоне `TestHealthz`) — теперь 2; снимок схемы
+   (`make schema`, если в сайте есть `db/schema.sql`); тест вывода заглушки — как `TestPicturePlaceholder` эталона.
+   Пути вариантов `…/v1/…` в тестах с настоящей загрузкой — `…/v2/…` (лучше через `images.ProfileVersion`).
+
+**Проверка.** `make generate`, `make test` (в том числе `testkit.Run` — он проверяет заглушку), `make test-isolated`,
+`make e2e`; `make migrate` на копии БД → `/healthz`: `images` с `version 2, pending 0`; новая загрузка JPEG → на
+странице у `<img>` класс `ph` и `--ph:url(data:image/svg+xml,…)`; прозрачный PNG — без них.
+
+**Повторная обработка.** Нужна, чтобы заглушки появились у старых изображений: `make reprocess-images BELOW=2`
+после `make migrate` (на сервере — после выкладки; сервер может работать). Без неё всё работает, просто у старых
+картинок нет заглушки. Адреса вариантов меняются (`/media/<id>/v1/…` → `/v2/…`), старые файлы удаляются:
+страницы сайта выводят новые адреса сами, но внешние копии старых (`og:image` в кэше соцсетей, RSS-читатели)
+получат 404, пока не обновятся.
+
 ## v0.2.0 — новый путь модуля
 
 **Что изменилось.** Путь модуля `github.com/voffkin/keelkit/modules/images` → `github.com/keelkit/keelkit/modules/images`:

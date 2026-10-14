@@ -52,11 +52,11 @@ func TestHandler(t *testing.T) {
 
 	for _, p := range []string{
 		img.ID + "/original.jpg", // оригинал с EXIF не отдаётся никогда
-		img.ID + "/v1/original.jpg",
-		img.ID + "/v1/480.png",
-		img.ID + "/v1/480.webp.tmp-0123",
-		img.ID + "/v1/9999.webp",
-		"nope/v1/480.webp",
+		img.ID + "/v2/original.jpg",
+		img.ID + "/v2/480.png",
+		img.ID + "/v2/480.webp.tmp-0123",
+		img.ID + "/v2/9999.webp",
+		"nope/v2/480.webp",
 		img.ID,
 		"",
 	} {

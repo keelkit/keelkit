@@ -60,8 +60,11 @@ type Image struct {
 	Width, Height  int    // размеры оригинала с учётом ориентации EXIF
 	Bytes          int64  // размер оригинала
 	ProfileVersion int    // версия профиля, которым построены Variants
-	CreatedAt      time.Time
-	Variants       []StoredVariant // по возрастанию ширины; для каждой ширины — WebP, затем JPEG
+	// Placeholder — заглушка на время загрузки, data URI WebP не больше PlaceholderSize по длинной стороне
+	// (см. Result.Placeholder). Пустая у изображений с прозрачностью и у построенных профилем v1.
+	Placeholder string
+	CreatedAt   time.Time
+	Variants    []StoredVariant // по возрастанию ширины; для каждой ширины — WebP, затем JPEG
 }
 
 // StoredVariant — вариант изображения в хранилище.
@@ -69,7 +72,7 @@ type StoredVariant struct {
 	Format        Format
 	Width, Height int
 	Bytes         int64
-	// Path — путь варианта относительно корня Handler (он же ключ в Storage), например «k3x…/v1/960.webp».
+	// Path — путь варианта относительно корня Handler (он же ключ в Storage), например «k3x…/v2/960.webp».
 	// Сайт строит адрес как <префикс, под которым смонтирован Handler> + Path.
 	Path string
 }
@@ -97,6 +100,7 @@ func (s *Service) Upload(ctx context.Context, r io.Reader, name string) (*Image,
 		Height:         res.Original.Height,
 		Bytes:          int64(len(res.Original.Data)),
 		ProfileVersion: s.profile,
+		Placeholder:    res.Placeholder,
 		CreatedAt:      time.Now().UTC().Truncate(time.Second),
 	}
 	origKey := id + "/" + res.Original.Name()
@@ -125,10 +129,10 @@ func (s *Service) insert(ctx context.Context, img *Image, origKey string) error 
 	}
 	defer func() { _ = tx.Rollback() }()
 	_, err = tx.ExecContext(ctx, `INSERT INTO images_files
-		(id, name, format, width, height, bytes, original_key, profile_version, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		(id, name, format, width, height, bytes, original_key, profile_version, placeholder, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		img.ID, img.Name, string(img.Format), img.Width, img.Height, img.Bytes, origKey, img.ProfileVersion,
-		img.CreatedAt.Format(time.RFC3339))
+		img.Placeholder, img.CreatedAt.Format(time.RFC3339))
 	if err != nil {
 		return fmt.Errorf("images: upload: %w", err)
 	}
@@ -170,8 +174,8 @@ func (s *Service) query(ctx context.Context, tail string, args ...any) ([]*Image
 	defer func() { _ = tx.Rollback() }()
 
 	// #nosec G202 -- tail — строковая константа из Get/List, значения передаются параметрами
-	rows, err := tx.QueryContext(ctx, `SELECT id, name, format, width, height, bytes, profile_version, created_at
-		FROM images_files `+tail, args...)
+	rows, err := tx.QueryContext(ctx, `SELECT id, name, format, width, height, bytes, profile_version, placeholder,
+		created_at FROM images_files `+tail, args...)
 	if err != nil {
 		return nil, fmt.Errorf("images: query: %w", err)
 	}
@@ -181,7 +185,7 @@ func (s *Service) query(ctx context.Context, tail string, args ...any) ([]*Image
 		var img Image
 		var format, created string
 		if err := rows.Scan(&img.ID, &img.Name, &format, &img.Width, &img.Height, &img.Bytes,
-			&img.ProfileVersion, &created); err != nil {
+			&img.ProfileVersion, &img.Placeholder, &created); err != nil {
 			_ = rows.Close()
 			return nil, fmt.Errorf("images: query: %w", err)
 		}

@@ -3,11 +3,13 @@ package images
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -90,7 +92,79 @@ func TestOrientation(t *testing.T) {
 					}
 				}
 			}
+			// Заглушка повёрнута так же: 32×24, те же четверти.
+			ph := decodePlaceholder(t, res.Placeholder)
+			if b := ph.Bounds(); b.Dx() != 32 || b.Dy() != 24 {
+				t.Fatalf("placeholder %dx%d, want 32x24", b.Dx(), b.Dy())
+			}
+			for _, p := range []struct {
+				x, y int
+				want color.RGBA
+			}{{8, 6, cTL}, {24, 6, cTR}, {8, 18, cBL}, {24, 18, cBR}} {
+				if got := ph.At(p.x, p.y); !near(got, p.want) {
+					t.Errorf("placeholder: pixel (%d,%d) = %v, want ≈ %v", p.x, p.y, got, p.want)
+				}
+			}
 		})
+	}
+}
+
+func decodePlaceholder(t *testing.T, uri string) image.Image {
+	t.Helper()
+	b64, ok := strings.CutPrefix(uri, "data:image/webp;base64,")
+	if !ok {
+		t.Fatalf("placeholder %.40q: want a WebP data URI", uri)
+	}
+	data, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	img, err := xwebp.Decode(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("decode placeholder: %v", err)
+	}
+	return img
+}
+
+// Заглушка: не больше PlaceholderSize по длинной стороне, пропорции оригинала, без увеличения; у прозрачных — нет.
+func TestPlaceholder(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		want bool
+	}{
+		{"photo.jpg", true},
+		{"small.jpg", true},
+		{"transparent.png", false},
+	} {
+		res := mustProcess(t, c.name)
+		if !c.want {
+			if res.Placeholder != "" {
+				t.Errorf("%s: placeholder %.40q, want none for an image with alpha", c.name, res.Placeholder)
+			}
+			continue
+		}
+		b := decodePlaceholder(t, res.Placeholder).Bounds()
+		ow, oh := res.Original.Width, res.Original.Height
+		wantH := int(math.Round(float64(oh) * PlaceholderSize / float64(ow))) // оба файла горизонтальные
+		if b.Dx() != PlaceholderSize || b.Dy() != wantH {
+			t.Errorf("%s: placeholder %dx%d, want %dx%d (original %dx%d)", c.name, b.Dx(), b.Dy(), PlaceholderSize, wantH, ow, oh)
+		}
+		if len(res.Placeholder) > 1000 {
+			t.Errorf("%s: placeholder is %d bytes, want a tiny one", c.name, len(res.Placeholder))
+		}
+	}
+
+	// Меньше PlaceholderSize — свой размер, без увеличения.
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 20, 10)), nil); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Process(t.Context(), &buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := decodePlaceholder(t, res.Placeholder).Bounds(); b.Dx() != 20 || b.Dy() != 10 {
+		t.Errorf("tiny image: placeholder %dx%d, want 20x10", b.Dx(), b.Dy())
 	}
 }
 

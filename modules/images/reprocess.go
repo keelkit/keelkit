@@ -86,7 +86,7 @@ func (s *Service) reprocessOne(ctx context.Context, id string, version int, orig
 
 	vs, err := s.putVariants(ctx, id, res.Variants)
 	if err == nil {
-		err = s.commitReprocess(ctx, id, version, vs)
+		err = s.commitReprocess(ctx, id, version, vs, res.Placeholder)
 	}
 	if err != nil {
 		// Записанные файлы не трогаем: если это ключи живых вариантов (та же версия профиля),
@@ -106,9 +106,9 @@ func (s *Service) processStored(ctx context.Context, key string) (*Result, error
 	return Process(ctx, rc)
 }
 
-// commitReprocess подменяет варианты изображения на vs, если с момента выборки его не удалили и не
+// commitReprocess подменяет варианты изображения на vs и заглушку на placeholder, если с момента выборки его не удалили и не
 // обработали заново (версия всё ещё version). Иначе новые файлы, на которые никто не ссылается, — в корзину.
-func (s *Service) commitReprocess(ctx context.Context, id string, version int, vs []StoredVariant) error {
+func (s *Service) commitReprocess(ctx context.Context, id string, version int, vs []StoredVariant, placeholder string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("images: reprocess: %w", err)
@@ -119,8 +119,8 @@ func (s *Service) commitReprocess(ctx context.Context, id string, version int, v
 	for i, v := range vs {
 		newKeys[i] = v.Path
 	}
-	r, err := tx.ExecContext(ctx, `UPDATE images_files SET profile_version = ? WHERE id = ? AND profile_version = ?`,
-		s.profile, id, version)
+	r, err := tx.ExecContext(ctx, `UPDATE images_files SET profile_version = ?, placeholder = ?
+		WHERE id = ? AND profile_version = ?`, s.profile, placeholder, id, version)
 	if err != nil {
 		return fmt.Errorf("images: reprocess: %w", err)
 	}
