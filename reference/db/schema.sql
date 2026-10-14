@@ -36,7 +36,7 @@ CREATE TABLE images_files (
     original_key    TEXT NOT NULL UNIQUE,
     profile_version INTEGER NOT NULL,
     created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-) STRICT;
+, placeholder TEXT NOT NULL DEFAULT '') STRICT;
 
 CREATE INDEX images_files_created_at ON images_files (created_at);
 

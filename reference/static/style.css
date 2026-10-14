@@ -192,6 +192,19 @@ img {
   height: auto;
 }
 
+/* Размытая заглушка под картинкой, пока она грузится (web.Picture: класс ph, переменные --ph и --ph-m в style).
+   Стоит раньше правил отдельных картинок: их background (шахматка в медиатеке) важнее заглушки. */
+img.ph {
+  background: var(--ph) center / cover no-repeat;
+}
+
+/* Граница — web.MobileMedia. */
+@media (max-width: 767.98px) {
+  img.ph {
+    background-image: var(--ph-m, var(--ph));
+  }
+}
+
 hr {
   border: 0;
   border-top: 1px solid var(--border);
@@ -1040,7 +1053,7 @@ figure.block {
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: var(--radius);
-  background: var(--surface);
+  background-color: var(--surface); /* только цвет: заглушка img.ph остаётся */
 }
 
 .person-name {

@@ -8,8 +8,8 @@ import (
 
 // Picture — адаптивное изображение: WebP для браузеров, которые его понимают, JPEG — остальным.
 // sizes — ширина картинки в вёрстке (атрибут sizes), например "(min-width: 48rem) 48rem, 100vw":
-// по нему браузер выбирает вариант из srcset. width и height — пропорции, чтобы вёрстка не прыгала при загрузке.
-// Изображение без вариантов не выводится.
+// по нему браузер выбирает вариант из srcset. width и height — пропорции, чтобы вёрстка не прыгала при загрузке;
+// пока картинка грузится, под ней видна размытая заглушка (placeholderStyle). Изображение без вариантов не выводится.
 templ Picture(img *images.Image, alt, sizes string) {
 	@PictureMobile(img, nil, alt, sizes)
 }
@@ -19,6 +19,7 @@ templ Picture(img *images.Image, alt, sizes string) {
 // вариантов — разметка как у Picture. Alt один: на обеих картинках одно и то же.
 templ PictureMobile(img, mobile *images.Image, alt, sizes string) {
 	if p, ok := newPicture(img); ok {
+		{{ ph := placeholderStyle(img, mobile) }}
 		<picture>
 			if m, ok := newPicture(mobile); ok {
 				if m.webp != "" {
@@ -50,6 +51,10 @@ templ PictureMobile(img, mobile *images.Image, alt, sizes string) {
 				width={ strconv.Itoa(p.src.Width) }
 				height={ strconv.Itoa(p.src.Height) }
 				alt={ alt }
+				if ph != "" {
+					class="ph"
+					style={ ph }
+				}
 				loading="lazy"
 				decoding="async"
 			/>

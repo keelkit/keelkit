@@ -40,8 +40,8 @@ github.com/keelkit/keelkit/modules/auth v0.2.0 h1:upjXQxXT3bf34KHhttD+91TwIGw30X
 github.com/keelkit/keelkit/modules/auth v0.2.0/go.mod h1:U6K5XFxprPUsfsG2qxlLxY4X/2QrQY1wpbcvAQ+eAtY=
 github.com/keelkit/keelkit/modules/files v0.2.0 h1:on1E3ywSNYoiNKJtRvqKJVJmEiRIENNP4JkswL5TP/k=
 github.com/keelkit/keelkit/modules/files v0.2.0/go.mod h1:ZTLKALbM+YuNgCMDpmwPk4z5xH3IM6V2//vOaBu5QjM=
-github.com/keelkit/keelkit/modules/images v0.2.0 h1:0QaIeuTxCJ1wuOGd9bmS1DKSjlkeDQDX+Ff0om0gAn0=
-github.com/keelkit/keelkit/modules/images v0.2.0/go.mod h1:VtLTqTp6av0QDwLHwIiFVsr48xlLgexrLT+xgoLE2qQ=
+github.com/keelkit/keelkit/modules/images v0.3.0 h1:JlsqQLKSFDm3xGtwmMp3VqIdFY+D2LkBdWyWPn774k4=
+github.com/keelkit/keelkit/modules/images v0.3.0/go.mod h1:VtLTqTp6av0QDwLHwIiFVsr48xlLgexrLT+xgoLE2qQ=
 github.com/keelkit/keelkit/modules/richtext v0.2.0 h1:x8R4C2niZ/HodhsvMqkaT4R3GDXFO9DR8ei58XN4Xm4=
 github.com/keelkit/keelkit/modules/richtext v0.2.0/go.mod h1:zn3/AiekF8xylBZLT11vIJHdtJgsLK0jgnCq93l17+M=
 github.com/ledongthuc/pdf v0.0.0-20220302134840-0c2507a12d80 h1:6Yzfa6GP0rIo/kULo2bwGEkFvCePZ3qHDDTC3/J9Swo=

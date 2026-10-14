@@ -219,9 +219,9 @@ func TestHealthz(t *testing.T) {
 	if s := got.Schema["site"]; s.Version != 15 || s.Pending != 0 {
 		t.Errorf("schema site = %+v, want version 15, pending 0", s)
 	}
-	for _, name := range []string{"images", "files", "auth"} {
-		if s := got.Schema[name]; s.Version != 1 || s.Pending != 0 {
-			t.Errorf("schema %s = %+v, want version 1, pending 0", name, s)
+	for name, version := range map[string]int64{"images": 2, "files": 1, "auth": 1} {
+		if s := got.Schema[name]; s.Version != version || s.Pending != 0 {
+			t.Errorf("schema %s = %+v, want version %d, pending 0", name, s, version)
 		}
 	}
 }

@@ -10,7 +10,7 @@ require (
 	github.com/chromedp/chromedp v0.16.0
 	github.com/keelkit/keelkit/modules/auth v0.2.0
 	github.com/keelkit/keelkit/modules/files v0.2.0
-	github.com/keelkit/keelkit/modules/images v0.2.0
+	github.com/keelkit/keelkit/modules/images v0.3.0
 	github.com/keelkit/keelkit/modules/richtext v0.2.0
 	github.com/pressly/goose/v3 v3.28.0
 	golang.org/x/term v0.46.0

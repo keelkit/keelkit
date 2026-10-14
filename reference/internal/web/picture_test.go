@@ -1,6 +1,7 @@
 package web
 
 import (
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -128,5 +129,70 @@ func TestPictureMobile(t *testing.T) {
 	}
 	if b.Len() != 0 {
 		t.Errorf("mobile without main rendered %q", b.String())
+	}
+}
+
+// svgOf — SVG из первого url(data:image/svg+xml,…) в style.
+func svgOf(t *testing.T, style string) string {
+	t.Helper()
+	_, enc, _ := strings.Cut(style, "url(data:image/svg+xml,")
+	enc, _, _ = strings.Cut(enc, ")")
+	svg, err := url.PathUnescape(enc)
+	if err != nil {
+		t.Fatalf("style %q: %v", style, err)
+	}
+	return svg
+}
+
+func TestPicturePlaceholder(t *testing.T) {
+	const ph = "data:image/webp;base64,UklGRg+/="
+	withPH := func(w, h int, placeholder, path string) *images.Image {
+		return &images.Image{Width: w, Height: h, Placeholder: placeholder, Variants: []images.StoredVariant{
+			{Format: images.JPEG, Width: 480, Height: 480 * h / w, Path: path},
+		}}
+	}
+	render := func(img, mobile *images.Image) *goquery.Selection {
+		t.Helper()
+		var b strings.Builder
+		if err := PictureMobile(img, mobile, "", "100vw").Render(t.Context(), &b); err != nil {
+			t.Fatal(err)
+		}
+		doc, err := goquery.NewDocumentFromReader(strings.NewReader(b.String()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return doc.Find("img")
+	}
+
+	// Заглушка — SVG с размытием поверх WebP из модуля, в --ph; класс ph включает фон (style.css).
+	el := render(withPH(1600, 1000, ph, "a/v2/480.jpg"), nil)
+	style := el.AttrOr("style", "")
+	if !el.HasClass("ph") || !strings.HasPrefix(style, "--ph:url(data:image/svg+xml,") ||
+		!strings.Contains(svgOf(t, style), "viewBox='0 0 1600 1000'") || !strings.Contains(svgOf(t, style), "href='"+ph+"'") ||
+		!strings.Contains(svgOf(t, style), "feGaussianBlur stdDeviation='80'") || strings.ContainsAny(style, `<>'"& `) ||
+		strings.Contains(style, "--ph-m") {
+		t.Errorf("class %q, style %q", el.AttrOr("class", ""), style)
+	}
+
+	// Без заглушки (прозрачность, профиль v1) или с чем-то кроме base64 — ни класса, ни style.
+	for _, p := range []string{"", "data:image/webp;base64,", "data:image/webp;base64,AA')}x{", "data:image/png;base64,AAAA"} {
+		if el := render(withPH(800, 600, p, "a/v2/480.jpg"), nil); el.HasClass("ph") || el.AttrOr("style", "") != "" {
+			t.Errorf("placeholder %q: class %q, style %q; want none", p, el.AttrOr("class", ""), el.AttrOr("style", ""))
+		}
+	}
+
+	// С мобильной: её заглушка — в --ph-m; без заглушки у мобильной — none (не чужой кадр).
+	style = render(withPH(1600, 1000, ph, "a/v2/480.jpg"), withPH(600, 900, ph, "m/v2/480.jpg")).AttrOr("style", "")
+	if _, m, _ := strings.Cut(style, "--ph-m:"); !strings.Contains(svgOf(t, m), "viewBox='0 0 600 900'") {
+		t.Errorf("mobile placeholder: style %q", style)
+	}
+	style = render(withPH(1600, 1000, ph, "a/v2/480.jpg"), withPH(600, 900, "", "m/v2/480.jpg")).AttrOr("style", "")
+	if !strings.HasSuffix(style, "--ph-m:none;") || !strings.HasPrefix(style, "--ph:url(") {
+		t.Errorf("mobile without placeholder: style %q", style)
+	}
+	// Заглушка только у мобильной — --ph:none не пишется, фон на широком экране пуст.
+	el = render(withPH(1600, 1000, "", "a/v2/480.jpg"), withPH(600, 900, ph, "m/v2/480.jpg"))
+	if style := el.AttrOr("style", ""); !el.HasClass("ph") || !strings.HasPrefix(style, "--ph-m:url(") {
+		t.Errorf("only mobile placeholder: style %q", style)
 	}
 }

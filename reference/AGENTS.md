@@ -242,6 +242,12 @@ dbs:
 - Вывод — `web.Picture(img, alt, sizes)` (`internal/web/picture.templ`): `<picture>` с `<source type="image/webp">`
   и `<img>` с JPEG-фолбэком (`src` — JPEG не шире 960 px), `srcset` по ширинам, `width`/`height` для пропорций,
   `loading="lazy"`. `sizes` — ширина картинки в вёрстке. Адрес варианта — `web.MediaURL(v)` (`/media/` + `v.Path`).
+- Пока картинка грузится, под ней — размытая заглушка (`images.Image.Placeholder`, профиль v2): у `<img>` класс `ph`
+  и `style="--ph:url(data:image/svg+xml,…)"` — SVG растягивает WebP 32 px и размывает (`feGaussianBlur`), правило
+  `img.ph` в `style.css` ставит его фоном (`center / cover`). С мобильной картинкой — ещё `--ph-m` (её заглушка или
+  `none`) для экрана уже `web.MobileMedia`. Заглушки нет у изображений с прозрачностью и профиля v1 (до
+  `make reprocess-images BELOW=2`) — тогда ни класса, ни `style`. Правило `img.ph` стоит в `style.css` раньше
+  правил отдельных картинок: их `background` (шахматка медиатеки) важнее; цвет подложки — `background-color`.
   Адреса вариантов меняются при повторной обработке, поэтому их не сохраняют в контенте — только id изображения.
 - Своя картинка для телефона (другой кадр той же сцены) — `web.PictureMobile(img, mobile, alt, sizes)`: перед
   основными источниками два `<source media={ web.MobileMedia }>` (WebP и JPEG) со своими `srcset`, `width`, `height`;
