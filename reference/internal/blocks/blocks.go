@@ -403,8 +403,12 @@ func PlainText(list []Block) string {
 }
 
 // Summary — начало PlainText не длиннее n символов, по границе слова, с многоточием, если обрезано.
-func Summary(list []Block, n int) string {
-	s := []rune(PlainText(list))
+func Summary(list []Block, n int) string { return Cut(PlainText(list), n) }
+
+// Cut — начало текста не длиннее n символов, по границе слова, с многоточием, если обрезано: анонс поля richtext
+// (Cut(richtext.PlainText(src), n)) так же, как Summary у блоков.
+func Cut(text string, n int) string {
+	s := []rune(text)
 	if len(s) <= n {
 		return string(s)
 	}

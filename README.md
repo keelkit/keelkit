@@ -53,8 +53,24 @@
 
 ### Пример
 
-Будет заполнен по настоящему прогону `create-site` на [`spec/examples/blog.yaml`](spec/examples/blog.yaml): вопросы
-скилла, итоговый `site.yaml`, структура сайта, результаты проверок.
+Пробный прогон на [`spec/examples/blog.yaml`](spec/examples/blog.yaml) (2026-10-14):
+
+```sh
+mkdir ~/sites/my-blog && cd ~/sites/my-blog && KEELKIT_REPO=~/keelkit claude
+> /create-site . ~/keelkit/spec/examples/blog.yaml
+```
+
+- **Вопросы.** Ни одного: `site.yaml` готов. План скилла — одним сообщением: разделы и адреса, разделы админки и что
+  добавлено умолчаниями — настройки сайта и меню `[main, footer]` (в `blog.yaml` их нет).
+- **Сайт.** Главная и страницы `/{slug}` (Markdown, правки сразу на сайте), блог `/blog` с постами
+  `/blog/{slug}` (черновик, дата публикации, обложка со своей картинкой для телефона, категория, живой предпросмотр)
+  и лентами категорий `/blog/category/{slug}`, `sitemap.xml`, `rss.xml`, `robots.txt`. Админка: страницы, посты,
+  категории, медиатека, настройки, меню. Seed — блог о путешествиях (13 постов, черновик, пост с датой в будущем).
+- **Код.** Эталон, приведённый к спецификации: пакеты `internal/content/{pages,posts,categories}`, миграции сайта
+  `00001_site_settings` … `00005_posts`, без `people`, модуля `files` и блоков `file`/`people`; `AGENTS.md` сайта
+  описывает этот сайт и эталон, из которого он создан.
+- **Проверки.** `make lint test e2e-browser spec-validate generate-check`, `check-site.sh`; `make dev` — `/healthz`
+  без непримененных миграций, страницы, sitemap, RSS и вход в админку отвечают.
 
 ## Обновить сайт
 

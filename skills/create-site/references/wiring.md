@@ -30,6 +30,11 @@
 | `cmd/site/e2e_*_test.go`, `browser_test.go` | тесты | всегда |
 | `AGENTS.md` | маршруты, тип контента, seed, тесты, структура | всегда |
 
+`internal/menu` знает о модели страниц: запросы `ListSiteMenuItems` и `ListMenuPages` (`internal/menu/queries.sql`)
+читают `page_contents` (опубликованная копия, пометка «не опубликована»). Страницы без `draft` (одна таблица
+`pages`) — запросы читают `pages` напрямую, `unpublished`, пометка «Страница не опубликована» и «(не опубликована)»
+в выборе убираются, тест меню о неопубликованной странице — тоже.
+
 Признак, что тип эталона убран полностью: `git grep -i -E '<тип>|<Тип>'` находит только слова в обычном тексте.
 
 ## Модули
@@ -41,6 +46,19 @@
   и проверка в `backup_test.go`), `files` из `site.yaml`; `go mod tidy`. Раздел «Файлы» `AGENTS.md` — убрать.
 - `images`, `richtext`, `auth` — обязательны (на них стоят медиатека, блоки, админка).
 - Порядок `migrationSources` (`cmd/site/main.go`) — как `modules` в `site.yaml`, сайт — последним.
+
+## Сайт без блоков, SEO или порядка
+
+Общие пакеты не удаляются вместе с последним пользователем: их подключит `add-section`, а удаление и возврат —
+лишняя правка эталонного кода.
+- Нет ни одного поля `blocks`: `internal/blocks` остаётся (в нём `MarkdownField`, `Preview`, `Cut` для полей
+  `richtext`, выбор картинок, `blocks.Kinds`). Убрать только блоки удалённых типов и модулей (`file`, блок-списки);
+  без блоков-списков — `blockLists` (`server.go`), `TestBlockListsMatchKinds`, `ListSources` в вызовах типов. Карта
+  `code` в `TestSpecBlocksMatchCode` — пустая, с комментарием, как её дополнить.
+- Нет feature `seo`: `internal/seofields` остаётся, `seoTypes` — пустой список с комментарием; типы его не вызывают.
+- Нет feature `order`: `orderTypes` — пустой список.
+- `admin.Live` остаётся, если он нужен хоть одному типу (`blocks` или `image` с `mobile`); иначе — у типов без него
+  нет маршрута `…/live`, пакет `admin` не трогать.
 
 ## Настройки
 
@@ -67,8 +85,10 @@
 ## Название, язык, имена эталона
 
 - `git grep -n -i -E 'эталон|keelkit-reference|Keelkit reference'` — каждое место переписать под сайт: комментарий
-  пакета `cmd/site/main.go`, `settings.DefaultName`, `DOCKER_IMAGE` в `Makefile`, заголовок `static/style.css`,
-  seed, `site.yaml`. Упоминания Keelkit как движка (модули, `AGENTS.md`) остаются.
+  пакета `cmd/site/main.go`, `settings.DefaultName`, `DOCKER_IMAGE` в `Makefile` (его проверяет `check-site.sh`),
+  заголовок `static/style.css`, seed, `site.yaml`. Упоминания Keelkit как движка (модули, `AGENTS.md`) остаются.
+- Тесты не ловят остатки удалённого типа вне Go-кода: стили (`.people-list`, `.person*` в `static/style.css`,
+  `.file-*`), иконки и тексты админки. `git grep -i <тип>` по `static/` и `*.templ`.
 - Язык `site.languages[0]`: `<html lang>` (`internal/web/layout.templ`), `Language` RSS-канала (`feedSource`), все
   тексты публичных шаблонов (лента, «Читать далее», 404, 500, баннер cookies, даты — `humanDate`, номера страниц
   ленты, alt по умолчанию), seed. Админка остаётся на русском на любом сайте. Типографика `richtext` рассчитана на

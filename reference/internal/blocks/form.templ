@@ -224,12 +224,18 @@ templ textField(b Block, field, label, value, hint string, e FormEnv) {
 	</label>
 }
 
-// markdownField — textarea Markdown с панелью оформления и превью рядом. Превью обновляется при наборе с задержкой
-// (htmx, только это поле — hx-params); hx-sync отменяет устаревший запрос. При открытии формы превью рисует сервер.
-// Панель — кнопки, которые оборачивают выделение разметкой Markdown (static/editor.js); без JavaScript её не видно.
-// Метка — через for, а не обёрткой: кнопки внутри label перехватили бы её связь с textarea.
+// markdownField — поле Markdown блока: MarkdownField с именем поля блока.
 templ markdownField(b Block, field, label, value string, e FormEnv) {
-	{{ name := FieldName(b.ID, field) }}
+	@MarkdownField(FieldName(b.ID, field), label, value, e.PreviewURL, e.err(b, field))
+}
+
+// MarkdownField — textarea Markdown с панелью оформления и превью рядом: поле блока и поле richtext записи
+// (тип без blocks). name — имя и id поля, previewURL — POST превью (имя поля — в ?field=), errMsg — ошибка у поля.
+// Превью обновляется при наборе с задержкой (htmx, только это поле — hx-params); hx-sync отменяет устаревший запрос.
+// При открытии формы превью рисует сервер (Preview). Панель — кнопки, которые оборачивают выделение разметкой
+// Markdown (static/editor.js); без JavaScript её не видно. Метка — через for, а не обёрткой: кнопки внутри label
+// перехватили бы её связь с textarea.
+templ MarkdownField(name, label, value, previewURL, errMsg string) {
 	<div class="editor">
 		<div class="md-field">
 			<label for={ name }>{ label }</label>
@@ -238,18 +244,20 @@ templ markdownField(b Block, field, label, value string, e FormEnv) {
 				id={ name }
 				name={ name }
 				rows="10"
-				hx-post={ e.PreviewURL + "?field=" + name }
+				hx-post={ previewURL + "?field=" + name }
 				hx-params={ name }
 				hx-trigger="input changed delay:400ms"
 				hx-target={ "#" + name + "-preview" }
 				hx-swap="innerHTML"
 				hx-sync="this:replace"
-				if e.err(b, field) != "" {
+				if errMsg != "" {
 					aria-invalid="true"
 					aria-describedby={ name + "-error" }
 				}
 			>{ value }</textarea>
-			@fieldError(b, field, e)
+			if errMsg != "" {
+				<span class="field-error" id={ name + "-error" }>{ errMsg }</span>
+			}
 		</div>
 		<section class="preview" aria-label="Превью">
 			<p class="preview-title" aria-hidden="true">Превью</p>

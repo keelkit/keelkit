@@ -416,7 +416,9 @@ Seed блога (`seedBlog`): 3 категории, 13 опубликованн�
   поэтому адреса для админки категорий передаёт `newMux` (`categories.NewAdmin(db, posts.CategoryPath, posts.EditPath)`).
 - Поле `richtext` (и Markdown в блоках): textarea + превью (`hx-post` на `…/preview?field=<имя>`, `hx-params` — только это поле,
   `hx-trigger="input changed delay:400ms"`, `hx-sync="this:replace"`); превью при открытии формы рисует сервер,
-  ответ превью — тот же `richtext.Render`.
+  ответ превью — тот же `richtext.Render`. Компонент — `blocks.MarkdownField(имя, метка, значение, previewURL, ошибка)`,
+  ответ превью — `blocks.Preview(src)`: ими же строится поле `richtext` записи у типа без `blocks` (`id` textarea —
+  имя поля). Анонс из такого поля — `blocks.Cut(richtext.PlainText(src), n)`, как `blocks.Summary` у блоков.
   Над textarea — панель оформления (`markdownToolbar` в `internal/blocks/form.templ`, `static/editor.js`): жирный,
   курсив, зачёркнутый, ссылка, подзаголовок `##`, списки, цитата, код (надписи — классические английские: B, I, S, Link,
   H2, UL, OL, Quote, `</>`; подсказка `title` — по-русски, `aria-label` начинается с надписи). Кнопка оборачивает выделение разметкой Markdown

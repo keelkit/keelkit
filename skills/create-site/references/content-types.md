@@ -20,7 +20,7 @@
 - `pages` без `draft` (как в `spec/examples/blog.yaml`): одна таблица `pages` (id, поля, `created_at`,
   `updated_at`), «Сохранить» — сразу на сайте, статусов, «Опубликовать», «Снять с публикации» и предпросмотра
   черновика нет; остальное (главная, slug, `reservedSlugs`, редиректы `page_redirects` при смене slug, 409 удаления
-  страницы из меню, главную не удалить) — как в эталоне.
+  страницы из меню, главную не удалить) — как в эталоне. Меню читает таблицу страниц напрямую — см. `wiring.md`.
 - Раздел ленты — константа `<Тип>Path` пакета (как `posts.BlogPath`): один сегмент, по умолчанию `/<тип>`
   (`/news`, `/services`); название раздела — по смыслу на языке сайта. Константа входит в `reservedSlugs`, пункт-раздел
   меню (`menuSections`) и тесты — так же, как `BlogPath` (раздел «Адрес раздела постов» `AGENTS.md`).
@@ -43,11 +43,11 @@
 |---|---|---|---|---|
 | `string` | `TEXT NOT NULL DEFAULT ''`; обязательное — `CHECK (x <> '')` | `<input>`, `TrimSpace` | текст | `posts.title`, `people.role` |
 | `text` | так же | `<textarea>` без превью, `TrimSpace`, CRLF → LF | текст, абзацы — по пустой строке или `white-space: pre-line` | `posts.lead` |
-| `richtext` | так же | `<textarea>` + панель оформления (`markdownToolbar`) + превью (`POST …/preview?field=`) | `richtext.Render`, вывод `@body` | Markdown блока `text` (`internal/blocks`), раздел «Поле richtext» `AGENTS.md` |
+| `richtext` | так же | `blocks.MarkdownField("<поле>", …)`: textarea `#<поле>`, панель оформления, превью (`POST …/preview?field=`, ответ — `blocks.Preview`) | `richtext.Render`, вывод `@body`; анонс — `blocks.Cut(richtext.PlainText(…), n)` | Markdown блока `text` (`internal/blocks`), «Поле richtext» в разделе «Тип контента» `AGENTS.md` |
 | `int` | обязательное — `INTEGER NOT NULL`; необязательное — `INTEGER` (NULL; `sql.NullInt64`: 0 — значение, а не пусто) | `<input type="number" inputmode="numeric">`, `strconv.ParseInt`; ошибка «Введите целое число» | число; цена — с разделителем разрядов на языке сайта | нет |
 | `bool` | `INTEGER NOT NULL DEFAULT 0 CHECK (x IN (0, 1))` (`required` не имеет смысла) | `<input type="checkbox" value="1">` | условие вывода или пометка | `menu_items.children` |
 | `date` | `TEXT NOT NULL DEFAULT ''`, формат `2006-01-02`; обязательное — `CHECK (x <> '')` | `<input type="date">`, `time.Parse("2006-01-02")`; ошибка «Неверная дата» | дата на языке сайта (`humanDate` из `posts/dates.go` — по образцу, без времени) | `posts.publish_date` — дата со временем, другое |
-| `image` | `TEXT REFERENCES images_files (id)`, NULL — нет (обязательное — `NOT NULL`); с `mobile: true` — ещё `<поле>_mobile` | `select` из медиатеки + превью, смена — htmx-перерисовка поля (`POST …/<поле>`) | `web.Picture` / `web.PictureMobile` | `posts.cover`, `people.photo` |
+| `image` | `TEXT REFERENCES images_files (id)`, NULL — нет (обязательное — `NOT NULL`); с `mobile: true` — ещё `<поле>_mobile` | `select` из медиатеки + превью, смена — htmx-перерисовка поля (`POST …/<поле>`); с `mobile` — живой предпросмотр (ниже) | `web.Picture` / `web.PictureMobile` | `posts.cover`, `people.photo` |
 | `ref` | `INTEGER REFERENCES <to> (id)`, NULL — нет; колонка `<поле>_id`, индекс | `select` с «— не выбрано —»; варианты — запрос в своём пакете | ссылка или название | `posts.category` |
 | `slug` | `TEXT NOT NULL UNIQUE CHECK (slug <> '')` (у копии — частичные уникальные индексы) | `internal/slug`, «Адрес» в свёрнутом разделе | адрес записи | `pages.slug` |
 | `blocks` | `TEXT NOT NULL DEFAULT '[]' CHECK (json_valid… AND json_type… = 'array')`, колонка `blocks` | `internal/blocks`; живой предпросмотр `admin.Live` | `blocks.View` | `pages.body` |
@@ -57,6 +57,10 @@
   `TestSpecBlocksMatchCode`. Блок из `allow`, которого нет в `blocks.Kinds`, — новый тип блока (раздел «Как добавить
   тип блока» `AGENTS.md`); блок-список по типу контента — раздел «Блоки», «Блок-список». Блоки эталона, которых нет ни в
   одном `allow`, не удаляй из `internal/blocks` — они не мешают и пригодятся `add-section`.
+- `image` с `mobile: true`: картинку для телефона выбирают только в режиме «Телефон» живого предпросмотра
+  (`admin.Live`, `data-image-mode`; раздел «Живой предпросмотр» `AGENTS.md`) — без него второй выбор поля скрыт.
+  Поэтому у такого типа обязателен живой предпросмотр, даже без поля `blocks`: хендлер `Live`, маршрут
+  `POST /admin/<тип>/live`, обёртка `admin.Live` в форме, e2e по `e2e_live_test.go` (образец — `posts`, обложка).
 - `list`: структура элемента в пакете типа с полем `ID`; поля элемента — по той же таблице (без `slug`, `blocks`,
   `list`). `ref` в элементе — `select` как у поля `ref`, но в JSON хранится id: внешнего ключа нет, поэтому
   несуществующий id при выводе пропускается, а при сохранении — ошибка у поля элемента; если на запись ссылаются
