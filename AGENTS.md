@@ -81,6 +81,8 @@ SEO, sitemap и RSS на первом этапе пишутся в коде эт
 │   └── UPGRADE.md          # что менять в site.yaml при обновлении валидатора
 ├── skills/                 # плагин keelkit: скиллы (create-site, add-section, upgrade-site, ...)
 │   ├── .claude-plugin/     # plugin.json — манифест и версия плагина
+│   ├── create-site/        # SKILL.md, references/, scripts/ (fetch-reference.sh, check-site.sh)
+│   ├── CHANGELOG.md
 │   └── evals/              # эвалы скиллов
 └── reference/              # эталонный сайт: страницы + блог (свой go.mod)
 ```
@@ -259,7 +261,11 @@ content:
 Версия плагина (semver) — только в `plugin.json`, в записи маркетплейса её нет: один источник правды.
 Установка: `/plugin marketplace add voffkin/keelkit` (или локальный путь к монорепо), затем `/plugin install keelkit@keelkit`.
 Манифесты проверяет `make plugin-validate` (`claude plugin validate --strict`; входит в `make check` без `MODULE`).
-Сайт указывает в своём `AGENTS.md` минимальную версию плагина. Скиллы не копируются в репозитории сайтов: скилл обновления должен быть свежее сайта.
+Релиз плагина — `make release MODULE=skills VERSION=vX.Y.Z`: тег `skills/vX.Y.Z`, версия в `plugin.json` должна
+совпадать, запись в `skills/CHANGELOG.md`, проверки — `make check` целиком. Тег фиксирует и эталон: `create-site`
+копирует `reference/` именно с тега своей версии (`skills/create-site/scripts/fetch-reference.sh`; `KEELKIT_REPO` —
+локальный клон для разработки и эвалов), поэтому скилл и эталон, по которому он написан, всегда совпадают.
+Сайт указывает в своём `AGENTS.md` минимальную версию плагина и эталон (тег и коммит), из которого создан. Скиллы не копируются в репозитории сайтов: скилл обновления должен быть свежее сайта.
 
 Эвалы требуют вызовов LLM, поэтому в CI запускаются вручную (`workflow_dispatch`) и обязательно перед релизом скилла.
 

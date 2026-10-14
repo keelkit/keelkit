@@ -831,7 +831,11 @@ make docker && docker run --rm -v kk:/data keelkit-reference migrate \
 Цель: агент создаёт новый сайт по спецификации и обновляет существующий.
 
 - [x] `.claude-plugin/marketplace.json` и манифест плагина `skills/.claude-plugin/plugin.json` (корень плагина — `skills/`); версия плагина `0.1.0` — только в `plugin.json`; `make plugin-validate`
-- [ ] `skills/create-site/`: вопросы → `site.yaml` → проверка `spec-validate` → копирование устройства `reference/` → генерация типов контента → `make generate test e2e`
+- [x] `skills/create-site/`: вопросы → `site.yaml` → проверка `spec-validate` → копирование устройства `reference/` → генерация типов контента → `make generate test e2e`.
+      Эталон — копия `reference/` с тега плагина `skills/vX.Y.Z` (`scripts/fetch-reference.sh`, `KEELKIT_REPO` — локальный клон);
+      настройки и меню скилл предлагает всегда (решения человека, 2026-10-14); `scripts/check-site.sh` — проверка структуры;
+      в эталоне — `db/schema.sql` (`make schema`): итоговая схема для генерации миграций нового сайта;
+      `make release MODULE=skills` — релиз плагина
 - [ ] `skills/upgrade-site/`: поднять версию модуля → применить шаги из `UPGRADE.md` → `make migrate` на копии → тесты → PR
 - [ ] Для эвала `upgrade-site` — выпустить `images v0.2.0` с изменением, требующим действий (например, новая версия профиля и запись в `UPGRADE.md`)
 - [ ] `skills/evals/`: по `spec/examples/*.yaml` — сайт собирается, тесты проходят, структура совпадает с конвенциями (скрипт-проверка структуры папок и целей `Makefile`)

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Релиз модуля монорепо: проверки и тег <каталог>/vX.Y.Z, затем push тега в origin.
 # Запускается только через make: make release MODULE=images VERSION=v0.1.0 [DRY_RUN=1]
+# MODULE=skills — релиз плагина keelkit (skills/): версия в skills/.claude-plugin/plugin.json должна совпадать
+# с VERSION; тег фиксирует и эталон reference/, который create-site копирует по этому тегу, поэтому проверки — make check целиком.
 # DRY_RUN=1 выполняет все проверки и показывает, что было бы сделано, ничего не меняя.
 # Совместим с bash 3.2 (macOS).
 set -u
@@ -15,12 +17,14 @@ bad()  { printf '  FAIL  %s\n' "$1"; fail=1; }
 die()  { printf 'release: %s\n' "$1" >&2; exit 1; }
 
 [ -n "$MODULE" ] && [ -n "$VERSION" ] || die "укажите MODULE и VERSION, например make release MODULE=images VERSION=v0.1.0"
+PLUGIN=0
 case "$MODULE" in
   spec) DIR=spec ;;
-  reference) die "reference/ — эталонный сайт, он не выпускается" ;;
+  skills) DIR=skills; PLUGIN=1 ;;
+  reference) die "reference/ — эталонный сайт, он не выпускается (его версию фиксирует релиз плагина: MODULE=skills)" ;;
   *) DIR="modules/$MODULE" ;;
 esac
-[ -f "$DIR/go.mod" ] || die "нет $DIR/go.mod"
+[ "$PLUGIN" = 1 ] || [ -f "$DIR/go.mod" ] || die "нет $DIR/go.mod"
 echo "$VERSION" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' \
   || die "VERSION=$VERSION: нужен semver без суффиксов, например v0.1.0"
 
@@ -57,7 +61,11 @@ if [ "$HAS_ORIGIN" = 1 ]; then
   if [ "$(git rev-parse -q --verify origin/main 2>/dev/null)" = "$HEAD_SHA" ]; then ok "HEAD совпадает с origin/main"; else bad "HEAD не совпадает с origin/main — сначала git push"; fi
 fi
 
-# 3. Путь модуля соответствует мажорной версии (v2+ — суффикс /vN).
+# 3. Плагин: версия в plugin.json совпадает с VERSION. Модуль: путь соответствует мажорной версии (v2+ — суффикс /vN).
+if [ "$PLUGIN" = 1 ]; then
+  PVER="$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' skills/.claude-plugin/plugin.json | head -1)"
+  if [ "$PVER" = "$NUM" ]; then ok "plugin.json: version $NUM"; else bad "skills/.claude-plugin/plugin.json: version «$PVER», а релиз $VERSION"; fi
+else
 MODPATH="$(awk '$1 == "module" {print $2; exit}' "$DIR/go.mod")"
 SUFFIX="$(echo "$MODPATH" | grep -Eo '/v[0-9]+$' || true)"
 if [ "$MAJOR" -ge 2 ]; then
@@ -66,6 +74,7 @@ else
   if [ -z "$SUFFIX" ]; then ok "путь модуля $MODPATH"; else bad "для $VERSION путь модуля без суффикса /vN: $MODPATH"; fi
 fi
 if grep -Eq '^[[:space:]]*replace([[:space:]]|\()' "$DIR/go.mod"; then bad "в $DIR/go.mod есть replace"; else ok "в go.mod нет replace"; fi
+fi
 
 # 4. CHANGELOG.md: раздел «## [X.Y.Z]».
 SECTION=""
@@ -89,11 +98,13 @@ fi
 
 # 6. Локальные проверки CI (make check). CI на GitHub пока запускается только вручную (решение человека,
 # см. «CI» в AGENTS.md), поэтому релиз проверяет HEAD сам. Запускаются, только если прошло всё остальное: это долго.
+CHECK_MODULE="$MODULE"
+[ "$PLUGIN" = 0 ] || CHECK_MODULE=""
 if [ "$fail" = 0 ]; then
-  echo "  ...   make check MODULE=$MODULE"
-  if make --no-print-directory check MODULE="$MODULE"; then ok "make check MODULE=$MODULE"; else bad "make check MODULE=$MODULE"; fi
+  echo "  ...   make check MODULE=$CHECK_MODULE"
+  if make --no-print-directory check MODULE="$CHECK_MODULE"; then ok "make check MODULE=$CHECK_MODULE"; else bad "make check MODULE=$CHECK_MODULE"; fi
 else
-  echo "  skip  make check MODULE=$MODULE — сначала исправьте ошибки выше"
+  echo "  skip  make check MODULE=$CHECK_MODULE — сначала исправьте ошибки выше"
 fi
 
 if [ "$fail" != 0 ]; then

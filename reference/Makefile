@@ -62,7 +62,7 @@ SPEC_VALIDATE = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/voffkin/keelkit/sp
 
 SITE = ADDR=$(ADDR) BASE_URL=$(BASE_URL) DATA_DIR=$(DATA_DIR) BACKUP_DIR=$(BACKUP_DIR) COOKIE_SECURE=$(COOKIE_SECURE) go run ./cmd/site
 
-.PHONY: help build docker run dev migrate backup seed user-create reprocess-images reset generate generate-check test test-isolated e2e e2e-browser lint deps-check spec-validate
+.PHONY: help build docker run dev migrate backup seed user-create reprocess-images reset generate generate-check schema test test-isolated e2e e2e-browser lint deps-check spec-validate
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -112,6 +112,9 @@ generate-check: ## Проверить, что кодогенерация нич�
 	$(MAKE) generate; \
 	after="$$(git status --porcelain --untracked-files=all -- . && git diff -- .)"; \
 	if [ "$$before" != "$$after" ]; then echo "generate-check: генерация изменила файлы, выполните make generate и закоммитьте"; git status --short -- .; exit 1; fi
+
+schema: ## Записать итоговую схему БД после всех миграций в db/schema.sql (её сверяет TestSchemaSnapshot)
+	UPDATE_SCHEMA=1 go test -count=1 -run '^TestSchemaSnapshot$$' ./cmd/site
 
 test: ## Тесты сайта
 	go test ./...
