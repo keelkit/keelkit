@@ -1,5 +1,7 @@
 # Общий минимальный конфиг golangci-lint (v2) для модулей и сайтов Keelkit.
-# Копия лежит в reference/.golangci.yml: сайт в отдельном репозитории должен быть самодостаточным.
+# Копия лежит в reference/.golangci.yml: сайт в отдельном репозитории должен быть самодостаточным. Отличие копии —
+# goimports.local-prefixes: свои пакеты сайта — отдельной группой импортов после внешних (create-site подставляет путь
+# модуля сайта; путь без точки, например my-blog, без этого goimports отнёс бы к стандартной библиотеке).
 version: "2"
 
 run:
@@ -34,3 +36,7 @@ formatters:
   enable:
     - gofmt
     - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/keelkit/keelkit/reference

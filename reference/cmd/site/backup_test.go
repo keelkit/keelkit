@@ -15,6 +15,7 @@ import (
 
 	"github.com/keelkit/keelkit/modules/files"
 	"github.com/keelkit/keelkit/modules/files/testkit"
+
 	"github.com/keelkit/keelkit/reference/internal/web"
 )
 
