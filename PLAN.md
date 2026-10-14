@@ -844,6 +844,24 @@ make docker && docker run --rm -v kk:/data keelkit-reference migrate \
 - [ ] Пробный прогон `create-site` на `spec/examples/blog.yaml` в пустой папке вне монорепо, эталон — `KEELKIT_REPO=<клон монорепо>`
       (тега `skills/v0.1.0` ещё нет). Скилл ещё ни разу не запускался целиком: по итогам — поправить `SKILL.md` и справочники
       там, где агент ошибся или спросил лишнее, и заполнить раздел «Пример» в `README.md` (вопросы, `site.yaml`, структура, проверки)
+      **Идёт (2026-10-14).** Сайт — `~/goScripts/keelkit-trial/my-blog` (путь модуля `my-blog`, эталон — коммит `6c5ffa0`;
+      настройки и меню эталона добавлены умолчаниями). Сделано: миграции 00001–00005, `pages` (одна таблица, Markdown,
+      редиректы при смене slug), `posts` (summary + Markdown body, без SEO; живой предпросмотр оставлен), убраны `people`,
+      `files`, блоки `file`/`people`, seed — блог о путешествиях; `go build` проходит. Осталось: тесты
+      (`e2e_live_test`, `e2e_posts_admin_test`, `e2e_seo_test`, `e2e_settings_test`, `spec_test` — import `maps`,
+      `browser_test`), `make schema`, `AGENTS.md` сайта, шаг 6 скилла (lint, test, e2e-browser, check-site, live-проверка).
+      Находки для скилла (поправить после прогона):
+      - номера миграций: меню ссылается на `pages`, поэтому `00002_menus` до таблицы страниц — неверно; порядок — по ссылкам;
+      - поле `richtext` у типа: образца в эталоне нет (Markdown-поле было приватным в блоках) — на сайте вынесен
+        `blocks.MarkdownField` и `blocks.Cut`; стоит перенести в эталон;
+      - `image` с `mobile: true` выбирается только в режиме «Телефон» `admin.Live`: тип с таким полем обязан иметь живой
+        предпросмотр, даже без `blocks` — в `content-types.md` не сказано;
+      - `internal/menu` зависит от модели черновика страниц (`page_contents`, «не опубликована») — нет в `wiring.md`;
+      - сайт без единого поля `blocks`: что делать с `internal/blocks` (оставлен ради Markdown-поля; `TestBlockListsMatchKinds`
+        и `blockLists` убраны) — скилл не говорит;
+      - тесты эталона завязаны на тексты seed («Keelkit — эталонный сайт», категории Go/Веб) — правдоподобный seed
+        требует правки почти всех e2e; стоит вынести ожидания в константы seed;
+      - сделано по ходу в монорепо: путь модуля без точки (`my-blog`) и `goimports.local-prefixes` в эталоне.
 - [ ] `skills/evals/`: по `spec/examples/*.yaml` — сайт собирается, тесты проходят, структура совпадает с конвенциями
       (проверка структуры — уже есть: `skills/create-site/scripts/check-site.sh`)
 - [ ] CI: джоба эвалов через `workflow_dispatch`
