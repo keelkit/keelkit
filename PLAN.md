@@ -838,7 +838,11 @@ make docker && docker run --rm -v kk:/data keelkit-reference migrate \
       `make release MODULE=skills` — релиз плагина
 - [ ] `skills/upgrade-site/`: поднять версию модуля → применить шаги из `UPGRADE.md` → `make migrate` на копии → тесты → PR
 - [ ] Для эвала `upgrade-site` — выпустить `images v0.2.0` с изменением, требующим действий (например, новая версия профиля и запись в `UPGRADE.md`)
-- [ ] `skills/evals/`: по `spec/examples/*.yaml` — сайт собирается, тесты проходят, структура совпадает с конвенциями (скрипт-проверка структуры папок и целей `Makefile`)
+- [ ] Пробный прогон `create-site` на `spec/examples/blog.yaml` в пустой папке вне монорепо, эталон — `KEELKIT_REPO=<клон монорепо>`
+      (тега `skills/v0.1.0` ещё нет). Скилл ещё ни разу не запускался целиком: по итогам — поправить `SKILL.md` и справочники
+      там, где агент ошибся или спросил лишнее, и заполнить раздел «Пример» в `README.md` (вопросы, `site.yaml`, структура, проверки)
+- [ ] `skills/evals/`: по `spec/examples/*.yaml` — сайт собирается, тесты проходят, структура совпадает с конвенциями
+      (проверка структуры — уже есть: `skills/create-site/scripts/check-site.sh`)
 - [ ] CI: джоба эвалов через `workflow_dispatch`
 
 ### Проверка
