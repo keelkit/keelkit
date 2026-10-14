@@ -1,4 +1,4 @@
-module github.com/voffkin/keelkit/modules/files
+module github.com/keelkit/keelkit/modules/files
 
 go 1.26.0
 

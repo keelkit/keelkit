@@ -13,9 +13,9 @@ import (
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 
-	"github.com/voffkin/keelkit/modules/auth"
-	"github.com/voffkin/keelkit/modules/auth/migrations"
-	"github.com/voffkin/keelkit/modules/auth/testkit"
+	"github.com/keelkit/keelkit/modules/auth"
+	"github.com/keelkit/keelkit/modules/auth/migrations"
+	"github.com/keelkit/keelkit/modules/auth/testkit"
 )
 
 // Мини-сайт, устроенный как эталонный: страница входа и админка рисуются сайтом, вход — через Service.

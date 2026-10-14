@@ -2,14 +2,6 @@
 
 # Совместимо с GNU Make 3.81 (по умолчанию на macOS): без .ONESHELL, $(file ...) и других возможностей 4.x.
 
-# Приватные модули Keelkit (github.com/voffkin/keelkit): Go берёт их прямо из git, минуя публичный прокси
-# и базу контрольных сумм, а git ходит в GitHub по SSH. Действует только на процессы make — глобальные
-# настройки git и Go не меняются. Нужен SSH-ключ с доступом к репозиторию (см. «Доступ к модулям» в AGENTS.md).
-export GOPRIVATE = github.com/voffkin/*
-export GIT_CONFIG_COUNT = 1
-export GIT_CONFIG_KEY_0 = url.git@github.com:voffkin/.insteadOf
-export GIT_CONFIG_VALUE_0 = https://github.com/voffkin/
-
 # Тег nodynamic: кодек WebP (gen2brain/webp) не подгружает системную libwebp — модули и reference/ тестируются
 # на том же коде, что работает в бинарнике сайта (см. BUILD_TAGS в reference/Makefile).
 export GOFLAGS = -tags=nodynamic

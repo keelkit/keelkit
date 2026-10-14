@@ -2,6 +2,13 @@
 
 Инструкции для агентов: что менять в `site.yaml` сайта при переходе на версию валидатора (`SPEC_VERSION` в `Makefile` сайта).
 
+## v0.8.0
+
+**Что изменилось.** Путь валидатора — `github.com/keelkit/keelkit/spec/cmd/spec-validate` (был
+`github.com/voffkin/keelkit/…`). Правила — как в v0.7.0.
+
+**Что сделать.** `site.yaml` не меняется. В `Makefile` сайта — новый путь в `SPEC_VALIDATE` и `SPEC_VERSION ?= v0.8.0`.
+
 ## v0.5.0
 
 **Что изменилось.** Имя поля `sort_order` служебное: ручной порядок записей описывается feature `order`.

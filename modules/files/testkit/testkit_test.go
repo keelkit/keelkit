@@ -9,9 +9,9 @@ import (
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite" // драйвер "sqlite" без CGO
 
-	"github.com/voffkin/keelkit/modules/files"
-	"github.com/voffkin/keelkit/modules/files/migrations"
-	"github.com/voffkin/keelkit/modules/files/testkit"
+	"github.com/keelkit/keelkit/modules/files"
+	"github.com/keelkit/keelkit/modules/files/migrations"
+	"github.com/keelkit/keelkit/modules/files/testkit"
 )
 
 // TestRun — контрактные тесты на минимальной интеграции, как её собрал бы сайт.

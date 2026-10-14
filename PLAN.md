@@ -836,8 +836,11 @@ make docker && docker run --rm -v kk:/data keelkit-reference migrate \
       настройки и меню скилл предлагает всегда (решения человека, 2026-10-14); `scripts/check-site.sh` — проверка структуры;
       в эталоне — `db/schema.sql` (`make schema`): итоговая схема для генерации миграций нового сайта;
       `make release MODULE=skills` — релиз плагина
+- [x] Репозиторий переехал в организацию: `github.com/keelkit/keelkit`, публичный (решение человека, 2026-10-14) —
+      чтобы создать сайт, не нужны ни доступ к чужому репозиторию, ни SSH-ключ. Путь модулей сменён до первого сайта;
+      под новым путём — `modules/*` v0.2.0 и `spec` v0.8.0; `GOPRIVATE`, `GIT_CONFIG_*` и deploy key убраны
 - [ ] `skills/upgrade-site/`: поднять версию модуля → применить шаги из `UPGRADE.md` → `make migrate` на копии → тесты → PR
-- [ ] Для эвала `upgrade-site` — выпустить `images v0.2.0` с изменением, требующим действий (например, новая версия профиля и запись в `UPGRADE.md`)
+- [ ] Для эвала `upgrade-site` — выпустить `images v0.3.0` с изменением, требующим действий (например, новая версия профиля и запись в `UPGRADE.md`)
 - [ ] Пробный прогон `create-site` на `spec/examples/blog.yaml` в пустой папке вне монорепо, эталон — `KEELKIT_REPO=<клон монорепо>`
       (тега `skills/v0.1.0` ещё нет). Скилл ещё ни разу не запускался целиком: по итогам — поправить `SKILL.md` и справочники
       там, где агент ошибся или спросил лишнее, и заполнить раздел «Пример» в `README.md` (вопросы, `site.yaml`, структура, проверки)
@@ -853,7 +856,7 @@ make docker && docker run --rm -v kk:/data keelkit-reference migrate \
 # запустить create-site со spec/examples/landing.yaml в пустой папке /tmp/kk-landing
 cd /tmp/kk-landing && make dev    # сайт открывается на :9090, seed заполнен
 make evals SKILL=create-site      # отчёт: собралось / тесты / конвенции — по каждому примеру
-make evals SKILL=upgrade-site     # копия reference на v0.1.0 → обновлена до v0.2.0, тесты зелёные
+make evals SKILL=upgrade-site     # копия reference на v0.2.0 → обновлена до v0.3.0, тесты зелёные
 ```
 
 ---
@@ -881,8 +884,7 @@ make evals SKILL=upgrade-site     # копия reference на v0.1.0 → обн�
 
 - [ ] CI: path-фильтры (`modules/<X>` и `spec/` → джобы модуля и `reference/`), `lint`, `test`, `test-isolated`, `generate-check`, `deps-check`, для `reference/` — ещё `e2e` и `e2e-browser`, всё с `GOWORK=off`
 - [ ] Вернуть автозапуск CI (`push` в `main`, `pull_request`; до этапа 14 — только `workflow_dispatch`, проверки — локально `make check`)
-- [ ] Доступ CI к приватным модулям: deploy key `KEELKIT_DEPLOY_KEY` или `GITHUB_TOKEN` (открытое решение в `AGENTS.md`, решает человек); CI сайтов в отдельных репозиториях — свой deploy key
-- [ ] `make release` снова требует зелёный CI для HEAD (через `gh`; токену нужен доступ к `voffkin/keelkit`: Actions — read) — в дополнение к `make check` или вместо неё
+- [ ] `make release` снова требует зелёный CI для HEAD (через `gh`) — в дополнение к `make check` или вместо неё
 - [ ] Тест миграции на копии реалистичных данных (seed + сгенерированные 1000 постов) — заготовка для будущих миграций данных;
       понадобится раньше — делается вместе с первой такой миграцией
 

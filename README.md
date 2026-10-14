@@ -8,7 +8,7 @@
 подключается модулями Keelkit как обычные версионируемые зависимости. Поэтому сайт, созданный давно, получает
 исправления через обновление зависимости, а не правкой своего кода.
 
-> Репозиторий приватный, проект в разработке (первый этап, модули `v0.x`). Ход работ — [`PLAN.md`](PLAN.md).
+> Проект в разработке (первый этап, модули `v0.x`). Ход работ — [`PLAN.md`](PLAN.md).
 
 ## Из чего состоит
 
@@ -23,9 +23,7 @@
 
 - **Go** — версия из директивы `toolchain` в `go.mod` (сейчас `go1.27.2`); при `GOTOOLCHAIN=auto` (по умолчанию) Go
   скачает её сам, достаточно любого Go 1.21+.
-- **git ≥ 2.31** и **SSH-ключ с доступом к `voffkin/keelkit`**: модули скачиваются из приватного репозитория.
-  Проверка: `ssh -T git@github.com`. Настраивать `GOPRIVATE` и git не нужно — это делает `Makefile`; для gopls в IDE
-  один раз: `go env -w 'GOPRIVATE=github.com/voffkin/*'`.
+- **git**.
 - **make** (подходит GNU Make 3.81 из macOS).
 - **Chrome** — для браузерных тестов админки (`make e2e-browser`).
 - **Claude Code** — для скиллов и `make plugin-validate`.
@@ -34,7 +32,7 @@
 
 1. Подключить маркетплейс и установить плагин (в Claude Code):
    ```
-   /plugin marketplace add git@github.com:voffkin/keelkit.git
+   /plugin marketplace add keelkit/keelkit
    /plugin install keelkit@keelkit
    ```
    Для разработки скиллов — из локального клона: `/plugin marketplace add ~/путь/к/keelkit`.

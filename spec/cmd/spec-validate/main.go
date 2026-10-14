@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/voffkin/keelkit/spec"
+	"github.com/keelkit/keelkit/spec"
 )
 
 func main() {

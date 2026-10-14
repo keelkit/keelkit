@@ -3,8 +3,8 @@ package testkit_test
 import (
 	"testing"
 
-	"github.com/voffkin/keelkit/modules/richtext"
-	"github.com/voffkin/keelkit/modules/richtext/testkit"
+	"github.com/keelkit/keelkit/modules/richtext"
+	"github.com/keelkit/keelkit/modules/richtext/testkit"
 )
 
 // TestRun — контрактные тесты на минимальной интеграции: richtext выводится через Render.

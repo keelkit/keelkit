@@ -1,4 +1,4 @@
-module github.com/voffkin/keelkit/modules/auth
+module github.com/keelkit/keelkit/modules/auth
 
 go 1.26.0
 

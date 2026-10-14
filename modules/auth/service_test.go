@@ -20,7 +20,7 @@ import (
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 
-	"github.com/voffkin/keelkit/modules/auth/migrations"
+	"github.com/keelkit/keelkit/modules/auth/migrations"
 )
 
 // openDB — пустая база с прагмами, как у сайта.

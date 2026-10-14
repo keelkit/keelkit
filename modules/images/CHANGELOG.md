@@ -5,6 +5,14 @@
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-14
+
+Репозиторий переехал в `github.com/keelkit/keelkit` и стал публичным. Код и API — как в v0.1.0.
+
+### Changed
+- Путь модуля — `github.com/keelkit/keelkit/modules/images` (был `github.com/voffkin/keelkit/modules/images`); версии
+  до v0.2.0 есть только под старым путём. Что сделать сайту — UPGRADE.md, раздел v0.2.0.
+
 ## [0.1.0] — 2026-10-02
 
 Первый выпуск. Подключение к сайту — UPGRADE.md, раздел v0.1.0.

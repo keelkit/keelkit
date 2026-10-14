@@ -20,7 +20,7 @@ import (
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite" // драйвер "sqlite" без CGO
 
-	"github.com/voffkin/keelkit/modules/images/migrations"
+	"github.com/keelkit/keelkit/modules/images/migrations"
 )
 
 // newDB — файл SQLite в t.TempDir() с миграциями модуля, применёнными goose так же, как это делает сайт.

@@ -5,6 +5,14 @@
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-14
+
+Репозиторий переехал в `github.com/keelkit/keelkit` и стал публичным. Код и API — как в v0.1.0.
+
+### Changed
+- Путь модуля — `github.com/keelkit/keelkit/modules/auth` (был `github.com/voffkin/keelkit/modules/auth`); версии
+  до v0.2.0 есть только под старым путём. Что сделать сайту — UPGRADE.md, раздел v0.2.0.
+
 ## [0.1.0] — 2026-10-13
 
 Первый выпуск: ядро авторизации `reference/internal/admin` вынесено в модуль, чтобы исправления входа и сессий

@@ -16,7 +16,7 @@ import (
 
 	xwebp "golang.org/x/image/webp"
 
-	"github.com/voffkin/keelkit/modules/images/internal/exif"
+	"github.com/keelkit/keelkit/modules/images/internal/exif"
 )
 
 func process(t *testing.T, name string) (*Result, error) {

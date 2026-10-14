@@ -43,7 +43,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/voffkin/keelkit/modules/auth"
+	"github.com/keelkit/keelkit/modules/auth"
 )
 
 // Site — сайт, на котором идут контрактные тесты. Setup вызывается для каждого теста заново.

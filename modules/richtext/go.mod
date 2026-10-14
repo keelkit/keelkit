@@ -1,4 +1,4 @@
-module github.com/voffkin/keelkit/modules/richtext
+module github.com/keelkit/keelkit/modules/richtext
 
 go 1.26.0
 

@@ -33,7 +33,7 @@ NUM="${VERSION#v}"
 MAJOR="${NUM%%.*}"
 echo "release $TAG"
 
-# 1. Тег неизменяем: существующий не переставляется (приватные модули не защищены sum.golang.org).
+# 1. Тег неизменяем: существующий не переставляется (sum.golang.org уже запомнил его содержимое).
 if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
   bad "тег $TAG уже есть локально — опубликованный тег не переставляют, выпустите следующую версию"
 else
@@ -48,7 +48,7 @@ if git remote get-url origin >/dev/null 2>&1; then
     bad "не удалось прочитать теги origin: $remote_tags"
   fi
 else
-  bad "нет remote origin (git remote add origin git@github.com:voffkin/keelkit.git)"
+  bad "нет remote origin (git remote add origin git@github.com:keelkit/keelkit.git)"
 fi
 
 # 2. Чистое дерево, ветка main, HEAD уже в origin/main (иначе CI для него не запускался).

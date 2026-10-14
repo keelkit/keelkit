@@ -2,6 +2,13 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — semver (теги `spec/vX.Y.Z`).
 
+## [0.8.0] — 2026-10-14
+
+### Changed
+- Путь модуля — `github.com/keelkit/keelkit/spec` (был `github.com/voffkin/keelkit/spec`): репозиторий переехал и стал
+  публичным; `$id` схемы — `https://raw.githubusercontent.com/keelkit/keelkit/main/spec/schema.json`. Правила схемы —
+  как в 0.7.0. Что сделать сайту — UPGRADE.md, раздел v0.8.0.
+
 ## [0.7.0] — 2026-10-14
 
 ### Added

@@ -3,6 +3,19 @@
 Инструкции для агентов: что менять в коде сайта при переходе на версию. Версии без действий здесь не перечисляются.
 Каждый раздел: что изменилось → изменения в коде сайта → проверка.
 
+## v0.2.0 — новый путь модуля
+
+**Что изменилось.** Путь модуля `github.com/voffkin/keelkit/modules/auth` → `github.com/keelkit/keelkit/modules/auth`:
+репозиторий переехал и стал публичным. Код, API, таблицы и миграции — как в v0.1.0.
+
+**Изменения в коде сайта.** Модули Keelkit переехали вместе — делается один раз для всех:
+1. Во всех файлах сайта (`go.mod`, Go-код, `.templ`, `Makefile`) заменить `github.com/voffkin/keelkit/` на
+   `github.com/keelkit/keelkit/`, версии модулей в `go.mod` — v0.2.0; затем `make generate` и `go mod tidy`.
+2. `Makefile` сайта: убрать `GOPRIVATE` и `GIT_CONFIG_*` — SSH-доступ к модулям больше не нужен, они идут через
+   публичный прокси Go; из `AGENTS.md` сайта — раздел о доступе к приватным модулям.
+
+**Проверка.** `make test`, `make test-isolated`, `make generate-check`; `grep -rn voffkin/keelkit .` ничего не находит.
+
 ## v0.1.0 — первое подключение
 
 **Что изменилось.** Ядро авторизации из `internal/admin` сайта (пароли argon2id, сессии и cookie, CSRF-токены,
@@ -11,10 +24,10 @@
 (таблица версий `goose_auth_version`); схема та же, поэтому данные не переносятся, пользователи и сессии сохраняются.
 
 **Изменения в коде сайта** (образец — `reference/`, коммит перехода на `auth v0.1.0`):
-1. `go get github.com/voffkin/keelkit/modules/auth@v0.1.0` (через `make`: нужны `GOPRIVATE` и SSH, см. `AGENTS.md`);
+1. `go get github.com/keelkit/keelkit/modules/auth@v0.2.0` (под путём `github.com/keelkit/keelkit` первая версия — v0.2.0);
    в `site.yaml` — `modules: { …, auth: v0 }` (валидатор `spec` с v0.4.0).
 2. Миграции: в источники миграций (`migrationSources` в `cmd/site/main.go`) — `{Name: "auth", FS: authmigrations.FS,
-   Table: authmigrations.Table}` (пакет `github.com/voffkin/keelkit/modules/auth/migrations`) в порядке `site.yaml`,
+   Table: authmigrations.Table}` (пакет `github.com/keelkit/keelkit/modules/auth/migrations`) в порядке `site.yaml`,
    до миграций сайта. В миграции сайта, создающей `users` и `sessions` (в эталоне `00003_users_sessions.sql`), —
    `CREATE TABLE IF NOT EXISTS` и `CREATE INDEX IF NOT EXISTS`: на новой базе таблицы уже создал модуль.
    На существующей базе эта миграция давно применена и повторно не выполняется, а миграция модуля проходит поверх

@@ -31,7 +31,7 @@ import (
 
 	xwebp "golang.org/x/image/webp"
 
-	"github.com/voffkin/keelkit/modules/images"
+	"github.com/keelkit/keelkit/modules/images"
 )
 
 // Env — интеграция сайта, на которой идут контрактные тесты. Setup вызывается для каждого теста заново;

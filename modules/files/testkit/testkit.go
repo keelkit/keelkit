@@ -31,7 +31,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voffkin/keelkit/modules/files"
+	"github.com/keelkit/keelkit/modules/files"
 )
 
 // Env — интеграция сайта, на которой идут контрактные тесты. Setup вызывается для каждого теста заново;

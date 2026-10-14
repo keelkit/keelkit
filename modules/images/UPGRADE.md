@@ -3,16 +3,29 @@
 Инструкции для агентов: что менять в коде сайта при переходе на версию. Версии без действий здесь не перечисляются.
 Каждый раздел: что изменилось → изменения в коде сайта → проверка → нужна ли повторная обработка.
 
+## v0.2.0 — новый путь модуля
+
+**Что изменилось.** Путь модуля `github.com/voffkin/keelkit/modules/images` → `github.com/keelkit/keelkit/modules/images`:
+репозиторий переехал и стал публичным. Код, API, таблицы и миграции — как в v0.1.0.
+
+**Изменения в коде сайта.** Модули Keelkit переехали вместе — делается один раз для всех:
+1. Во всех файлах сайта (`go.mod`, Go-код, `.templ`, `Makefile`) заменить `github.com/voffkin/keelkit/` на
+   `github.com/keelkit/keelkit/`, версии модулей в `go.mod` — v0.2.0; затем `make generate` и `go mod tidy`.
+2. `Makefile` сайта: убрать `GOPRIVATE` и `GIT_CONFIG_*` — SSH-доступ к модулям больше не нужен, они идут через
+   публичный прокси Go; из `AGENTS.md` сайта — раздел о доступе к приватным модулям.
+
+**Проверка.** `make test`, `make test-isolated`, `make generate-check`; `grep -rn voffkin/keelkit .` ничего не находит.
+
 ## v0.1.0 — первое подключение
 
 **Что изменилось.** Модуль впервые подключается к сайту: свои таблицы (`images_*`), свои миграции, сервис и HTTP-обработчик.
 
 **Изменения в коде сайта** (образец — `reference/`):
-1. `go get github.com/voffkin/keelkit/modules/images@v0.1.0` (через `make`: нужны `GOPRIVATE` и SSH, см. `AGENTS.md`);
+1. `go get github.com/keelkit/keelkit/modules/images@v0.2.0` (под путём `github.com/keelkit/keelkit` первая версия — v0.2.0);
    в `site.yaml` — `modules: { images: v0 }`.
 2. Миграции: источник модуля — **перед** миграциями сайта, в порядке из `site.yaml`:
    `database.Source{Name: "images", FS: migrations.FS, Table: migrations.Table}`
-   (пакет `github.com/voffkin/keelkit/modules/images/migrations`). `/healthz` показывает схему `images`.
+   (пакет `github.com/keelkit/keelkit/modules/images/migrations`). `/healthz` показывает схему `images`.
 3. Сервис: `st, err := images.NewDiskStorage(filepath.Join(dataDir, "uploads"))`,
    `svc := images.NewService(db, st, images.Config{})`. `st.Close()` — при остановке.
    БД — та же SQLite сайта; таблицы модуля не трогать запросами сайта, только через `Service`.
