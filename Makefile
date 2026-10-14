@@ -53,7 +53,7 @@ DIRS := modules/$(MODULE)
 endif
 endif
 
-.PHONY: help check test test-isolated lint deps-check release spec-validate plugin-validate images-demo build docker run dev migrate backup seed user-create reprocess-images reset generate generate-check e2e e2e-browser
+.PHONY: help check test test-isolated lint deps-check release spec-validate plugin-validate images-demo build docker run dev migrate backup seed user-create reprocess-images reset generate generate-check schema e2e e2e-browser
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -143,3 +143,6 @@ e2e: ## e2e-тесты эталонного сайта (httptest + goquery)
 
 e2e-browser: ## Браузерные тесты эталонного сайта (chromedp, нужен Chrome)
 	@$(MAKE) -C reference e2e-browser
+
+schema: ## Итоговая схема БД эталонного сайта в reference/db/schema.sql (после новой миграции)
+	@$(MAKE) -C reference schema

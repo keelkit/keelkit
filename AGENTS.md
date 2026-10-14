@@ -51,6 +51,7 @@ SEO, sitemap и RSS на первом этапе пишутся в коде эт
 
 ```
 /
+├── README.md               # для людей: что это, требования, установка плагина, создание сайта, разработка
 ├── AGENTS.md
 ├── CLAUDE.md               # @AGENTS.md — для Claude Code
 ├── LICENSE                 # MIT
@@ -83,6 +84,7 @@ SEO, sitemap и RSS на первом этапе пишутся в коде эт
 │   ├── .claude-plugin/     # plugin.json — манифест и версия плагина
 │   ├── create-site/        # SKILL.md, references/, scripts/ (fetch-reference.sh, check-site.sh)
 │   ├── CHANGELOG.md
+│   ├── README.md           # список скиллов плагина и их статус
 │   └── evals/              # эвалы скиллов
 └── reference/              # эталонный сайт: страницы + блог (свой go.mod)
 ```
@@ -259,7 +261,7 @@ content:
 плагин `keelkit` — каталог `skills/` (`skills/.claude-plugin/plugin.json`, скилл — `skills/<имя>/SKILL.md`).
 Корень плагина — `skills/`, а не корень монорепо: при установке копируются только скиллы и эвалы.
 Версия плагина (semver) — только в `plugin.json`, в записи маркетплейса её нет: один источник правды.
-Установка: `/plugin marketplace add voffkin/keelkit` (или локальный путь к монорепо), затем `/plugin install keelkit@keelkit`.
+Установка: `/plugin marketplace add git@github.com:voffkin/keelkit.git` (или локальный путь к монорепо), затем `/plugin install keelkit@keelkit`.
 Манифесты проверяет `make plugin-validate` (`claude plugin validate --strict`; входит в `make check` без `MODULE`).
 Релиз плагина — `make release MODULE=skills VERSION=vX.Y.Z`: тег `skills/vX.Y.Z`, версия в `plugin.json` должна
 совпадать, запись в `skills/CHANGELOG.md`, проверки — `make check` целиком. Тег фиксирует и эталон: `create-site`
@@ -370,7 +372,7 @@ site.yaml, sqlc.yaml, Makefile, AGENTS.md, CLAUDE.md
 - У каждой цели есть комментарий `## ...` с описанием и, если она принимает параметры, примером вызова.
 - Параметры передаются переменными с безопасными значениями по умолчанию (`VAR ?= ...`).
 - В корне монорепо `test`, `test-isolated`, `lint` без `MODULE` проходят по `modules/*`, `spec/` и `reference/`;
-  `MODULE=<name>` — `modules/<name>`, `MODULE=spec` и `MODULE=reference` — одноимённые каталоги. `build`, `run`, `dev`, `migrate`, `backup`, `seed`, `user-create`, `reprocess-images`, `reset`, `generate`, `generate-check`, `e2e`, `e2e-browser` делегируются в `reference/Makefile`;
+  `MODULE=<name>` — `modules/<name>`, `MODULE=spec` и `MODULE=reference` — одноимённые каталоги. `build`, `run`, `dev`, `migrate`, `backup`, `seed`, `user-create`, `reprocess-images`, `reset`, `generate`, `generate-check`, `schema`, `e2e`, `e2e-browser` делегируются в `reference/Makefile`;
   `images-demo` — своя цель корня (демо-отчёт модуля `images`);
   `deps-check` — по тем же каталогам, что `test`; `check` — все проверки CI по тем же каталогам
   (`lint`, `test`, `test-isolated`, `deps-check`; для `reference/` ещё `generate-check`, `e2e` и `e2e-browser`, для `spec/` — `spec-validate` `reference/site.yaml`; без `MODULE` — ещё `plugin-validate`); `release` — `scripts/release.sh` (`DRY_RUN=1` — только проверки).
@@ -442,7 +444,11 @@ test-isolated: ## Тесты модуля только на опубликова
 4. Не выноси код в новый модуль и не добавляй внешние зависимости без согласования с человеком. Перед добавлением или обновлением любой зависимости выполни проверки из раздела «Зависимости».
 5. Миграции, меняющие существующие данные, и изменения схемы спецификации — только после явного подтверждения человеком.
 6. Если конвенция не описана — посмотри, как сделано в `reference/`, и предложи дописать правило сюда.
-7. Правило противоречит задаче, требованиям или другому правилу, или его цена не оправдана — скажи об этом и предложи
+7. Изменение затрагивает то, что описано для людей, — обнови `README.md` (корень) и `skills/README.md` в том же
+   коммите: требования к машине (версии Go, git, инструменты), установку плагина, команды `make` из README, список и
+   статус скиллов, шаги создания и обновления сайта, состав модулей. README — краткий вход для человека: подробности
+   не дублируются, а даются ссылкой на `AGENTS.md`. Закончив этап `PLAN.md`, сверь README с тем, что изменилось.
+8. Правило противоречит задаче, требованиям или другому правилу, или его цена не оправдана — скажи об этом и предложи
    замену, а не обходи и не исполняй молча. Правила пишутся под задачи и меняются вместе с ними.
 
 ## Первый этап
