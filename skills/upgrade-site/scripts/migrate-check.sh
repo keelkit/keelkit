@@ -10,7 +10,9 @@
 #      Переданный каталог только копируется и не меняется.
 #   2. make migrate нового кода на копии (снимок БД — в BACKUP_DIR рядом с копией).
 #   3. REPROCESS_BELOW=N — make reprocess-images BELOW=N на копии (если UPGRADE.md требует повторной обработки).
-#   4. make run на 127.0.0.1:PORT (по умолчанию 9190): /healthz — status ok и pending 0 у всех схем, главная — 200.
+#   4. make run на 127.0.0.1:PORT (по умолчанию 9190): /healthz — status ok и pending 0 у всех схем, главная — 200;
+#      главная и до PAGES (по умолчанию 50) страниц из /sitemap.xml — 200, и все файлы, на которые они ссылаются
+#      (/media/… и /files/… в src, srcset, href), — 200: повторная обработка меняет адреса вариантов и удаляет старые.
 # Печатает /healthz и каталог копии (KEEP=1 — не удалять его). Выход 0 — всё в порядке. Совместим с bash 3.2 (macOS).
 set -eu
 
@@ -85,5 +87,24 @@ echo "$health" | grep -q '"status":"ok"' || die "/healthz: status не ok"
 code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/")"
 [ "$code" = 200 ] || die "главная отдала $code"
 echo "главная: 200"
+
+# Страницы: главная и адреса из sitemap.xml (с BASE_URL сайта — берётся только путь).
+URL="http://127.0.0.1:$PORT"
+{
+  echo /
+  curl -fsS "$URL/sitemap.xml" 2>/dev/null | grep -oE '<loc>[^<]+</loc>' | sed -E 's#</?loc>##g; s#^https?://[^/]+##'     | head -n "${PAGES:-50}" || true
+} | sort -u > "$WORK/pages"
+: > "$WORK/assets"
+while read -r page; do
+  code="$(curl -s -o "$WORK/page.html" -w '%{http_code}' "$URL$page")"
+  [ "$code" = 200 ] || die "страница $page отдала $code"
+  grep -oE '/(media|files)/[^" ,?#]+' "$WORK/page.html" >> "$WORK/assets" || true
+done < "$WORK/pages"
+sort -u -o "$WORK/assets" "$WORK/assets"
+while read -r a; do
+  code="$(curl -s -o /dev/null -w '%{http_code}' "$URL$a")"
+  [ "$code" = 200 ] || die "файл $a отдал $code (страницы ссылаются на него)"
+done < "$WORK/assets"
+echo "страниц: $(wc -l < "$WORK/pages" | tr -d ' '), файлов на них: $(wc -l < "$WORK/assets" | tr -d ' ') — все 200"
 stop
 echo "migrate-check: ok"

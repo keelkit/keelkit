@@ -847,12 +847,15 @@ make docker && docker run --rm -v kk:/data keelkit-reference migrate \
       `/healthz` с `pending: 0`. Ветка `keelkit-upgrade-<дата>`, коммит на модуль; push/PR или слияние — по ответу
       человека; на сервер — инструкция в итоге. Проверено на `my-blog` (всё актуально; `migrate-check.sh` зелёный);
       настоящий прогон — с `images v0.3.0` (следующий пункт)
-- [ ] Для эвала `upgrade-site` — выпустить `images v0.3.0` с изменением, требующим действий (например, новая версия профиля и запись в `UPGRADE.md`).
+- [x] Для эвала `upgrade-site` — выпустить `images v0.3.0` с изменением, требующим действий (например, новая версия профиля и запись в `UPGRADE.md`).
       Решено (человек, 2026-10-15): профиль v2 — размытая миниатюра на время загрузки (LQIP): ~32 px по длинной стороне,
       WebP в data URI, колонка в `images_files` (миграция модуля); у изображений с альфа-каналом заглушки нет (фон
       остался бы виден под прозрачностью). Вывод — фоном под `<img>` в `web.Picture` через SVG с `feGaussianBlur`
       (без JS); старым изображениям — `reprocess-images BELOW=2`. Затем эталон на v0.3.0 и прогон `upgrade-site` на
-      `~/goScripts/keelkit-trial/my-blog`
+      `~/goScripts/keelkit-trial/my-blog`. Сделано (2026-10-15): тег `modules/images/v0.3.0`, эталон на v0.3.0 (`web.Picture`: класс `ph`,
+      `--ph`/`--ph-m`); прогон на `my-blog` — ветка `keelkit-upgrade-2026-10-15` (не слита), все проверки и
+      `migrate-check.sh` с `REPROCESS_BELOW=2` зелёные. По находкам: `migrate-check.sh` обходит страницы из
+      `sitemap.xml` и проверяет, что файлы на них открываются. Осталось: релиз плагина `skills/v0.1.0`
 - [x] Пробный прогон `create-site` на `spec/examples/blog.yaml` в пустой папке вне монорепо, эталон — `KEELKIT_REPO=<клон монорепо>`
       (2026-10-14). Сайт — `~/goScripts/keelkit-trial/my-blog` (эталон — коммит `6c5ffa0`): миграции 00001–00005,
       `pages` без черновика, `posts` с Markdown и обложкой для телефона, без `people`, `files`, блоков; проверки шага 6
