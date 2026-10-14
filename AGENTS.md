@@ -83,6 +83,7 @@ SEO, sitemap и RSS на первом этапе пишутся в коде эт
 ├── skills/                 # плагин keelkit: скиллы (create-site, add-section, upgrade-site, ...)
 │   ├── .claude-plugin/     # plugin.json — манифест и версия плагина
 │   ├── create-site/        # SKILL.md, references/, scripts/ (fetch-reference.sh, check-site.sh)
+│   ├── upgrade-site/       # SKILL.md, scripts/ (upgrade-plan.sh, reference-diff.sh, migrate-check.sh)
 │   ├── CHANGELOG.md
 │   ├── README.md           # список скиллов плагина и их статус
 │   └── evals/              # эвалы скиллов
@@ -268,7 +269,8 @@ content:
 Планируемые скиллы:
 - **create-site** — задаёт вопросы, составляет `site.yaml`, создаёт репозиторий сайта по образцу `reference/`.
 - **add-section** — добавляет тип контента: правка спецификации → миграция в `db/migrations/` → код в `internal/content/<type>/` → тесты.
-- **upgrade-site** — поднимает версии модулей, применяет `UPGRADE.md`, прогоняет тесты, готовит PR.
+- **upgrade-site** — поднимает версии модулей и `spec`, применяет `UPGRADE.md`, переносит исправления эталона с коммита,
+  из которого создан сайт (строка в `AGENTS.md` сайта), проверяет тесты и миграции на копии данных, готовит ветку или PR.
 - **reprocess-images** — решает, нужна ли повторная обработка, и запускает её.
 - **check-drift** (позже) — ищет расхождения между спецификацией и кодом.
 
