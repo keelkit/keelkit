@@ -20,7 +20,7 @@ die() { printf 'fetch-reference: %s\n' "$1" >&2; exit 1; }
 TARGET="${1:-}"
 MODPATH="${2:-}"
 [ -n "$TARGET" ] && [ -n "$MODPATH" ] || die "использование: fetch-reference.sh <каталог сайта> <путь модуля, например my-blog>"
-echo "$MODPATH" | grep -Eq '^[a-z0-9][a-z0-9._-]*(/[A-Za-z0-9._~-]+)*$' || die "путь модуля «$MODPATH»: нужно имя сайта (my-blog) или вид github.com/<владелец>/<сайт>"
+echo "$MODPATH" | grep -Eq '^[a-z0-9][a-z0-9._-]*(/[A-Za-z0-9._~-]+)*$' || die "путь модуля «${MODPATH}»: нужно имя сайта (my-blog) или вид github.com/<владелец>/<сайт>"
 
 mkdir -p "$TARGET"
 TARGET="$(cd "$TARGET" && pwd)"

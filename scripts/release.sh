@@ -64,7 +64,7 @@ fi
 # 3. Плагин: версия в plugin.json совпадает с VERSION. Модуль: путь соответствует мажорной версии (v2+ — суффикс /vN).
 if [ "$PLUGIN" = 1 ]; then
   PVER="$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' skills/.claude-plugin/plugin.json | head -1)"
-  if [ "$PVER" = "$NUM" ]; then ok "plugin.json: version $NUM"; else bad "skills/.claude-plugin/plugin.json: version «$PVER», а релиз $VERSION"; fi
+  if [ "$PVER" = "$NUM" ]; then ok "plugin.json: version $NUM"; else bad "skills/.claude-plugin/plugin.json: version «${PVER}», а релиз $VERSION"; fi
 else
 MODPATH="$(awk '$1 == "module" {print $2; exit}' "$DIR/go.mod")"
 SUFFIX="$(echo "$MODPATH" | grep -Eo '/v[0-9]+$' || true)"
@@ -86,11 +86,14 @@ else
 fi
 
 # 5. UPGRADE.md: раздел «## vX.Y.Z», если изменения требуют действий (Changed/Removed/Deprecated или ссылка на UPGRADE.md).
-if echo "$SECTION" | grep -Eq '^### (Changed|Removed|Deprecated)|UPGRADE\.md'; then
+# У плагина UPGRADE.md нет: сайты от него не зависят, а ссылки на UPGRADE.md модулей в его CHANGELOG — не о нём.
+if [ "$PLUGIN" = 1 ]; then
+  ok "UPGRADE.md не нужен плагину"
+elif echo "$SECTION" | grep -Eq '^### (Changed|Removed|Deprecated)|UPGRADE\.md'; then
   if [ -f "$DIR/UPGRADE.md" ] && grep -Eq "^## $VERSION([^0-9.]|$)" "$DIR/UPGRADE.md"; then
     ok "UPGRADE.md: раздел $VERSION"
   else
-    bad "изменения требуют действий, а в $DIR/UPGRADE.md нет раздела «## $VERSION»"
+    bad "изменения требуют действий, а в $DIR/UPGRADE.md нет раздела «## ${VERSION}»"
   fi
 else
   ok "UPGRADE.md не требуется (в CHANGELOG нет Changed/Removed/Deprecated)"
