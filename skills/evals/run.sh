@@ -88,6 +88,11 @@ for c in $CASES; do
   cost="$(result_field "$W/agent.jsonl" total_cost_usd)"
   turns="$(result_field "$W/agent.jsonl" num_turns)"
   [ "$agent_rc" = 0 ] && agent=ok || agent="код $agent_rc"
+  # Агент оборван (лимит, бюджет, ошибка API) — причина из result: провал не скилла, а прогона.
+  if grep '"type":"result"' "$W/agent.jsonl" 2>/dev/null | tail -1 | grep -q '"is_error":true'; then
+    why="$(grep '"type":"result"' "$W/agent.jsonl" | tail -1 | sed -n 's/.*"result":"\([^"]*\)".*/\1/p' | cut -c1-80)"
+    agent="прерван: ${why:-is_error}"
+  fi
   echo "   агент: $agent, $minutes мин, \$${cost:-?}, ходов ${turns:-?}"
 
   KEELKIT_REPO="$ROOT" KEELKIT_REF="$REF_SHA" "$EVALS/$SKILL/check.sh" "$c" "$W" > "$W/checks.log" 2>&1
