@@ -875,7 +875,7 @@ make docker && docker run --rm -v kk:/data keelkit-reference migrate \
       браузерными тестами, у `upgrade-site` — ветка, версии, `migrate-check.sh`); `claude plugin eval` не подошёл — нет
       проверки кода возврата. Кейсы: `create-site` — `spec/examples/*.yaml`; `upgrade-site` — `reference-v0.2.0` (эталон
       с `3ad749b`, `images v0.2.0`; `my-blog` не нужен — все сайты пока пробные, решение человека 2026-10-15).
-      Прогоны: `upgrade-site` — ok (5 мин, \$1.06, 17/17 проверок; нашёл: `migrate-check.sh` падал без новых миграций —
+      Прогоны: `upgrade-site` — ok (5 мин, $1.06, 17/17 проверок; нашёл: `migrate-check.sh` падал без новых миграций —
       исправлено)
 - [ ] CI: джоба эвалов через `workflow_dispatch`
 
