@@ -74,7 +74,7 @@ mkdir ~/sites/my-blog && cd ~/sites/my-blog && KEELKIT_REPO=~/keelkit claude
 
 ## Обновить сайт
 
-В каталоге сайта: `/upgrade-site` или «обнови сайт» (без эвалов; `/upgrade-site . images` — только один модуль). Скилл поднимает версии модулей и `spec`,
+В каталоге сайта: `/upgrade-site` или «обнови сайт» (`/upgrade-site . images` — только один модуль). Скилл поднимает версии модулей и `spec`,
 выполняет шаги из их `UPGRADE.md`, переносит исправления эталона с того коммита, из которого создан сайт, проверяет
 тесты и миграции на копии БД и оставляет всё в отдельной ветке; что сделать на сервере — в его итоге.
 Вручную — по разделам нужных версий в `modules/<имя>/UPGRADE.md`, затем `make test` и `make e2e-browser` сайта.
@@ -89,6 +89,7 @@ make test MODULE=images           # тесты одного модуля (MODULE
 make check                        # все проверки перед коммитом в main (нужен Chrome)
 make spec-validate FILE=spec/examples/blog.yaml
 make release MODULE=images VERSION=v0.2.0 DRY_RUN=1   # проверки релиза без тега
+make evals SKILL=upgrade-site      # эвал скилла: агент + проверки (вызовы LLM, долго; skills/evals/README.md)
 ```
 
 CI на GitHub пока запускается только вручную; проверки — локально `make check`, его же вызывает `make release`.

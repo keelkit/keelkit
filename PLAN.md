@@ -870,8 +870,13 @@ make docker && docker run --rm -v kk:/data keelkit-reference migrate \
       - `check-site.sh`: проверка тега `nodynamic` вместо `GOPRIVATE`, имя образа Docker не эталонное;
       - раздел «Пример» в `README.md`.
       Не сделано (по потребности): тексты seed эталона в константах — тесты эталона пока сравнивают строки.
-- [ ] `skills/evals/`: по `spec/examples/*.yaml` — сайт собирается, тесты проходят, структура совпадает с конвенциями
-      (проверка структуры — уже есть: `skills/create-site/scripts/check-site.sh`)
+- [ ] `skills/evals/`: `make evals SKILL=create-site|upgrade-site [CASE=…]` — агент (`claude -p`, плагин из рабочего
+      дерева) выполняет скилл в каталоге вне монорепо, раннер сам проверяет результат (`check-site.sh`, `make` сайта с
+      браузерными тестами, у `upgrade-site` — ветка, версии, `migrate-check.sh`); `claude plugin eval` не подошёл — нет
+      проверки кода возврата. Кейсы: `create-site` — `spec/examples/*.yaml`; `upgrade-site` — `reference-v0.2.0` (эталон
+      с `3ad749b`, `images v0.2.0`; `my-blog` не нужен — все сайты пока пробные, решение человека 2026-10-15).
+      Прогоны: `upgrade-site` — ok (5 мин, \$1.06, 17/17 проверок; нашёл: `migrate-check.sh` падал без новых миграций —
+      исправлено)
 - [ ] CI: джоба эвалов через `workflow_dispatch`
 
 ### Проверка
