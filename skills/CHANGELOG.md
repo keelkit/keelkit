@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-10-15
+
 ### Added
 - Маркетплейс `.claude-plugin/marketplace.json` и плагин `keelkit` (`skills/.claude-plugin/plugin.json`).
 - Скилл `create-site`: спецификация `site.yaml` с человеком, копия эталона по тегу плагина

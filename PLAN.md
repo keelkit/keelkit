@@ -855,7 +855,7 @@ make docker && docker run --rm -v kk:/data keelkit-reference migrate \
       `~/goScripts/keelkit-trial/my-blog`. Сделано (2026-10-15): тег `modules/images/v0.3.0`, эталон на v0.3.0 (`web.Picture`: класс `ph`,
       `--ph`/`--ph-m`); прогон на `my-blog` — ветка `keelkit-upgrade-2026-10-15` (не слита), все проверки и
       `migrate-check.sh` с `REPROCESS_BELOW=2` зелёные. По находкам: `migrate-check.sh` обходит страницы из
-      `sitemap.xml` и проверяет, что файлы на них открываются. Осталось: релиз плагина `skills/v0.1.0`
+      `sitemap.xml` и проверяет, что файлы на них открываются. Релиз плагина — тег `skills/v0.1.0` (2026-10-15)
 - [x] Пробный прогон `create-site` на `spec/examples/blog.yaml` в пустой папке вне монорепо, эталон — `KEELKIT_REPO=<клон монорепо>`
       (2026-10-14). Сайт — `~/goScripts/keelkit-trial/my-blog` (эталон — коммит `6c5ffa0`): миграции 00001–00005,
       `pages` без черновика, `posts` с Markdown и обложкой для телефона, без `people`, `files`, блоков; проверки шага 6
