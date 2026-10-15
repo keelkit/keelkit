@@ -21,6 +21,11 @@ IN ?= modules/images/testdata
 # Спецификация сайта для spec-validate.
 FILE ?= reference/site.yaml
 
+# Эвалы скиллов: скилл (create-site, upgrade-site) и кейс (пусто — все). MODEL, BUDGET ($ на кейс), TIMEOUT (с),
+# KEEP, EVALS_OUT — см. skills/evals/run.sh.
+SKILL ?=
+CASE ?=
+
 # Версия для release (vX.Y.Z); DRY_RUN=1 — только проверки, без тега.
 VERSION ?=
 DRY_RUN ?=
@@ -45,7 +50,7 @@ DIRS := modules/$(MODULE)
 endif
 endif
 
-.PHONY: help check test test-isolated lint deps-check release spec-validate plugin-validate images-demo build docker run dev migrate backup seed user-create reprocess-images reset generate generate-check schema e2e e2e-browser
+.PHONY: help check test test-isolated lint deps-check release spec-validate plugin-validate evals images-demo build docker run dev migrate backup seed user-create reprocess-images reset generate generate-check schema e2e e2e-browser
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -89,6 +94,9 @@ spec-validate: ## Проверить спецификацию сайта. При
 # Маркетплейс .claude-plugin/ и плагин skills/ (манифест, скиллы). Нужен CLI Claude Code.
 plugin-validate: ## Проверить маркетплейс и плагин со скиллами
 	@claude plugin validate --strict .
+
+evals: ## Эвалы скилла: агент выполняет скилл, проверки решают (вызовы LLM — долго и платно). Пример: make evals SKILL=upgrade-site CASE=reference-v0.2.0
+	@./skills/evals/run.sh "$(SKILL)" "$(CASE)"
 
 images-demo: ## Обработать изображения модулем images и построить отчёт modules/images/demo-out/index.html. Пример: make images-demo IN=~/Pictures/photo.jpg
 	@cd modules/images && go run ./internal/cmd/images-demo -in "$(abspath $(IN))" -out demo-out

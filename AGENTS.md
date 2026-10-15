@@ -86,7 +86,7 @@ SEO, sitemap и RSS на первом этапе пишутся в коде эт
 │   ├── upgrade-site/       # SKILL.md, scripts/ (upgrade-plan.sh, reference-diff.sh, migrate-check.sh)
 │   ├── CHANGELOG.md
 │   ├── README.md           # список скиллов плагина и их статус
-│   └── evals/              # эвалы скиллов
+│   └── evals/              # эвалы: run.sh, <скилл>/{setup.sh,prompt.md,check.sh}; make evals SKILL=…
 └── reference/              # эталонный сайт: страницы + блог (свой go.mod)
 ```
 
@@ -267,7 +267,10 @@ content:
 локальный клон для разработки и эвалов), поэтому скилл и эталон, по которому он написан, всегда совпадают.
 Сайт указывает в своём `AGENTS.md` минимальную версию плагина и эталон (тег и коммит), из которого создан. Скиллы не копируются в репозитории сайтов: скилл обновления должен быть свежее сайта.
 
-Эвалы требуют вызовов LLM, поэтому в CI запускаются вручную (`workflow_dispatch`) и обязательно перед релизом скилла.
+Эвалы — `make evals SKILL=<скилл> [CASE=<кейс>]` (`skills/evals/`, устройство — его `README.md`): агент (`claude -p`
+с плагином из рабочего дерева) выполняет скилл в каталоге вне монорепо, затем раннер сам запускает проверки — коды
+возврата `make`, файлы, git; оценки LLM в проверках нет. Эвалы требуют вызовов LLM, поэтому запускаются вручную
+(в CI — `workflow_dispatch`) и обязательно перед релизом плагина.
 
 Планируемые скиллы:
 - **create-site** — задаёт вопросы, составляет `site.yaml`, создаёт репозиторий сайта по образцу `reference/`.
@@ -277,7 +280,9 @@ content:
 - **reprocess-images** — решает, нужна ли повторная обработка, и запускает её.
 - **check-drift** (позже) — ищет расхождения между спецификацией и кодом.
 
-Эвал скилла: по заданной спецификации результат собирается, проходит тесты и соответствует конвенциям эталонного сайта.
+Эвал скилла: результат собирается, проходит тесты сайта (включая браузерные) и проверку конвенций
+(`create-site/scripts/check-site.sh`). Вход `create-site` — `spec/examples/*.yaml`; вход `upgrade-site` — сайт на
+старой версии модуля (эталон с прошлого коммита), плюс `migrate-check.sh` от исходного коммита.
 
 ## Конвенции сайтов
 
@@ -375,7 +380,7 @@ site.yaml, sqlc.yaml, Makefile, AGENTS.md, CLAUDE.md
 - Параметры передаются переменными с безопасными значениями по умолчанию (`VAR ?= ...`).
 - В корне монорепо `test`, `test-isolated`, `lint` без `MODULE` проходят по `modules/*`, `spec/` и `reference/`;
   `MODULE=<name>` — `modules/<name>`, `MODULE=spec` и `MODULE=reference` — одноимённые каталоги. `build`, `run`, `dev`, `migrate`, `backup`, `seed`, `user-create`, `reprocess-images`, `reset`, `generate`, `generate-check`, `schema`, `e2e`, `e2e-browser` делегируются в `reference/Makefile`;
-  `images-demo` — своя цель корня (демо-отчёт модуля `images`);
+  `images-demo` — своя цель корня (демо-отчёт модуля `images`); `evals` — эвалы скиллов (`skills/evals/run.sh`);
   `deps-check` — по тем же каталогам, что `test`; `check` — все проверки CI по тем же каталогам
   (`lint`, `test`, `test-isolated`, `deps-check`; для `reference/` ещё `generate-check`, `e2e` и `e2e-browser`, для `spec/` — `spec-validate` `reference/site.yaml`; без `MODULE` — ещё `plugin-validate`); `release` — `scripts/release.sh` (`DRY_RUN=1` — только проверки).
 - Совместимость с GNU Make 3.81 (стоит по умолчанию на macOS): без `.ONESHELL`, `$(file ...)` и других возможностей 4.x.

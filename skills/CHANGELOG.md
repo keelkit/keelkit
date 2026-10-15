@@ -5,6 +5,16 @@
 
 ## [Unreleased]
 
+### Added
+- Эвалы скиллов: `make evals SKILL=create-site|upgrade-site [CASE=…]` (`skills/evals/`). Агент выполняет скилл в
+  чистом каталоге, раннер проверяет результат: `check-site.sh`, `make` сайта (включая браузерные тесты), у
+  `upgrade-site` — ветка, версии, `migrate-check.sh`. Кейсы: `create-site` — `spec/examples/*.yaml`; `upgrade-site` —
+  эталон на `images v0.2.0`.
+
+### Fixed
+- `upgrade-site/scripts/migrate-check.sh`: обновление без новых миграций (нечего применять — снимка нет) больше не
+  считается ошибкой.
+
 ## [0.1.0] — 2026-10-15
 
 ### Added

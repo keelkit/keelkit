@@ -60,8 +60,14 @@ else
 fi
 
 echo "== make migrate нового кода"
-make migrate DATA_DIR="$DATA" BACKUP_DIR="$BACKUPS" || die "миграции не прошли"
-ls "$BACKUPS"/*.db >/dev/null 2>&1 || die "make migrate не сделал снимок БД в $BACKUPS"
+make migrate DATA_DIR="$DATA" BACKUP_DIR="$BACKUPS" 2>&1 | tee "$WORK/migrate.log"
+[ "${PIPESTATUS[0]}" = 0 ] || die "миграции не прошли"
+# Обновление без новых миграций: применять нечего — site migrate снимок не делает, и он не нужен.
+if grep -q "no pending migrations" "$WORK/migrate.log"; then
+  echo "новых миграций нет"
+else
+  ls "$BACKUPS"/*.db >/dev/null 2>&1 || die "make migrate не сделал снимок БД в ${BACKUPS}"
+fi
 
 if [ -n "${REPROCESS_BELOW:-}" ]; then
   echo "== make reprocess-images BELOW=$REPROCESS_BELOW"

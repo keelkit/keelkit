@@ -11,4 +11,4 @@
 
 - Версия плагина — `.claude-plugin/plugin.json`, изменения — [`CHANGELOG.md`](CHANGELOG.md), релиз —
   `make release MODULE=skills VERSION=vX.Y.Z` (тег `skills/vX.Y.Z` фиксирует и эталон, который копирует `create-site`).
-- Проверка манифестов — `make plugin-validate`; эвалы — `skills/evals/` (в разработке).
+- Проверка манифестов — `make plugin-validate`; эвалы — `make evals SKILL=<скилл>` ([`evals/README.md`](evals/README.md)).
