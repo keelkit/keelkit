@@ -102,7 +102,7 @@ make evals SKILL=upgrade-site      # эвал скилла: агент + про�
 CI на GitHub пока запускается только вручную; проверки — локально `make check`, его же вызывает `make release`.
 
 Правила проекта — архитектура, версионирование, миграции, зависимости, конвенции сайтов — в [`AGENTS.md`](AGENTS.md)
-(его читают и люди, и агенты). Устройство эталонного сайта — [`reference/AGENTS.md`](reference/AGENTS.md) и [`reference/docs/`](reference/docs/).
+и [`docs/`](docs/) (их читают и люди, и агенты; `AGENTS.md` — оглавление). Устройство эталонного сайта — [`reference/AGENTS.md`](reference/AGENTS.md) и [`reference/docs/`](reference/docs/).
 
 ## Лицензия
 

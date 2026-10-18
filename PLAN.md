@@ -916,7 +916,7 @@ make evals SKILL=upgrade-site     # копия reference на v0.2.0 → обн�
       Ссылки на разделы `AGENTS.md` сайта — в `skills/create-site` (`SKILL.md`, `references/*.md`, шаг
       «Документация» — приводит и `docs/`), `check-site.sh`, `skills/upgrade-site`, корневом `AGENTS.md`
       («Структура сайта» — `docs/`)
-- [ ] Шаг 2. Монорепо: корневой `AGENTS.md` → `AGENTS.md` + `docs/` (модули `images` и `files`, спецификация,
+- [x] Шаг 2. Монорепо: корневой `AGENTS.md` → `AGENTS.md` + `docs/` (модули `images` и `files`, спецификация,
       скиллы, зависимости, принятые решения); принципы, «Что куда», правила модулей и миграций, `Makefile`,
       «Как работать агенту» — остаются
 

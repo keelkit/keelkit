@@ -5,7 +5,7 @@
 ## Админка и авторизация
 
 Админка рассчитана на JavaScript (htmx и свой JS в `static/`), запасного варианта без скрипта не делаем; публичный
-сайт — без обязательного JavaScript (корневой `AGENTS.md`, «Стек сайта»). Поведение на JavaScript покрывают браузерные
+сайт — без обязательного JavaScript (`docs/site-conventions.md` монорепо, «Стек сайта»). Поведение на JavaScript покрывают браузерные
 тесты (`make e2e-browser`, входит в `make check`).
 
 Вход, сессии и CSRF — модуль `auth` (как подключать — `modules/auth/UPGRADE.md`, v0.1.0); в `internal/admin/` —

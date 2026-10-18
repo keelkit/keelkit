@@ -14,7 +14,7 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-// Пароли хешируются argon2id (решение — в AGENTS.md монорепо Keelkit). Хеш хранится в формате PHC:
+// Пароли хешируются argon2id (решение — в docs/decisions.md монорепо Keelkit). Хеш хранится в формате PHC:
 //
 //	$argon2id$v=19$m=65536,t=3,p=4$<соль base64>$<ключ base64>
 //
