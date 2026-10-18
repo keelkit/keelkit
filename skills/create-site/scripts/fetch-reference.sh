@@ -10,7 +10,7 @@
 #     (версия — из .claude-plugin/plugin.json плагина): скилл и эталон всегда одной версии;
 #   - KEELKIT_REPO=<путь к клону монорепо> — локальный клон (разработка скиллов, эвалы); коммит — KEELKIT_REF
 #     (по умолчанию HEAD: незакоммиченные правки не попадают).
-# Каталог сайта должен быть пустым (допускаются .git и site.yaml — они не перезаписываются).
+# Каталог сайта должен быть пустым (допускаются .git, site.yaml и PLAN.md — они не перезаписываются).
 # Печатает строку «reference: <тег или ref> <коммит>» — её записывают в AGENTS.md сайта.
 # Совместим с bash 3.2 (macOS).
 set -eu
@@ -24,7 +24,7 @@ echo "$MODPATH" | grep -Eq '^[a-z0-9][a-z0-9._-]*(/[A-Za-z0-9._~-]+)*$' || die "
 
 mkdir -p "$TARGET"
 TARGET="$(cd "$TARGET" && pwd)"
-extra="$(cd "$TARGET" && ls -A | grep -vxE '\.git|site\.yaml' || true)"
+extra="$(cd "$TARGET" && ls -A | grep -vxE '\.git|site\.yaml|PLAN\.md' || true)"
 [ -z "$extra" ] || die "каталог $TARGET не пустой: $(echo $extra)"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -50,6 +50,7 @@ mkdir -p "$TMP/out"
 git -C "$REPO" archive "$COMMIT" reference | tar -x -C "$TMP/out"
 [ -f "$TMP/out/reference/go.mod" ] || die "в $REF нет reference/go.mod"
 [ ! -f "$TARGET/site.yaml" ] || rm "$TMP/out/reference/site.yaml"
+rm -f "$TMP/out/reference/PLAN.md"
 (cd "$TMP/out/reference" && tar -cf - .) | (cd "$TARGET" && tar -xf -)
 
 # Путь модуля: импорты в Go и templ (и сгенерированном коде), go.mod, конфиги.
