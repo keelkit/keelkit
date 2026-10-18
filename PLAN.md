@@ -944,7 +944,7 @@ make check MODULE=reference && make plugin-validate
       цель — в списке `check-site.sh`
 - [x] Шаг 3. Релиз плагина `skills/v0.2.0`: версия в `plugin.json`, `[Unreleased]` → `[0.2.0]` в `skills/CHANGELOG.md`,
       `make release MODULE=skills VERSION=v0.2.0` (тег фиксирует эталон с `docs/` и сменой пароля)
-- [ ] Шаг 4. Опубликованный путь без LLM: `fetch-reference.sh` с тега `skills/v0.2.0` с GitHub (без `KEELKIT_REPO`)
+- [x] Шаг 4. Опубликованный путь без LLM: `fetch-reference.sh` с тега `skills/v0.2.0` с GitHub (без `KEELKIT_REPO`)
       в пустой каталог вне монорепо, там `make generate-check test e2e-browser` и `check-site.sh`
 - [ ] Шаг 5 (человек). Плагин из маркетплейса: `/plugin marketplace add keelkit/keelkit`,
       `/plugin install keelkit@keelkit`; в `/plugin` — `keelkit` 0.2.0, скилл `/create-site` виден
