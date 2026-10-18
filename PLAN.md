@@ -937,7 +937,7 @@ make check MODULE=reference && make plugin-validate
 
 - [x] Шаг 1. Документация сверена с кодом: версия `images` в `reference/AGENTS.md`, тег плагина в `README.md`,
       статус эвалов в `skills/README.md`, ссылки `PLAN.md` на `docs/`
-- [ ] Шаг 2. Смена пароля (без неё забытый пароль — вход только правкой БД): в `auth` — `Service.SetPassword(ctx,
+- [x] Шаг 2. Смена пароля (без неё забытый пароль — вход только правкой БД): в `auth` — `Service.SetPassword(ctx,
       email, password)`: та же политика, что у `CreateUser`, сессии пользователя удаляются; тест в модуле и в
       `testkit`; `CHANGELOG.md` (Added), релиз `auth v0.3.0`. Эталон: `auth v0.3.0` в `go.mod`, `site user password
       EMAIL` и `make user-password EMAIL=…` (ввод как у `user-create`), тест, строка в «Команды» `reference/AGENTS.md`,

@@ -123,7 +123,7 @@ SEO, sitemap и RSS на первом этапе пишутся в коде эт
 - У каждой цели есть комментарий `## ...` с описанием и, если она принимает параметры, примером вызова.
 - Параметры передаются переменными с безопасными значениями по умолчанию (`VAR ?= ...`).
 - В корне монорепо `test`, `test-isolated`, `lint` без `MODULE` проходят по `modules/*`, `spec/` и `reference/`;
-  `MODULE=<name>` — `modules/<name>`, `MODULE=spec` и `MODULE=reference` — одноимённые каталоги. `build`, `run`, `dev`, `migrate`, `backup`, `seed`, `user-create`, `reprocess-images`, `reset`, `generate`, `generate-check`, `schema`, `e2e`, `e2e-browser` делегируются в `reference/Makefile`;
+  `MODULE=<name>` — `modules/<name>`, `MODULE=spec` и `MODULE=reference` — одноимённые каталоги. `build`, `run`, `dev`, `migrate`, `backup`, `seed`, `user-create`, `user-password`, `reprocess-images`, `reset`, `generate`, `generate-check`, `schema`, `e2e`, `e2e-browser` делегируются в `reference/Makefile`;
   `images-demo` — своя цель корня (демо-отчёт модуля `images`); `evals` — эвалы скиллов (`skills/evals/run.sh`);
   `deps-check` — по тем же каталогам, что `test`; `check` — все проверки CI по тем же каталогам
   (`lint`, `test`, `test-isolated`, `deps-check`; для `reference/` ещё `generate-check`, `e2e` и `e2e-browser`, для `spec/` — `spec-validate` `reference/site.yaml`; без `MODULE` — ещё `plugin-validate`); `release` — `scripts/release.sh` (`DRY_RUN=1` — только проверки).

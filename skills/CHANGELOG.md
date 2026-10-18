@@ -6,6 +6,8 @@
 ## [Unreleased]
 
 ### Added
+- Смена пароля в эталоне: `site user password EMAIL` и `make user-password EMAIL=…` (`auth v0.3.0`,
+  `Service.SetPassword`: сессии пользователя завершаются); `check-site.sh` требует цель `user-password`.
 - Эвалы скиллов: `make evals SKILL=create-site|upgrade-site [CASE=…]` (`skills/evals/`). Агент выполняет скилл в
   чистом каталоге, раннер проверяет результат: `check-site.sh`, `make` сайта (включая браузерные тесты), у
   `upgrade-site` — ветка, версии, `migrate-check.sh`. Кейсы: `create-site` — `spec/examples/*.yaml`; `upgrade-site` —

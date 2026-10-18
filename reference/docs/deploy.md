@@ -60,6 +60,7 @@
   systemctl daemon-reload && systemctl start site-migrate
   systemctl enable --now site site-backup.timer
   sudo -u site sh -c 'set -a; . /etc/site/site.env; /opt/site/site user create me@example.com'
+  # смена пароля (забыли, утёк) — так же: /opt/site/site user password me@example.com
   ```
 - Обновление: новый бинарник рядом, затем остановка, миграции (снимок БД — внутри `site migrate`), замена, старт:
   ```sh

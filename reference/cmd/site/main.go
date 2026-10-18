@@ -7,6 +7,7 @@
 //	site backup   снимок БД и архив загрузок (uploads/, files/) в BACKUP_DIR; сервер может работать
 //	site seed     dev-данные, идемпотентно
 //	site user create EMAIL  пользователь админки; пароль спрашивается интерактивно
+//	site user password EMAIL  смена пароля пользователя админки, его сессии завершаются
 //	site reprocess-images -below N  повторная обработка изображений с версией профиля ниже N
 package main
 
@@ -112,7 +113,7 @@ func envOr(key, def string) string {
 	return def
 }
 
-const usage = "usage: site <serve|migrate|backup|seed> | site user create EMAIL | site reprocess-images -below N"
+const usage = "usage: site <serve|migrate|backup|seed> | site user <create|password> EMAIL | site reprocess-images -below N"
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
@@ -143,6 +144,8 @@ func main() {
 		err = seed(ctx, cfg)
 	case cmd == "user" && len(args) == 3 && args[1] == "create":
 		err = userCreate(ctx, cfg, args[2], readPasswordTerminal)
+	case cmd == "user" && len(args) == 3 && args[1] == "password":
+		err = userPassword(ctx, cfg, args[2], readPasswordTerminal)
 	case cmd == "reprocess-images":
 		err = reprocessImages(ctx, cfg, args[1:])
 	default:

@@ -13,7 +13,8 @@ import (
 func TestAuthContract(t *testing.T) {
 	testkit.Run(t, func(t *testing.T, now func() time.Time) testkit.Site {
 		s := migratedSite(t, false)
-		if _, err := auth.NewService(s.db, auth.Config{}).CreateUser(t.Context(), seedAdminEmail, seedAdminPassword); err != nil {
+		svc := auth.NewService(s.db, auth.Config{})
+		if _, err := svc.CreateUser(t.Context(), seedAdminEmail, seedAdminPassword); err != nil {
 			t.Fatal(err)
 		}
 		return testkit.Site{
@@ -23,6 +24,7 @@ func TestAuthContract(t *testing.T) {
 			LogoutPath:    "/admin/logout",
 			Email:         seedAdminEmail,
 			Password:      seedAdminPassword,
+			SetPassword:   svc.SetPassword,
 		}
 	})
 }

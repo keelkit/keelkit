@@ -25,7 +25,7 @@
 - Модули Keelkit (публичный репозиторий `github.com/keelkit/keelkit`, скачиваются как любые зависимости Go):
   `github.com/keelkit/keelkit/modules/images` v0.3.0, `github.com/keelkit/keelkit/modules/files` v0.2.0
   (таблицы `files_*`), `github.com/keelkit/keelkit/modules/richtext` v0.2.0 (без таблиц и миграций),
-  `github.com/keelkit/keelkit/modules/auth` v0.2.0 (таблицы `users`, `sessions`);
+  `github.com/keelkit/keelkit/modules/auth` v0.3.0 (таблицы `users`, `sessions`);
   в `site.yaml` — `modules: { images: v0, files: v0, richtext: v0, auth: v0 }` (`spec` v0.8.0: `SPEC_VERSION` в `Makefile`).
   Их зависимости приходят транзитивно: `golang.org/x/image`, `github.com/gen2brain/webp` (+ `ebitengine/purego`);
   goldmark, bluemonday, `golang.org/x/net`; `golang.org/x/crypto` (argon2id).
@@ -56,7 +56,8 @@
 | `make backup` | снимок БД и архив загрузок в `BACKUP_DIR` (`site backup`, см. «Резервные копии» в `docs/deploy.md`); сервер может работать |
 | `make seed` | dev-данные; идемпотентно, в проде не запускается; печатает dev-пользователя админки |
 | `make reprocess-images BELOW=N` | повторная обработка изображений с версией профиля ниже `N` текущим профилем; идемпотентна и безопасна для прерывания (повторный запуск доделывает), сервер может работать. Печатает `processed`/`failed` |
-| `make user-create EMAIL=…` | пользователь админки; пароль спрашивается дважды без эха (не из терминала — строками из stdin). Ввод не виден — проверьте раскладку: пароль, дважды набранный кириллицей, совпадёт сам с собой, но не с латиницей в браузере. Смены пароля пока нет |
+| `make user-create EMAIL=…` | пользователь админки; пароль спрашивается дважды без эха (не из терминала — строками из stdin). Ввод не виден — проверьте раскладку: пароль, дважды набранный кириллицей, совпадёт сам с собой, но не с латиницей в браузере. |
+| `make user-password EMAIL=…` | сменить пароль пользователя админки (забыли пароль, утёк); ввод как у `user-create`; все сессии пользователя завершаются |
 | `make reset` | удалить `DATA_DIR` (БД и загрузки); снимки в `backups/` остаются. Сначала остановите сервер: запущенный процесс продолжит работать с удалённой БД, а новый `make dev` не займёт порт |
 | `make generate` | кодогенерация: templ, затем sqlc |
 | `make schema` | записать итоговую схему БД в `db/schema.sql` (после новой миграции) |
@@ -69,7 +70,7 @@
 
 ## Бинарник
 
-`site serve | migrate | backup | seed | user create EMAIL | reprocess-images -below N`. Миграции применяются только `site migrate`, никогда при старте.
+`site serve | migrate | backup | seed | user create EMAIL | user password EMAIL | reprocess-images -below N`. Миграции применяются только `site migrate`, никогда при старте.
 
 ## БД и миграции
 

@@ -284,3 +284,62 @@ func TestUserCreate(t *testing.T) {
 		t.Errorf("users = %d, %v; want 1", n, err)
 	}
 }
+
+func TestUserPassword(t *testing.T) {
+	ctx := context.Background()
+	cfg := testConfig(t)
+	if err := migrate(ctx, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := userCreate(ctx, cfg, "editor@example.com", passwords("long enough", "long enough")); err != nil {
+		t.Fatal(err)
+	}
+	db, err := openDB(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	hash := func() string {
+		t.Helper()
+		var h string
+		if err := db.QueryRow(`SELECT password_hash FROM users WHERE email = 'editor@example.com'`).Scan(&h); err != nil {
+			t.Fatal(err)
+		}
+		return h
+	}
+	before := hash()
+	if _, err := db.Exec(`INSERT INTO sessions (token_hash, user_id, csrf_token, expires_at)
+		SELECT 'x', id, 'y', '2999-01-01T00:00:00Z' FROM users`); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name, email string
+		answers     []string
+		wantErr     error
+	}{
+		{"unknown email", "nobody@example.com", []string{"long enough", "long enough"}, auth.ErrUserNotFound},
+		{"short password", "editor@example.com", []string{"short"}, auth.ErrPasswordLength},
+		{"mismatch", "editor@example.com", []string{"new password", "new passworD"}, nil},
+	}
+	for _, tt := range tests {
+		err := userPassword(ctx, cfg, tt.email, passwords(tt.answers...))
+		if err == nil || (tt.wantErr != nil && !errors.Is(err, tt.wantErr)) {
+			t.Errorf("%s: err = %v, want %v", tt.name, err, tt.wantErr)
+		}
+	}
+	if hash() != before {
+		t.Fatal("password hash changed after failed attempts")
+	}
+
+	if err := userPassword(ctx, cfg, "Editor@Example.com", passwords("new password", "new password")); err != nil {
+		t.Fatalf("userPassword: %v", err)
+	}
+	if hash() == before { // пароль сверяют тесты модуля auth
+		t.Error("password hash not changed")
+	}
+	var n int
+	if err := db.QueryRow(`SELECT count(*) FROM sessions`).Scan(&n); err != nil || n != 0 {
+		t.Errorf("sessions = %d, %v; want 0", n, err)
+	}
+}

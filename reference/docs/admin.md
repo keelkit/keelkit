@@ -37,11 +37,13 @@
   `HX-Redirect` после успешного POST), `admin.IsHTMX`, `admin.Live(url, formID)` (форма слева, живой предпросмотр справа —
   см. «Живой предпросмотр» в `docs/content-types.md`).
 - htmx в админке: `<meta name="htmx-config">` разрешает подмену разметки ответом 422 (по умолчанию htmx не подменяет 4xx).
-- Пользователи: `site user create` (`make user-create`) и seed — `auth.Service.CreateUser`. Dev-пользователь из seed:
+- Пользователи: `site user create` (`make user-create`) и seed — `auth.Service.CreateUser`; смена пароля —
+  `site user password` (`make user-password`), `auth.Service.SetPassword`: сессии пользователя удаляются. Dev-пользователь из seed:
   `admin@example.com` / `adminadmin` (seed в проде не запускается).
 - Не получается войти: проверить dev-пользователем (вход работает?); затем раскладку при `make user-create` и не остался ли
   запущенным сервер со старой БД после `make reset` (порт 9090 занят — `make dev` после seed падает с «address already in use»).
   После 5 неудач email заблокирован на 15 минут; перезапуск сервера снимает блокировку.
+  Забыли пароль — `make user-password EMAIL=…` (на сервере — `site user password EMAIL`, как `user create` в `docs/deploy.md`).
 
 ## Настройки сайта (`internal/settings/`)
 

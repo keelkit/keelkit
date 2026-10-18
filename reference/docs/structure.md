@@ -60,7 +60,7 @@ cmd/site/server.go          # маршруты, данные шапки (siteLoa
 cmd/site/seed.go            # dev-данные: seedContent, seedImages
 cmd/site/seeddata/          # изображения для seed (embed)
 cmd/site/seedfiles/         # файлы для seed: PDF, SVG, MP4 (embed)
-cmd/site/user.go            # site user create
+cmd/site/user.go            # site user create, site user password
 cmd/site/backup.go          # site backup: снимок БД и архив загрузок
 cmd/site/e2e_test.go        # e2e (TestE2E*)
 cmd/site/e2e_admin_test.go  # e2e админки

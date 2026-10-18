@@ -38,7 +38,7 @@ done
 [ "$(cat CLAUDE.md 2>/dev/null)" = "@AGENTS.md" ] && ok "CLAUDE.md = @AGENTS.md" || bad "CLAUDE.md должен состоять из одной строки @AGENTS.md"
 
 # Цели Makefile — те же, что у эталона.
-for t in help build docker run dev migrate backup seed user-create reprocess-images reset generate generate-check \
+for t in help build docker run dev migrate backup seed user-create user-password reprocess-images reset generate generate-check \
   schema test test-isolated e2e e2e-browser lint deps-check spec-validate; do
   grep -Eq "^$t:.*## " Makefile && ok "make $t" || bad "в Makefile нет цели $t с описанием ##"
 done

@@ -9,7 +9,7 @@ export GOFLAGS = -tags=nodynamic
 # Модуль в modules/<MODULE>; MODULE=spec или MODULE=reference — каталог в корне; пусто — все.
 MODULE ?=
 
-# Email пользователя админки для user-create.
+# Email пользователя админки для user-create и user-password.
 EMAIL ?=
 
 # Версия профиля для reprocess-images.
@@ -50,7 +50,7 @@ DIRS := modules/$(MODULE)
 endif
 endif
 
-.PHONY: help check test test-isolated lint deps-check release spec-validate plugin-validate evals images-demo build docker run dev migrate backup seed user-create reprocess-images reset generate generate-check schema e2e e2e-browser
+.PHONY: help check test test-isolated lint deps-check release spec-validate plugin-validate evals images-demo build docker run dev migrate backup seed user-create user-password reprocess-images reset generate generate-check schema e2e e2e-browser
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -124,6 +124,9 @@ seed: ## Заполнить эталонный сайт dev-данными (ид
 
 user-create: ## Создать пользователя админки эталонного сайта. Пример: make user-create EMAIL=me@example.com
 	@$(MAKE) -C reference user-create EMAIL="$(EMAIL)"
+
+user-password: ## Сменить пароль пользователя админки эталонного сайта. Пример: make user-password EMAIL=me@example.com
+	@$(MAKE) -C reference user-password EMAIL="$(EMAIL)"
 
 reprocess-images: ## Повторная обработка изображений эталонного сайта. Пример: make reprocess-images BELOW=2
 	@$(MAKE) -C reference reprocess-images BELOW="$(BELOW)"

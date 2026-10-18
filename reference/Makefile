@@ -30,7 +30,7 @@ VERSION ?= $(shell git describe --tags --match 'v[0-9]*' --always --dirty 2>/dev
 DOCKER_IMAGE ?= keelkit-reference
 DOCKER_ARCH ?= $(GOARCH)
 
-# Email пользователя админки для user-create.
+# Email пользователя админки для user-create и user-password.
 EMAIL ?=
 # Версия профиля для reprocess-images: обработать изображения с версией ниже BELOW.
 BELOW ?=
@@ -54,7 +54,7 @@ SPEC_VALIDATE = GOTOOLCHAIN=$(GO_TOOLCHAIN) go run github.com/keelkit/keelkit/sp
 
 SITE = ADDR=$(ADDR) BASE_URL=$(BASE_URL) DATA_DIR=$(DATA_DIR) BACKUP_DIR=$(BACKUP_DIR) COOKIE_SECURE=$(COOKIE_SECURE) go run ./cmd/site
 
-.PHONY: help build docker run dev migrate backup seed user-create reprocess-images reset generate generate-check schema test test-isolated e2e e2e-browser lint deps-check spec-validate
+.PHONY: help build docker run dev migrate backup seed user-create user-password reprocess-images reset generate generate-check schema test test-isolated e2e e2e-browser lint deps-check spec-validate
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -85,6 +85,10 @@ seed: ## Заполнить dev-данными (идемпотентно, тол
 user-create: ## Создать пользователя админки (пароль спрашивается). Пример: make user-create EMAIL=me@example.com
 	@if [ -z "$(EMAIL)" ]; then echo "user-create: укажите EMAIL, например make user-create EMAIL=me@example.com"; exit 1; fi
 	$(SITE) user create "$(EMAIL)"
+
+user-password: ## Сменить пароль пользователя админки (спрашивается), его сессии завершаются. Пример: make user-password EMAIL=me@example.com
+	@if [ -z "$(EMAIL)" ]; then echo "user-password: укажите EMAIL, например make user-password EMAIL=me@example.com"; exit 1; fi
+	$(SITE) user password "$(EMAIL)"
 
 reprocess-images: ## Повторная обработка изображений с версией профиля ниже BELOW (идемпотентна). Пример: make reprocess-images BELOW=2
 	@if [ -z "$(BELOW)" ]; then echo "reprocess-images: укажите BELOW, например make reprocess-images BELOW=2"; exit 1; fi
