@@ -25,6 +25,10 @@ make evals SKILL=create-site MODEL=claude-sonnet-5-5 BUDGET=20 TIMEOUT=7200 KEEP
 (`KEELKIT_REPO`) на `KEELKIT_REF`. Агент работает без пользовательских настроек, плагинов и MCP
 (`--setting-sources project,local`) и без вопросов человеку (`AskUserQuestion` запрещён).
 
+В GitHub Actions — workflow `Evals` (`.github/workflows/evals.yml`), только ручной запуск: скилл, кейс, модель и
+бюджет — входные параметры; нужен секрет `ANTHROPIC_API_KEY`; Claude Code — закреплённая версия
+(`CLAUDE_CODE_VERSION`); `report.md` — в сводке запуска, каталог результатов — артефактом.
+
 Результат — `<EVALS_OUT>/<время>-<скилл>/`: `report.md` (кейс, итог, время, стоимость, ходы, число упавших
 проверок) и по каталогу на кейс: `agent.jsonl` (журнал агента, stream-json), `checks.log` (вывод проверок),
 `site/` (сайт после скилла). Выход `make evals` — 0, если все кейсы прошли.
