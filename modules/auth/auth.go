@@ -110,7 +110,7 @@ func NewService(db *sql.DB, cfg Config) *Service {
 	return &Service{db: db, cfg: cfg, limiter: l}
 }
 
-// Ошибки входа и создания пользователя.
+// Ошибки входа и управления пользователями.
 var (
 	// ErrLoginCSRF — токен формы входа не совпал с cookie: форма устарела или отправлена с чужого сайта.
 	ErrLoginCSRF = errors.New("auth: login form token mismatch")
@@ -120,6 +120,8 @@ var (
 	ErrInvalidEmail = errors.New("некорректный email")
 	// ErrUserExists — пользователь с таким email уже есть.
 	ErrUserExists = errors.New("пользователь с таким email уже существует")
+	// ErrUserNotFound — пользователя с таким email нет.
+	ErrUserNotFound = errors.New("пользователь с таким email не найден")
 )
 
 // LockedError — вход для email временно заблокирован после неудачных попыток.

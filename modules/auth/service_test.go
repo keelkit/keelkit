@@ -134,10 +134,10 @@ func (e *env) client(t *testing.T) *http.Client {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := e.srv.Client()
+	c := *e.srv.Client() // копия: у каждого браузера свои cookie
 	c.Jar = jar
 	c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	return c
+	return &c
 }
 
 // reply — ответ с уже прочитанным и закрытым телом.
@@ -422,6 +422,45 @@ func TestCreateUser(t *testing.T) {
 	}
 	if _, err := svc.CreateUser(ctx, "short@example.com", "short"); !errors.Is(err, ErrPasswordLength) {
 		t.Errorf("short password: %v, want ErrPasswordLength", err)
+	}
+}
+
+// Смена пароля: новый пароль входит, старый — нет, сессии пользователя удалены, чужие — нет.
+func TestSetPassword(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	if _, err := e.svc.CreateUser(ctx, "editor@example.com", testPassword); err != nil {
+		t.Fatal(err)
+	}
+	admin, editor := e.client(t), e.client(t)
+	e.login(t, admin, testEmail, testPassword)
+	editorResp := e.login(t, editor, "editor@example.com", testPassword)
+	if editorResp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("editor login: %d", editorResp.StatusCode)
+	}
+
+	const newPassword = "battery staple"
+	if err := e.svc.SetPassword(ctx, " Admin@Example.com ", newPassword); err != nil {
+		t.Fatal(err)
+	}
+	if resp, _ := do(t, admin, http.MethodGet, e.srv.URL+"/admin", nil, nil); resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("admin session after password change: %d, want redirect to login", resp.StatusCode)
+	}
+	if resp, _ := do(t, editor, http.MethodGet, e.srv.URL+"/admin", nil, nil); resp.StatusCode != http.StatusOK {
+		t.Errorf("other user's session after password change: %d, want 200", resp.StatusCode)
+	}
+	if resp := e.login(t, e.client(t), testEmail, testPassword); resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Errorf("old password: %d, want 422", resp.StatusCode)
+	}
+	if resp := e.login(t, e.client(t), testEmail, newPassword); resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("new password: %d, want 303", resp.StatusCode)
+	}
+
+	if err := e.svc.SetPassword(ctx, testEmail, "short"); !errors.Is(err, ErrPasswordLength) {
+		t.Errorf("short password: %v, want ErrPasswordLength", err)
+	}
+	if err := e.svc.SetPassword(ctx, "nobody@example.com", newPassword); !errors.Is(err, ErrUserNotFound) {
+		t.Errorf("unknown email: %v, want ErrUserNotFound", err)
 	}
 }
 

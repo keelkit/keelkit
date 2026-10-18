@@ -52,3 +52,40 @@ func (s *Service) CreateUser(ctx context.Context, email, password string) (User,
 	}
 	return u, nil
 }
+
+// SetPassword меняет пароль пользователя и удаляет все его сессии: вошедшие с прежним паролем
+// разлогиниваются. Email ищется после NormalizeEmail, пароль проходит CheckPasswordPolicy.
+// Ошибки: ErrPasswordLength, ErrUserNotFound.
+func (s *Service) SetPassword(ctx context.Context, email, password string) error {
+	email = NormalizeEmail(email)
+	if err := CheckPasswordPolicy(password); err != nil {
+		return err
+	}
+	hash, err := hashPassword(ctx, password, defaultParams)
+	if err != nil {
+		return err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("auth: set password: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	var id int64
+	err = tx.QueryRowContext(ctx, `
+		UPDATE users SET password_hash = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+		WHERE email = ? RETURNING id`, hash, email,
+	).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("%w: %s", ErrUserNotFound, email)
+	}
+	if err != nil {
+		return fmt.Errorf("auth: set password: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, id); err != nil {
+		return fmt.Errorf("auth: delete sessions of user %d: %w", id, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("auth: set password: %w", err)
+	}
+	return nil
+}

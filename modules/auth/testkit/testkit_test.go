@@ -33,6 +33,7 @@ func TestRun(t *testing.T) {
 			LogoutPath:    "/admin/logout",
 			Email:         "admin@example.com",
 			Password:      "correct horse",
+			SetPassword:   svc.SetPassword,
 		}
 	})
 }

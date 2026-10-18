@@ -4,7 +4,7 @@
 // с Config.Now = now, и пользователя, созданного через Service.CreateUser. Тесты ходят по сайту как браузер
 // (HTTPS, cookie) и проверяют: без сессии — редирект на вход; вход и выход; cookie сессии HttpOnly, Secure,
 // SameSite; форма входа без токена и POST без CSRF-токена сессии отклоняются (403); после неудачных попыток
-// вход блокируется (429); сессия истекает.
+// вход блокируется (429); сессия истекает; смена пароля (Site.SetPassword) завершает сессии и меняет пароль входа.
 //
 // Что ожидается от сайта:
 //
@@ -25,12 +25,14 @@
 //     t.Fatal(err)
 //     }
 //     return testkit.Site{Handler: newServer(db, svc), LoginPath: "/admin/login", ProtectedPath: "/admin",
-//     LogoutPath: "/admin/logout", Email: "admin@example.com", Password: "correct horse"}
+//     LogoutPath: "/admin/logout", Email: "admin@example.com", Password: "correct horse",
+//     SetPassword: svc.SetPassword}
 //     })
 //     }
 package testkit
 
 import (
+	"context"
 	"html"
 	"io"
 	"net/http"
@@ -54,6 +56,9 @@ type Site struct {
 	LoginPath, ProtectedPath, LogoutPath string
 	// Email и Password — существующий пользователь.
 	Email, Password string
+	// SetPassword — смена пароля, которой пользуется сайт (обычно Service.SetPassword).
+	// Без неё тест смены пароля пропускается.
+	SetPassword func(ctx context.Context, email, password string) error
 }
 
 // maxAttempts — сколько неудачных попыток входа ждать блокировки.
@@ -72,6 +77,7 @@ func Run(t *testing.T, setup func(t *testing.T, now func() time.Time) Site) {
 	t.Run("PostWithoutToken", func(t *testing.T) { testPostWithoutToken(newBrowser(t, setup)) })
 	t.Run("RateLimit", func(t *testing.T) { testRateLimit(newBrowser(t, setup)) })
 	t.Run("SessionExpires", func(t *testing.T) { testSessionExpires(newBrowser(t, setup)) })
+	t.Run("SetPassword", func(t *testing.T) { testSetPassword(newBrowser(t, setup)) })
 }
 
 func testRedirectsToLogin(b *browser) {
@@ -171,6 +177,27 @@ func testSessionExpires(b *browser) {
 	b.clock.add(sessionLifetimeBound)
 	resp, _ := b.get(b.site.ProtectedPath)
 	b.wantRedirect(resp, b.site.LoginPath, "GET "+b.site.ProtectedPath+" after the session lifetime")
+}
+
+func testSetPassword(b *browser) {
+	if b.site.SetPassword == nil {
+		b.t.Skip("Site.SetPassword is not set")
+	}
+	if resp := b.login(b.site.Password); !isRedirect(resp.status) {
+		b.t.Fatalf("login: status %d, want redirect", resp.status)
+	}
+	newPassword := b.site.Password + "-new"
+	if err := b.site.SetPassword(b.t.Context(), b.site.Email, newPassword); err != nil {
+		b.t.Fatalf("SetPassword: %v", err)
+	}
+	resp, _ := b.get(b.site.ProtectedPath)
+	b.wantRedirect(resp, b.site.LoginPath, "GET "+b.site.ProtectedPath+" after password change")
+	if resp := b.login(b.site.Password); isRedirect(resp.status) {
+		b.t.Error("login with the old password after password change succeeded")
+	}
+	if resp := b.login(newPassword); !isRedirect(resp.status) {
+		b.t.Errorf("login with the new password: status %d, want redirect", resp.status)
+	}
 }
 
 // clock — время сайта, которое тесты сдвигают.
