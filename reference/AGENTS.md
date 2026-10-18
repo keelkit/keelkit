@@ -23,7 +23,7 @@
 
 - Go: `go 1.26.0` в `go.mod` (актуальный релиз минус один минор), тулчейн `go1.27.2`.
 - Модули Keelkit (публичный репозиторий `github.com/keelkit/keelkit`, скачиваются как любые зависимости Go):
-  `github.com/keelkit/keelkit/modules/images` v0.2.0, `github.com/keelkit/keelkit/modules/files` v0.2.0
+  `github.com/keelkit/keelkit/modules/images` v0.3.0, `github.com/keelkit/keelkit/modules/files` v0.2.0
   (таблицы `files_*`), `github.com/keelkit/keelkit/modules/richtext` v0.2.0 (без таблиц и миграций),
   `github.com/keelkit/keelkit/modules/auth` v0.2.0 (таблицы `users`, `sessions`);
   в `site.yaml` — `modules: { images: v0, files: v0, richtext: v0, auth: v0 }` (`spec` v0.8.0: `SPEC_VERSION` в `Makefile`).

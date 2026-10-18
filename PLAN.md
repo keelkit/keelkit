@@ -1,6 +1,6 @@
 # PLAN.md — план первого этапа Keelkit
 
-Пошаговый план по разделу «Первый этап» из `AGENTS.md`. Отмечайте прогресс чекбоксами.
+Пошаговый план по разделу «Первый этап» из `docs/roadmap.md`. Отмечайте прогресс чекбоксами.
 
 **Правило плана:** после каждого этапа сервис находится в рабочем состоянии —
 его можно запустить одной командой и увидеть результат в браузере, в JSON или в сгенерированной HTML-странице.
@@ -930,11 +930,41 @@ make check MODULE=reference && make plugin-validate
 
 ---
 
+## Этап 12.6. Готовность к первому настоящему сайту
+
+Цель: человек ставит плагин из маркетплейса и создаёт настоящий сайт через `create-site`; всё, что для этого нужно,
+опубликовано и проверено. Сайт — в отдельном репозитории, вне монорепо (решение человека, 2026-10-18).
+
+- [x] Шаг 1. Документация сверена с кодом: версия `images` в `reference/AGENTS.md`, тег плагина в `README.md`,
+      статус эвалов в `skills/README.md`, ссылки `PLAN.md` на `docs/`
+- [ ] Шаг 2. Смена пароля (без неё забытый пароль — вход только правкой БД): в `auth` — `Service.SetPassword(ctx,
+      email, password)`: та же политика, что у `CreateUser`, сессии пользователя удаляются; тест в модуле и в
+      `testkit`; `CHANGELOG.md` (Added), релиз `auth v0.3.0`. Эталон: `auth v0.3.0` в `go.mod`, `site user password
+      EMAIL` и `make user-password EMAIL=…` (ввод как у `user-create`), тест, строка в «Команды» `reference/AGENTS.md`,
+      цель — в списке `check-site.sh`
+- [ ] Шаг 3. Релиз плагина `skills/v0.2.0`: версия в `plugin.json`, `[Unreleased]` → `[0.2.0]` в `skills/CHANGELOG.md`,
+      `make release MODULE=skills VERSION=v0.2.0` (тег фиксирует эталон с `docs/` и сменой пароля)
+- [ ] Шаг 4. Опубликованный путь без LLM: `fetch-reference.sh` с тега `skills/v0.2.0` с GitHub (без `KEELKIT_REPO`)
+      в пустой каталог вне монорепо, там `make generate-check test e2e-browser` и `check-site.sh`
+- [ ] Шаг 5 (человек). Плагин из маркетплейса: `/plugin marketplace add keelkit/keelkit`,
+      `/plugin install keelkit@keelkit`; в `/plugin` — `keelkit` 0.2.0, скилл `/create-site` виден
+
+### Проверка
+```sh
+git ls-remote --tags origin 'skills/v0.2.0' 'modules/auth/v0.3.0'   # оба тега опубликованы
+make check
+# каталог из шага 4: make test e2e-browser — зелёные; check-site.sh — без FAIL
+# make dev в нём → make user-password EMAIL=admin@example.com → вход в /admin с новым паролем, старая сессия разлогинена
+```
+
+---
+
 ## Этап 13. Второй сайт и итоги первого этапа
 
 Цель: подтвердить переиспользование на реальном сайте в отдельном репозитории.
 
-- [ ] Создать второй сайт через `create-site` в отдельном репозитории
+- [ ] Создать второй сайт через `create-site` в отдельном репозитории: пустая папка вне монорепо, Claude Code в ней,
+      `/create-site` — интервью, `site.yaml` и `PLAN.md` сайта; дальше по шагу за сессию (`/clear`, `/create-site`)
 - [ ] Запустить на нём `upgrade-site` при выходе новой версии модуля
 - [ ] Ретроспектива (записать в `AGENTS.md` или отдельный документ): что переиспользовалось, где агент отклонился от конвенций, что вынести в модули (авторизация, SEO/sitemap/RSS), что изменить перед новостями и каталогом
 - [ ] Решение с человеком о `v1.0.0` модулей
@@ -972,7 +1002,7 @@ make check MODULE=reference && make plugin-validate
 
 - [x] Санитайзер HTML для `richtext` — этап 3. Решено: `microcosm-cc/bluemonday` v1.0.27 (последний релиз 2024-07, репозиторий живой, BSD-3)
 - [x] YAML-парсер и валидатор JSON Schema — этап 1. Решено: `go.yaml.in/yaml/v3` (преемник архивного `gopkg.in/yaml.v3`) и `santhosh-tekuri/jsonschema/v6`
-- [x] Хеширование паролей — этап 4. Решено: argon2id из `golang.org/x/crypto/argon2` v0.57.0 (параметры — в `AGENTS.md`, «Принятые решения»)
+- [x] Хеширование паролей — этап 4. Решено: argon2id из `golang.org/x/crypto/argon2` v0.57.0 (параметры — в `docs/decisions.md`)
 - [x] Ввод пароля без эха для `site user create` — этап 4. Решено: `golang.org/x/term` v0.46.0
 - [x] Чтение ориентации EXIF — этап 6. Решено: свой минимальный парсер (`modules/images/internal/exif`); `rwcarlsen/goexif` без тегов semver, `dsoprea/go-exif` избыточно тяжёл
 - [x] Клиент S3 — этап 7. Решено: отложить до появления потребности; пока только `DiskStorage` (кандидат на будущее — `minio/minio-go`)
