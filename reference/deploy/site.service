@@ -1,4 +1,4 @@
-# Сайт под systemd. Установка и обновление — «Развёртывание» в AGENTS.md.
+# Сайт под systemd. Установка и обновление — «Развёртывание» в docs/deploy.md.
 # Несколько сайтов на одном сервере — по файлу на сайт: замените «site» в имени файла, User, путях и StateDirectory.
 [Unit]
 Description=Keelkit site

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Проверка структуры сайта Keelkit на соответствие конвенциям эталона (reference/AGENTS.md, «Структура»).
+# Проверка структуры сайта Keelkit на соответствие конвенциям эталона (reference/docs/structure.md, «Структура»).
 # Не заменяет тесты сайта (make test, e2e): проверяет то, что тесты не видят, — файлы, каталоги, цели make,
 # соответствие типов контента в site.yaml пакетам internal/content/<тип>/.
 #
@@ -20,12 +20,19 @@ for f in site.yaml AGENTS.md CLAUDE.md Makefile go.mod go.sum sqlc.yaml .golangc
   cmd/site/spec_test.go cmd/site/schema_test.go cmd/site/e2e_test.go cmd/site/e2e_admin_test.go cmd/site/browser_test.go \
   db/migrations/embed.go db/schema.sql \
   deploy/site.service deploy/site-migrate.service deploy/site-backup.service deploy/site-backup.timer deploy/site.env.example \
-  static/static.go static/style.css static/admin.css; do
+  static/static.go static/style.css static/admin.css \
+  docs/structure.md docs/content-types.md docs/admin.md docs/templates.md docs/media.md docs/seo.md docs/tests.md docs/deploy.md; do
   [ -f "$f" ] && ok "$f" || bad "нет файла $f"
 done
 for d in internal/admin internal/blocks internal/database internal/listfield internal/media internal/menu \
   internal/seo internal/seofields internal/settings internal/slug internal/web; do
   [ -d "$d" ] && ok "$d/" || bad "нет каталога $d/"
+done
+
+# AGENTS.md — оглавление: каждый файл docs/ есть в его карте, иначе агент о нём не узнает.
+for f in docs/*.md; do
+  [ -f "$f" ] || continue
+  grep -qF "\`$f\`" AGENTS.md 2>/dev/null && ok "AGENTS.md -> $f" || bad "AGENTS.md: нет ссылки на $f (карта «Документация»)"
 done
 
 [ "$(cat CLAUDE.md 2>/dev/null)" = "@AGENTS.md" ] && ok "CLAUDE.md = @AGENTS.md" || bad "CLAUDE.md должен состоять из одной строки @AGENTS.md"

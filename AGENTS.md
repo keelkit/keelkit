@@ -294,7 +294,10 @@ content:
 
 Каждый сайт содержит:
 - `site.yaml` — спецификация;
-- `AGENTS.md` — конвенции сайта и ссылка на используемые версии модулей;
+- `AGENTS.md` — короткое оглавление: версии модулей, команды, БД и миграции, карта «Документация» — какой файл
+  `docs/` читать под задачу (обычными ссылками, не `@`-импортом: `AGENTS.md` загружается в каждую сессию, `docs/` — по необходимости);
+- `docs/` — конвенции сайта по темам (`structure.md`, `content-types.md`, `admin.md`, `templates.md`, `media.md`,
+  `seo.md`, `tests.md`, `deploy.md`);
 - `CLAUDE.md` — одна строка `@AGENTS.md`;
 - `Makefile` — единая точка входа (см. раздел «Makefile»);
 - e2e-тесты ключевых сценариев (главная, раздел, публикация, загрузка изображения);
@@ -353,6 +356,7 @@ internal/slug/             # slug из заголовка (транслитер�
 db/migrations/             # миграции сайта (goose, своя таблица версий) + embed.go
 deploy/                    # юниты systemd (serve, migrate, backup + таймер), пример site.env; Dockerfile — в корне сайта
 static/                    # CSS, htmx-<версия>.min.js, свой JS админки (editor.js, live-preview.js) — через embed
+docs/                      # конвенции сайта по темам; AGENTS.md — оглавление с картой этих файлов
 site.yaml, sqlc.yaml, Makefile, AGENTS.md, CLAUDE.md
 ```
 Группировка по типу контента, а не по слою: `add-section` добавляет одну папку.

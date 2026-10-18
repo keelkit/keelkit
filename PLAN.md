@@ -910,7 +910,7 @@ make evals SKILL=upgrade-site     # копия reference на v0.2.0 → обн�
 необходимости; ссылки обычные, не `@`-импорт (иначе они тоже загрузятся сразу). Текст переносится скриптом, без
 переписывания; правила не теряются и не меняются.
 
-- [ ] Шаг 1. Эталон: `reference/AGENTS.md` → `AGENTS.md` + `reference/docs/` (например `content-types.md` — тип
+- [x] Шаг 1. Эталон: `reference/AGENTS.md` → `AGENTS.md` + `reference/docs/` (например `content-types.md` — тип
       контента, блоки, черновик; `admin.md` — админка, настройки, меню; `media.md` — изображения и файлы; `seo.md`;
       `deploy.md` — конфигурация, резервные копии, развёртывание; `tests.md`; `structure.md` — маршруты, структура).
       Ссылки на разделы `AGENTS.md` сайта — в `skills/create-site` (`SKILL.md`, `references/*.md`, шаг

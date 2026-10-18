@@ -62,7 +62,7 @@ type Kind struct {
 }
 
 // Kinds — все типы блоков, в порядке кнопок «Добавить блок». Новый тип — запись здесь, структура в types.go,
-// вывод в view.templ, форма в form.templ и тест (AGENTS.md сайта, «Блоки»).
+// вывод в view.templ, форма в form.templ и тест (docs/content-types.md сайта, «Блоки»).
 var Kinds = []Kind{
 	{Name: "text", Title: "Текст", new: func() Content { return &Text{} }},
 	{Name: "image", Title: "Изображение", new: func() Content { return &Image{} }},

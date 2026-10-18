@@ -24,7 +24,7 @@ import (
 
 // BlogPath — раздел постов на сайте: лента, посты (BlogPath/slug) и ленты категорий (BlogPath/category/slug).
 // Один сегмент пути; другой адрес раздела (например /news) — правка только этой константы
-// (reference/AGENTS.md, «Адрес раздела постов»).
+// (docs/content-types.md, «Адрес раздела постов»).
 const BlogPath = "/blog"
 
 // Ограничения вывода.

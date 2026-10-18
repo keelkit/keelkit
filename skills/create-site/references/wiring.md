@@ -28,7 +28,7 @@
 | карта `code` в `TestSpecBlocksMatchCode` | список блоков поля | поле `blocks` |
 | `cmd/site/seed.go` | dev-данные, порядок вызовов (сначала то, на что ссылаются) | всегда |
 | `cmd/site/e2e_*_test.go`, `browser_test.go` | тесты | всегда |
-| `AGENTS.md` | маршруты, тип контента, seed, тесты, структура | всегда |
+| `docs/` (`structure.md`, `content-types.md`, `tests.md`, …) | маршруты, тип контента, seed, тесты, структура | всегда |
 
 `internal/menu` знает о модели страниц: запросы `ListSiteMenuItems` и `ListMenuPages` (`internal/menu/queries.sql`)
 читают `page_contents` (опубликованная копия, пометка «не опубликована»). Страницы без `draft` (одна таблица
@@ -43,7 +43,7 @@
   миграций `files`, маршруты `/files`, `/admin/files`, `fileUsage`, раздел «Файлы», блок `file` (из `blocks.Kinds`,
   `types.go`, `view.templ`, `form.templ`, `FormEnv.Files`, `ResolveFiles`, тестов блоков), `<тип>_files`,
   `seedFiles` и `cmd/site/seedfiles/`, `files_test.go`, `e2e_files_admin_test.go`, файлы из `backup` (`filesDir`
-  и проверка в `backup_test.go`), `files` из `site.yaml`; `go mod tidy`. Раздел «Файлы» `AGENTS.md` — убрать.
+  и проверка в `backup_test.go`), `files` из `site.yaml`; `go mod tidy`. Раздел «Файлы» `docs/media.md` — убрать.
 - `images`, `richtext`, `auth` — обязательны (на них стоят медиатека, блоки, админка).
 - Порядок `migrationSources` (`cmd/site/main.go`) — как `modules` в `site.yaml`, сайт — последним.
 

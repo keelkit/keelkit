@@ -52,7 +52,7 @@
    make dev        # миграции, dev-данные, сайт на http://localhost:9090
    ```
    Админка — `http://localhost:9090/admin`, dev-вход `admin@example.com` / `adminadmin`.
-   Список команд сайта — `make help`, конвенции и развёртывание — `AGENTS.md` сайта.
+   Список команд сайта — `make help`, конвенции — `AGENTS.md` сайта и его `docs/` (развёртывание — `docs/deploy.md`).
 
 `create-site` копирует эталон с тега своей версии (`skills/vX.Y.Z`), поэтому скилл и эталон всегда согласованы.
 До первого релиза плагина тега нет — эталон берётся из локального клона: `KEELKIT_REPO=~/путь/к/keelkit claude`.
@@ -102,7 +102,7 @@ make evals SKILL=upgrade-site      # эвал скилла: агент + про�
 CI на GitHub пока запускается только вручную; проверки — локально `make check`, его же вызывает `make release`.
 
 Правила проекта — архитектура, версионирование, миграции, зависимости, конвенции сайтов — в [`AGENTS.md`](AGENTS.md)
-(его читают и люди, и агенты). Устройство эталонного сайта — [`reference/AGENTS.md`](reference/AGENTS.md).
+(его читают и люди, и агенты). Устройство эталонного сайта — [`reference/AGENTS.md`](reference/AGENTS.md) и [`reference/docs/`](reference/docs/).
 
 ## Лицензия
 

@@ -13,7 +13,7 @@
 API не ломается: `Upload`, `Get`, `List`, `Reprocess`, `Handler` — как раньше.
 
 **Изменения в коде сайта** (образец — `reference/internal/web/picture.go`, `picture.templ`, `picture_test.go`,
-`static/style.css`; раздел «Изображения» в `reference/AGENTS.md`):
+`static/style.css`; раздел «Изображения» в `reference/docs/media.md`):
 1. `go get github.com/keelkit/keelkit/modules/images@v0.3.0`, `go mod tidy`.
 2. Вывод картинки (в эталоне — `web.PictureMobile`, через неё и `web.Picture`): у `<img>` с заглушкой — класс `ph`
    и `style` с CSS-переменной `--ph: url(data:image/svg+xml,…)`. SVG растягивает заглушку на всю картинку и
