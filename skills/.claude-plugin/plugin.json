@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "keelkit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Создание сайта по спецификации site.yaml (create-site) и обновление модулей Keelkit на сайте (upgrade-site)",
   "author": {
     "name": "Vladimir Kuznetsov"

@@ -942,7 +942,7 @@ make check MODULE=reference && make plugin-validate
       `testkit`; `CHANGELOG.md` (Added), релиз `auth v0.3.0`. Эталон: `auth v0.3.0` в `go.mod`, `site user password
       EMAIL` и `make user-password EMAIL=…` (ввод как у `user-create`), тест, строка в «Команды» `reference/AGENTS.md`,
       цель — в списке `check-site.sh`
-- [ ] Шаг 3. Релиз плагина `skills/v0.2.0`: версия в `plugin.json`, `[Unreleased]` → `[0.2.0]` в `skills/CHANGELOG.md`,
+- [x] Шаг 3. Релиз плагина `skills/v0.2.0`: версия в `plugin.json`, `[Unreleased]` → `[0.2.0]` в `skills/CHANGELOG.md`,
       `make release MODULE=skills VERSION=v0.2.0` (тег фиксирует эталон с `docs/` и сменой пароля)
 - [ ] Шаг 4. Опубликованный путь без LLM: `fetch-reference.sh` с тега `skills/v0.2.0` с GitHub (без `KEELKIT_REPO`)
       в пустой каталог вне монорепо, там `make generate-check test e2e-browser` и `check-site.sh`

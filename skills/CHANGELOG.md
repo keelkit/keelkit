@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-18
+
 ### Added
 - Смена пароля в эталоне: `site user password EMAIL` и `make user-password EMAIL=…` (`auth v0.3.0`,
   `Service.SetPassword`: сессии пользователя завершаются); `check-site.sh` требует цель `user-password`.
